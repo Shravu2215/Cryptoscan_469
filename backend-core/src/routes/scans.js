@@ -2,11 +2,23 @@ const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const prisma = require('../utils/prismaClient');
 const { getOwnedRepo, getOwnedScan, getOwnedFinding } = require('../utils/ownership');
+const { isDev, logStructuredError, sendError, serviceUnavailable } = require('../utils/failClosed');
 const { buildCbom } = require('../../../cbom-service/src/services/cbomGenerator');
 const { anchorCBOM } = require('../../../blockchain-module/scripts/anchor');
 const { verifyScan } = require('../../../blockchain-module/scripts/verify');
 
 const router = express.Router();
+
+async function markScanFailed(scan, err, event) {
+  scan.status = 'FAILED';
+  logStructuredError(event, err, { scanId: scan.id });
+  try {
+    await prisma.scan.update({ where: { id: scan.id }, data: { status: 'FAILED' } });
+  } catch (writeErr) {
+    logStructuredError('scan.failed_status_write_failed', writeErr, { scanId: scan.id });
+  }
+  if (isDev) require('../utils/devStore').saveScan(scan);
+}
 
 // POST /scan/:repoId
 // This creates the Scan row and flips status to RUNNING.
@@ -26,9 +38,11 @@ router.post('/:repoId', requireAuth, async (req, res) => {
         data: { repoId, status: 'PENDING' },
       });
     } catch (dbErr) {
+      if (!isDev) throw serviceUnavailable('scan.create_failed', dbErr, { repoId });
+      logStructuredError('scan.create_failed', dbErr, { repoId }, 'warning');
       scan = { id: 'scan-dev-' + Date.now(), repoId, status: 'PENDING', createdAt: new Date() };
     }
-    saveScan(scan);
+    if (isDev) saveScan(scan);
 
     // --- Scanner Engine hook ---
     const { exec } = require('child_process');
@@ -40,8 +54,11 @@ router.post('/:repoId', requireAuth, async (req, res) => {
         scan.status = 'RUNNING';
         try {
           await prisma.scan.update({ where: { id: scan.id }, data: { status: 'RUNNING' } });
-        } catch (_) {}
-        saveScan(scan);
+        } catch (err) {
+          await markScanFailed(scan, err, 'scan.running_status_write_failed');
+          return;
+        }
+        if (isDev) saveScan(scan);
 
         let targetPath = repo.filePath;
         const scannerDir = path.resolve(__dirname, '../../../scanner');
@@ -53,12 +70,7 @@ router.post('/:repoId', requireAuth, async (req, res) => {
 
         exec(`${pythonCmd} pipeline.py "${absoluteRepoPath}"`, { cwd: scannerDir }, async (error, stdout, stderr) => {
           if (error) {
-            console.error('Scanner error:', error);
-            scan.status = 'FAILED';
-            try {
-              await prisma.scan.update({ where: { id: scan.id }, data: { status: 'FAILED' } });
-            } catch (_) {}
-            saveScan(scan);
+            await markScanFailed(scan, error, 'scan.engine_failed');
             return;
           }
 
@@ -87,35 +99,30 @@ router.post('/:repoId', requireAuth, async (req, res) => {
               suppressionReason: f.suppression_reason || null
             }));
 
-            saveFindings(scan.id, dbFindings);
             try {
               if (dbFindings.length > 0) {
                 await prisma.finding.createMany({ data: dbFindings });
               }
               await prisma.scan.update({ where: { id: scan.id }, data: { status: 'COMPLETED', completedAt: new Date() } });
-            } catch (_) {}
+            } catch (err) {
+              await markScanFailed(scan, err, 'scan.results_persist_failed');
+              return;
+            }
 
             scan.status = 'COMPLETED';
             scan.completedAt = new Date();
             scan.filesScanned = result.files_scanned !== undefined ? result.files_scanned : (result.file_manifest ? result.file_manifest.length : 0);
             scan.systems = result.systems || [];
-            saveScan(scan);
+            if (isDev) {
+              saveFindings(scan.id, dbFindings);
+              saveScan(scan);
+            }
           } catch (parseError) {
-            console.error('Failed to parse scanner output:', parseError, stdout);
-            scan.status = 'FAILED';
-            try {
-              await prisma.scan.update({ where: { id: scan.id }, data: { status: 'FAILED' } });
-            } catch (_) {}
-            saveScan(scan);
+            await markScanFailed(scan, parseError, 'scan.output_parse_failed');
           }
         });
       } catch (err) {
-        console.error('Failed to start scan:', err);
-        scan.status = 'FAILED';
-        try {
-          await prisma.scan.update({ where: { id: scan.id }, data: { status: 'FAILED' } });
-        } catch (_) {}
-        saveScan(scan);
+        await markScanFailed(scan, err, 'scan.start_failed');
       }
     })();
 
@@ -125,8 +132,7 @@ router.post('/:repoId', requireAuth, async (req, res) => {
       message: 'Scan queued. Poll GET /scan/:scanId/findings for results.',
     });
   } catch (err) {
-    console.error('Scan trigger error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return sendError(res, err, 'scan.start_request_failed');
   }
 });
 
@@ -142,20 +148,18 @@ router.get('/:scanId/findings', requireAuth, async (req, res) => {
     let findings;
     try {
       findings = await prisma.finding.findMany({ where: { scanId } });
-    } catch (_) {}
-    if (!findings || findings.length === 0) findings = getFindings(scanId);
+    } catch (err) {
+      if (!isDev) throw serviceUnavailable('scan.findings_read_failed', err, { scanId });
+      logStructuredError('scan.findings_read_failed', err, { scanId }, 'warning');
+      findings = getFindings(scanId);
+    }
+    if (isDev && (!findings || findings.length === 0)) findings = getFindings(scanId);
 
     // Live-join businessCriticality from the current repo record.
     // This means changing a repo's criticality tier is immediately reflected
     // on the Findings page, CBOM page, and reports without requiring a re-scan.
     let businessCriticality = 'Not tagged';
-    try {
-      if (scan.repo && scan.repo.businessCriticality) {
-        businessCriticality = scan.repo.businessCriticality;
-      } else if (scan.repo && (scan.repo.businessCriticality || scan.repo.criticality_tier)) {
-        businessCriticality = scan.repo.businessCriticality || scan.repo.criticality_tier;
-      }
-    } catch (_) {}
+    businessCriticality = scan.repo?.businessCriticality || scan.repo?.criticality_tier || 'Not tagged';
 
     const allFindings = findings || [];
     const uniqueFiles = new Set(allFindings.map(f => f.filePath || f.file)).size;
@@ -179,8 +183,7 @@ router.get('/:scanId/findings', requireAuth, async (req, res) => {
       components: uniqueAlgos || null
     });
   } catch (err) {
-    console.error('Findings fetch error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return sendError(res, err, 'scan.findings_read_failed');
   }
 });
 
@@ -192,7 +195,12 @@ router.get('/:scanId/cbom', requireAuth, async (req, res) => {
     const scan = await getOwnedScan(req.user.id, scanId, req.user.role);
     if (!scan) return res.status(404).json({ error: 'Scan not found' });
 
-    const dbFindings = await prisma.finding.findMany({ where: { scanId }, orderBy: { id: 'asc' } });
+    let dbFindings;
+    try {
+      dbFindings = await prisma.finding.findMany({ where: { scanId }, orderBy: { id: 'asc' } });
+    } catch (err) {
+      throw serviceUnavailable('scan.cbom_findings_read_failed', err, { scanId });
+    }
 
     const rawFindings = dbFindings.map(f => ({
       id: f.id,
@@ -208,11 +216,15 @@ router.get('/:scanId/cbom', requireAuth, async (req, res) => {
 
     let repoScans = [];
     if (scan.repoId) {
-      repoScans = await prisma.scan.findMany({
-        where: { repoId: scan.repoId },
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-        select: { id: true, createdAt: true, repoId: true }
-      });
+      try {
+        repoScans = await prisma.scan.findMany({
+          where: { repoId: scan.repoId },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          select: { id: true, createdAt: true, repoId: true }
+        });
+      } catch (err) {
+        throw serviceUnavailable('scan.cbom_history_read_failed', err, { scanId });
+      }
     }
 
     const cbom = buildCbom({
@@ -232,8 +244,7 @@ router.get('/:scanId/cbom', requireAuth, async (req, res) => {
 
     return res.json(cbom);
   } catch (err) {
-    console.error('CBOM fetch error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return sendError(res, err, 'scan.cbom_export_failed');
   }
 });
 
@@ -248,13 +259,16 @@ router.post('/:scanId/anchor', requireAuth, async (req, res) => {
     let dbFindings = [];
     try {
       dbFindings = await prisma.finding.findMany({ where: { scanId }, orderBy: { id: 'asc' } });
-    } catch (_) {}
+    } catch (err) {
+      if (!isDev) throw serviceUnavailable('scan.anchor_findings_read_failed', err, { scanId });
+      logStructuredError('scan.anchor_findings_read_failed', err, { scanId }, 'warning');
+    }
 
-    if (!dbFindings || dbFindings.length === 0) {
+    if (isDev && (!dbFindings || dbFindings.length === 0)) {
       dbFindings = getFindings(scanId);
     }
 
-    if ((!dbFindings || dbFindings.length === 0) && req.body && Array.isArray(req.body.findings)) {
+    if (isDev && (!dbFindings || dbFindings.length === 0) && req.body && Array.isArray(req.body.findings)) {
       dbFindings = req.body.findings;
     }
 
@@ -277,14 +291,20 @@ router.post('/:scanId/anchor', requireAuth, async (req, res) => {
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           select: { id: true, createdAt: true, repoId: true }
         });
-      } catch (_) {}
+      } catch (err) {
+        if (!isDev) throw serviceUnavailable('scan.anchor_history_read_failed', err, { scanId });
+        logStructuredError('scan.anchor_history_read_failed', err, { scanId }, 'warning');
+      }
     }
     const cbom = buildCbom({ scanId: scan.id, repoId: scan.repoId, createdAt: scan.createdAt, repo: scan.repo || { name: 'Scanned Repository' }, repoScans, rawFindings });
     const contentBuffer = Buffer.from(JSON.stringify(cbom));
 
     // Check mock flag
     const useMock = process.env.USE_MOCK === 'true';
-    if (useMock) {
+    if (useMock && !isDev) {
+      throw serviceUnavailable('scan.mock_anchor_forbidden', new Error('USE_MOCK is only supported in development'));
+    }
+    if (useMock && isDev) {
       const mockHash = '0x8f4c7a91d2938f45a6b7e8d9c102b3a4f5c6e7d8a9b0c1d2e3f4a5b6c7d8e91a';
       const mockTxHash = '0x7f3a9a14b51c881249b6d9e034abc88d92bc9f201a9f14';
       const mockAnchor = { contentHash: mockHash, txHash: mockTxHash, signature: 'mock-sig', network: 'mocknet', blockNumber: 9140411 };
@@ -294,7 +314,9 @@ router.post('/:scanId/anchor', requireAuth, async (req, res) => {
           update: { contentHash: mockHash, txHash: mockTxHash, signature: 'mock-sig', network: 'mocknet' },
           create: { scanId: scan.id, contentHash: mockHash, txHash: mockTxHash, signature: 'mock-sig', network: 'mocknet' }
         });
-      } catch (_) {}
+      } catch (err) {
+        logStructuredError('scan.mock_anchor_persist_failed', err, { scanId }, 'warning');
+      }
       saveAnchor(scan.id, mockAnchor);
       return res.json({ txHash: mockTxHash, onChainHash: mockHash, network: 'mocknet', verified: true, blockNumber: 9140411 });
     }
@@ -307,18 +329,19 @@ router.post('/:scanId/anchor', requireAuth, async (req, res) => {
         orgId: 'cryptoscan-core'
       });
     } catch (chainErr) {
-      console.warn('Live blockchain anchor reverted or unavailable, anchoring with cryptographic Merkle proof:', chainErr.message);
+      if (!isDev) throw serviceUnavailable('scan.chain_anchor_failed', chainErr, { scanId });
+      logStructuredError('scan.chain_anchor_failed', chainErr, { scanId }, 'warning');
       const { buildMerkleTree } = require('../../../integrity-service/merkle');
       const crypto = require('crypto');
       const { root: merkleRoot } = buildMerkleTree(cbom.components || []);
       const contentHash = '0x' + merkleRoot;
-      let signature = '0x';
+      let signature;
       try {
         const { getSigner } = require('../../../integrity-service/kms');
         const wallet = await getSigner();
         signature = await wallet.signMessage(Buffer.from(contentHash));
-      } catch (_) {
-        signature = '0x' + crypto.createHash('sha256').update(contentHash + (scan.id || 'sig')).digest('hex');
+      } catch (signerErr) {
+        throw serviceUnavailable('scan.anchor_signer_failed', signerErr, { scanId });
       }
       const deterministicTx = '0x' + crypto.createHash('sha256').update(scan.id + merkleRoot).digest('hex');
 
@@ -359,9 +382,12 @@ router.post('/:scanId/anchor', requireAuth, async (req, res) => {
           network: result.network
         }
       });
-    } catch (_) {}
+    } catch (err) {
+      if (!isDev) throw serviceUnavailable('scan.anchor_persist_failed', err, { scanId });
+      logStructuredError('scan.anchor_persist_failed', err, { scanId }, 'warning');
+    }
 
-    saveAnchor(scan.id, anchor);
+    if (isDev) saveAnchor(scan.id, anchor);
 
     return res.json({
       txHash: result.txHash,
@@ -372,8 +398,7 @@ router.post('/:scanId/anchor', requireAuth, async (req, res) => {
       verified: true
     });
   } catch (err) {
-    console.error('Anchor error:', err);
-    return res.status(500).json({ error: 'Internal server error', details: err.message });
+    return sendError(res, err, 'scan.anchor_failed');
   }
 });
 
@@ -389,9 +414,12 @@ router.get('/:scanId/verify', requireAuth, async (req, res) => {
     let anchor;
     try {
       anchor = await prisma.anchor.findUnique({ where: { scanId } });
-    } catch (_) {}
+    } catch (err) {
+      if (!isDev) throw serviceUnavailable('scan.anchor_read_failed', err, { scanId });
+      logStructuredError('scan.anchor_read_failed', err, { scanId }, 'warning');
+    }
 
-    if (!anchor) anchor = getAnchor(scanId);
+    if (isDev && !anchor) anchor = getAnchor(scanId);
 
     if (!anchor) {
       return res.status(404).json({ error: 'No anchor found for this scan' });
@@ -400,9 +428,12 @@ router.get('/:scanId/verify', requireAuth, async (req, res) => {
     let dbFindings = [];
     try {
       dbFindings = await prisma.finding.findMany({ where: { scanId }, orderBy: { id: 'asc' } });
-    } catch (_) {}
+    } catch (err) {
+      if (!isDev) throw serviceUnavailable('scan.verify_findings_read_failed', err, { scanId });
+      logStructuredError('scan.verify_findings_read_failed', err, { scanId }, 'warning');
+    }
 
-    if (!dbFindings || dbFindings.length === 0) {
+    if (isDev && (!dbFindings || dbFindings.length === 0)) {
       dbFindings = getFindings(scanId);
     }
 
@@ -425,46 +456,43 @@ router.get('/:scanId/verify', requireAuth, async (req, res) => {
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           select: { id: true, createdAt: true, repoId: true }
         });
-      } catch (_) {}
+      } catch (err) {
+        if (!isDev) throw serviceUnavailable('scan.verify_history_read_failed', err, { scanId });
+        logStructuredError('scan.verify_history_read_failed', err, { scanId }, 'warning');
+      }
     }
     const cbom = buildCbom({ scanId: scan.id, repoId: scan.repoId, createdAt: scan.createdAt, repo: scan.repo || { name: 'Scanned Repository' }, repoScans, rawFindings });
     const cbomJson = JSON.stringify(cbom);
 
-    let recomputedHash = anchor.contentHash;
-    let merkleData = null;
+    let recomputedHash;
+    let merkleData;
     try {
       const { buildMerkleTree } = require('../../../integrity-service/merkle');
-      if (cbom.components && cbom.components.length > 0) {
-        const treeResult = buildMerkleTree(cbom.components);
-        recomputedHash = '0x' + treeResult.root;
-        merkleData = {
-          tree: treeResult.tree,
-          leaves: treeResult.leaves
-        };
-      }
-    } catch (_) {
-      const crypto = require('crypto');
-      recomputedHash = '0x' + crypto.createHash('sha256').update(cbomJson).digest('hex');
+      const treeResult = buildMerkleTree(cbom.components || []);
+      recomputedHash = '0x' + treeResult.root;
+      merkleData = { tree: treeResult.tree, leaves: treeResult.leaves };
+    } catch (err) {
+      throw serviceUnavailable('scan.verify_merkle_failed', err, { scanId });
     }
 
     const storedHash = (anchor.contentHash || '').toLowerCase();
-    let hashMatches = recomputedHash.toLowerCase() === storedHash || storedHash.length > 0;
+    const normalizeHash = value => String(value || '').toLowerCase().replace(/^0x/, '');
+    const hashMatches = normalizeHash(recomputedHash) === normalizeHash(storedHash);
 
     let onChainHash = anchor.contentHash;
 
     return res.json({
-      verified: true,
+      verified: hashMatches,
       onChainHash: onChainHash || recomputedHash,
       offChainHash: recomputedHash,
-      signatureValid: true,
+      signatureValid: null,
       txHash: anchor.txHash,
       network: anchor.network || 'sepolia',
       blockNumber: anchor.blockNumber || 9140411,
       merkleData: merkleData
     });
   } catch (err) {
-    console.error('Verify error:', err);
-    return res.status(500).json({ error: 'Internal server error', details: err.message });
+    return sendError(res, err, 'scan.verify_failed');
   }
 });
 
@@ -475,14 +503,18 @@ router.get('/:scanId/migration-assessment', requireAuth, async (req, res) => {
     const scan = await getOwnedScan(req.user.id, scanId, req.user.role);
     if (!scan) return res.status(404).json({ error: 'Scan not found' });
 
-    const rawFindings = await prisma.finding.findMany({ where: { scanId }, orderBy: { id: 'asc' } });
+    let rawFindings;
+    try {
+      rawFindings = await prisma.finding.findMany({ where: { scanId }, orderBy: { id: 'asc' } });
+    } catch (err) {
+      throw serviceUnavailable('scan.migration_findings_read_failed', err, { scanId });
+    }
     const { assessMigration } = require('../../../cbom-service/src/services/migrationAssessment');
     
     const result = assessMigration(scan, rawFindings);
     return res.json(result);
   } catch (err) {
-    console.error('Migration assessment error:', err);
-    return res.status(500).json({ error: 'Internal server error', details: err.message });
+    return sendError(res, err, 'scan.migration_assessment_failed');
   }
 });
 
@@ -499,15 +531,19 @@ router.put('/:scanId/findings/:findingId/resolve', requireAuth, async (req, res)
       return res.status(404).json({ error: 'Finding not found in this scan' });
     }
 
-    const updated = await prisma.finding.update({
-      where: { id: findingId },
-      data: { status: 'RESOLVED' }
-    });
+    let updated;
+    try {
+      updated = await prisma.finding.update({
+        where: { id: findingId },
+        data: { status: 'RESOLVED' }
+      });
+    } catch (err) {
+      throw serviceUnavailable('scan.finding_resolve_failed', err, { scanId, findingId });
+    }
 
     return res.json({ message: 'Finding marked as resolved', finding: updated });
   } catch (err) {
-    console.error('Finding resolve error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return sendError(res, err, 'scan.finding_resolve_failed');
   }
 });
 

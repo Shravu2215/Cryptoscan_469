@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../utils/prismaClient');
+const { isDev, logStructuredError, sendError, serviceUnavailable } = require('../utils/failClosed');
 
 const router = express.Router();
 const isProd = process.env.NODE_ENV === 'production';
@@ -32,7 +33,8 @@ router.post('/signup', async (req, res) => {
         data: { email, password: hashed, name, role: 'Developer' },
       });
     } catch (dbErr) {
-      console.warn('PostgreSQL database unavailable during signup, using dev user object:', dbErr.message);
+      if (!isDev) throw serviceUnavailable('auth.signup_persist_failed', dbErr);
+      logStructuredError('auth.signup_persist_failed', dbErr, {}, 'warning');
       user = {
         id: 'user-dev-' + Date.now(),
         email: email,
@@ -48,8 +50,7 @@ router.post('/signup', async (req, res) => {
       role: user.role,
     });
   } catch (err) {
-    console.error('Signup error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return sendError(res, err, 'auth.signup_failed');
   }
 });
 
@@ -72,10 +73,15 @@ router.post('/login', async (req, res) => {
         }
       }
     } catch (dbErr) {
-      console.warn('PostgreSQL database unavailable during login, fallback to dev session:', dbErr.message);
+      if (!isDev) throw serviceUnavailable('auth.login_lookup_failed', dbErr);
+      logStructuredError('auth.login_lookup_failed', dbErr, {}, 'warning');
     }
 
     if (!user) {
+      if (!isDev) {
+        return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' } });
+      }
+      logStructuredError('auth.login_dev_session', new Error('Creating a non-persistent development session'), {}, 'warning');
       user = {
         id: 'user-dev-' + Date.now(),
         email: email,
@@ -84,7 +90,8 @@ router.post('/login', async (req, res) => {
       };
     }
 
-    const secret = process.env.JWT_SECRET || 'dev_jwt_secret_key_32_bytes_long_string';
+    const secret = process.env.JWT_SECRET;
+    if (!secret) throw serviceUnavailable('auth.jwt_secret_missing', new Error('JWT_SECRET is not configured'));
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       secret,
@@ -96,8 +103,7 @@ router.post('/login', async (req, res) => {
       user: { id: user.id, email: user.email, name: user.name || email.split('@')[0], role: user.role },
     });
   } catch (err) {
-    console.error('Login error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return sendError(res, err, 'auth.login_failed');
   }
 });
 
@@ -154,25 +160,30 @@ router.get('/github/callback', async (req, res) => {
     const primaryEmail = emails.find(e => e.primary)?.email || emails[0]?.email;
     if (!primaryEmail) return res.redirect(`${process.env.FRONTEND_URL}/?error=NoEmailProvidedByGitHub`);
 
-    let user = await prisma.user.findUnique({ where: { email: primaryEmail } });
-    if (user) {
-      if (!user.providerId) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { provider: 'github', providerId: String(githubUser.id), avatar: githubUser.avatar_url }
+    let user;
+    try {
+      user = await prisma.user.findUnique({ where: { email: primaryEmail } });
+      if (user) {
+        if (!user.providerId) {
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data: { provider: 'github', providerId: String(githubUser.id), avatar: githubUser.avatar_url }
+          });
+        }
+      } else {
+        user = await prisma.user.create({
+          data: {
+            email: primaryEmail,
+            name: githubUser.name || githubUser.login,
+            provider: 'github',
+            providerId: String(githubUser.id),
+            avatar: githubUser.avatar_url,
+            role: 'Developer'
+          }
         });
       }
-    } else {
-      user = await prisma.user.create({
-        data: {
-          email: primaryEmail,
-          name: githubUser.name || githubUser.login,
-          provider: 'github',
-          providerId: String(githubUser.id),
-          avatar: githubUser.avatar_url,
-          role: 'Developer'
-        }
-      });
+    } catch (dbErr) {
+      throw serviceUnavailable('auth.github_user_persist_failed', dbErr);
     }
 
     const token = jwt.sign(
@@ -184,7 +195,8 @@ router.get('/github/callback', async (req, res) => {
     res.cookie('token', token, { httpOnly: true, secure: isProd, sameSite: 'lax', maxAge: 24 * 60 * 60 * 1000 });
     res.redirect(`${process.env.FRONTEND_URL}/dashboard.html`);
   } catch (err) {
-    console.error(err);
+    if (err?.status === 503) return sendError(res, err, 'auth.github_callback_failed');
+    logStructuredError('auth.github_callback_failed', err);
     res.redirect(`${process.env.FRONTEND_URL}/?error=ServerError`);
   }
 });

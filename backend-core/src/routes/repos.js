@@ -11,6 +11,7 @@ const {
   getOwnedRepos,
   updateOwnedDevRepoCriticality,
 } = require('../utils/ownership');
+const { isDev, logStructuredError, sendError, serviceUnavailable } = require('../utils/failClosed');
 
 const router = express.Router();
 
@@ -134,7 +135,6 @@ router.post('/github', requireAuth, async (req, res) => {
 
     extractDir = fs.mkdtempSync(path.join(UPLOAD_DIR, 'github-'));
     const repositoryPath = extractArchive(archiveBuffer, extractDir);
-    const { saveRepo } = require('../utils/devStore');
     let repo;
     try {
       repo = await prisma.repo.create({
@@ -146,7 +146,8 @@ router.post('/github', requireAuth, async (req, res) => {
         },
       });
     } catch (dbErr) {
-      console.warn('PostgreSQL database unavailable during github import, saving to dev store:', dbErr.message);
+      if (!isDev) throw serviceUnavailable('repo.github_import_persist_failed', dbErr);
+      logStructuredError('repo.github_import_persist_failed', dbErr, {}, 'warning');
       repo = {
         id: 'repo-dev-' + Date.now(),
         name: metadata.full_name || `${github.owner}/${github.repo}`,
@@ -156,7 +157,7 @@ router.post('/github', requireAuth, async (req, res) => {
         createdAt: new Date()
       };
     }
-    saveRepo(repo);
+    if (isDev) require('../utils/devStore').saveRepo(repo);
 
     return res.status(201).json({
       id: repo.id,
@@ -167,7 +168,8 @@ router.post('/github', requireAuth, async (req, res) => {
     });
   } catch (err) {
     if (extractDir) fs.rmSync(extractDir, { recursive: true, force: true });
-    console.error('GitHub import error:', err);
+    if (err?.status === 503) return sendError(res, err, 'repo.github_import_failed');
+    logStructuredError('repo.github_import_failed', err);
     return res.status(502).json({ error: err.message || 'GitHub repository import failed' });
   }
 });
@@ -179,7 +181,6 @@ router.post('/upload', requireAuth, upload.single('repo'), async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded (field name must be "repo")' });
     }
 
-    const { saveRepo } = require('../utils/devStore');
     let repo;
     try {
       repo = await prisma.repo.create({
@@ -191,7 +192,8 @@ router.post('/upload', requireAuth, upload.single('repo'), async (req, res) => {
         },
       });
     } catch (dbErr) {
-      console.warn('PostgreSQL database unavailable during repo upload, saving to dev store:', dbErr.message);
+      if (!isDev) throw serviceUnavailable('repo.upload_persist_failed', dbErr);
+      logStructuredError('repo.upload_persist_failed', dbErr, {}, 'warning');
       repo = {
         id: 'repo-dev-' + Date.now(),
         name: req.body.name || req.file.originalname,
@@ -201,7 +203,7 @@ router.post('/upload', requireAuth, upload.single('repo'), async (req, res) => {
         createdAt: new Date()
       };
     }
-    saveRepo(repo);
+    if (isDev) require('../utils/devStore').saveRepo(repo);
 
     return res.status(201).json({
       id: repo.id,
@@ -210,8 +212,8 @@ router.post('/upload', requireAuth, upload.single('repo'), async (req, res) => {
       businessCriticality: repo.businessCriticality || 'Not tagged',
     });
   } catch (err) {
-    console.error('Repo upload error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.rmSync(req.file.path, { force: true });
+    return sendError(res, err, 'repo.upload_failed');
   }
 });
 
@@ -238,8 +240,7 @@ router.get('/', requireAuth, async (req, res) => {
     }));
     return res.json(enriched);
   } catch (err) {
-    console.error('List repos error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return sendError(res, err, 'repo.list_failed');
   }
 });
 
@@ -256,8 +257,7 @@ router.get('/:id', requireAuth, async (req, res) => {
       criticality_tier: crit,
     });
   } catch (err) {
-    console.error('Get repo error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return sendError(res, err, 'repo.get_failed');
   }
 });
 
@@ -284,13 +284,21 @@ router.patch('/:id', requireAuth, async (req, res) => {
     if (!repo) return res.status(404).json({ error: 'Repository not found' });
 
     let updatedRepo;
-    if (require('../utils/devStore').devRepos.has(repo.id)) {
+    if (isDev && require('../utils/devStore').devRepos.has(repo.id)) {
       updatedRepo = updateOwnedDevRepoCriticality(req.user.id, repo.id, tier, req.user.role);
     } else {
-      updatedRepo = await prisma.repo.update({
-        where: { id: repo.id },
-        data: { businessCriticality: tier },
-      });
+      try {
+        updatedRepo = await prisma.repo.update({
+          where: { id: repo.id },
+          data: { businessCriticality: tier },
+        });
+      } catch (err) {
+        if (!isDev) throw serviceUnavailable('repo.update_failed', err, { repoId: repo.id });
+        logStructuredError('repo.update_failed', err, { repoId: repo.id }, 'warning');
+        const devStore = require('../utils/devStore');
+        devStore.saveRepo(repo);
+        updatedRepo = updateOwnedDevRepoCriticality(req.user.id, repo.id, tier, req.user.role);
+      }
     }
 
     if (!updatedRepo) return res.status(404).json({ error: 'Repository not found' });
@@ -302,8 +310,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
       criticality_tier: tier,
     });
   } catch (err) {
-    console.error('Update repo error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return sendError(res, err, 'repo.update_failed');
   }
 });
 

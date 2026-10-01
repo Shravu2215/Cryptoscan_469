@@ -1,48 +1,54 @@
 const jwt = require('jsonwebtoken');
 const prisma = require('../utils/prismaClient');
+const { isDev, logStructuredError, sendError, serviceUnavailable } = require('../utils/failClosed');
 const ROLES = Object.freeze({ ADMIN: 'Admin', SECURITY_TEAM: 'Security Team', DEVELOPER: 'Developer', AUDITOR: 'Auditor' });
 
 async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    req.user = { id: 'usr_demo', email: 'demo@cryptoscan.io', role: 'Developer' };
-    return next();
+  if (authHeader && !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'A valid bearer token is required' } });
+  }
+  const token = authHeader?.slice(7) || '';
+  if (!token || ['null', 'undefined', 'demo-token'].includes(token)) {
+    if (isDev) {
+      req.user = { id: 'usr_demo', email: 'demo@cryptoscan.io', role: 'Developer' };
+      return next();
+    }
+    return res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'A valid bearer token is required' } });
   }
 
-  const token = authHeader.split(' ')[1];
-  if (!token || token === 'null' || token === 'undefined' || token === 'demo-token') {
-    req.user = { id: 'usr_demo', email: 'demo@cryptoscan.io', role: 'Developer' };
-    return next();
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    return sendError(res, serviceUnavailable('auth.jwt_secret_missing', new Error('JWT_SECRET is not configured')),
+      'auth.jwt_secret_missing');
   }
 
-  const secret = process.env.JWT_SECRET || 'a6f7e41ea281566ec83d45467c9f7d5b5cd646191b9c97522a56dde3cbc022a3';
+  let payload;
+  try {
+    payload = jwt.verify(token, secret);
+  } catch (err) {
+    logStructuredError('auth.jwt_verification_failed', err);
+    return res.status(401).json({ error: { code: 'INVALID_TOKEN', message: 'Bearer token is invalid' } });
+  }
 
   try {
-    const payload = jwt.verify(token, secret);
-    let user;
-    try {
-      user = await prisma.user.findUnique({ where: { id: payload.id }, select: { id: true, email: true, role: true } });
-    } catch (dbErr) {
-      console.warn('PostgreSQL database unavailable during auth verification, using payload fallback:', dbErr.message);
-    }
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id },
+      select: { id: true, email: true, role: true },
+    });
     if (!user) {
-      user = { id: payload.id, email: payload.email, role: payload.role || 'Developer' };
+      if (isDev) {
+        req.user = { id: payload.id, email: payload.email, role: payload.role || 'Developer' };
+        return next();
+      }
+      return res.status(401).json({ error: { code: 'UNKNOWN_USER', message: 'Token user is no longer active' } });
     }
     req.user = user;
     return next();
   } catch (err) {
-    try {
-      const parts = token.split('.');
-      if (parts.length === 3) {
-        const payloadStr = Buffer.from(parts[1], 'base64').toString('utf8');
-        const payload = JSON.parse(payloadStr);
-        if (payload && (payload.id || payload.email)) {
-          req.user = { id: payload.id || 'usr_dev', email: payload.email || 'dev@cryptoscan.io', role: payload.role || 'Developer' };
-          return next();
-        }
-      }
-    } catch (_) {}
-    req.user = { id: 'usr_demo', email: 'demo@cryptoscan.io', role: 'Developer' };
+    if (!isDev) return sendError(res, serviceUnavailable('auth.user_lookup_failed', err), 'auth.user_lookup_failed');
+    logStructuredError('auth.user_lookup_failed', err, {}, 'warning');
+    req.user = { id: payload.id, email: payload.email, role: payload.role || 'Developer' };
     return next();
   }
 }

@@ -35,6 +35,9 @@ function validateEnv() {
   }
 
   if (isProd) {
+    if (process.env.USE_MOCK === 'true') {
+      errors.push('USE_MOCK=true is not allowed in production');
+    }
     if (!process.env.ALLOWED_ORIGINS) {
       errors.push('ALLOWED_ORIGINS must be set in production (comma-separated list of allowed frontend origins)');
     }

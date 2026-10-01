@@ -2,6 +2,7 @@ require('../../shared/preflight'); // ML-DSA Node version check — must be firs
 require('dotenv').config();
 const { validateEnv } = require('./utils/validateEnv');
 validateEnv();
+const { logStructuredError } = require('./utils/failClosed');
 
 const express = require('express');
 const cors = require('cors');
@@ -36,7 +37,8 @@ let commitHash = process.env.VERCEL_GIT_COMMIT_SHA || process.env.RENDER_GIT_COM
 if (!commitHash) {
   try {
     commitHash = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
-  } catch (_) {
+  } catch (err) {
+    logStructuredError('server.commit_hash_lookup_failed', err, {}, 'warning');
     commitHash = 'dev';
   }
 }

@@ -1,16 +1,24 @@
 'use strict';
 
+const { isDev } = require('./failClosed');
+
 const devRepos = new Map();
 const devScans = new Map();
 const devFindings = new Map();
 const devAnchors = new Map();
 
+function assertDevStoreEnabled() {
+  if (!isDev) throw new Error('devStore is only available in development');
+}
+
 function saveRepo(repo) {
+  assertDevStoreEnabled();
   devRepos.set(repo.id, repo);
   return repo;
 }
 
 function getRepo(idOrName) {
+  assertDevStoreEnabled();
   if (!idOrName) return undefined;
   if (devRepos.has(idOrName)) return devRepos.get(idOrName);
   const cleanId = String(idOrName).replace(/\.zip$/i, '').toLowerCase();
@@ -24,6 +32,7 @@ function getRepo(idOrName) {
 }
 
 function updateRepoCriticality(idOrName, tier) {
+  assertDevStoreEnabled();
   let repo = getRepo(idOrName);
   const cleanId = String(idOrName).replace(/\.zip$/i, '').toLowerCase();
   if (repo) {
@@ -51,29 +60,35 @@ function updateRepoCriticality(idOrName, tier) {
 }
 
 function saveScan(scan) {
+  assertDevStoreEnabled();
   devScans.set(scan.id, scan);
   return scan;
 }
 
 function getScan(id) {
+  assertDevStoreEnabled();
   return devScans.get(id);
 }
 
 function saveFindings(scanId, findings) {
+  assertDevStoreEnabled();
   devFindings.set(scanId, findings);
   return findings;
 }
 
 function getFindings(scanId) {
+  assertDevStoreEnabled();
   return devFindings.get(scanId) || [];
 }
 
 function saveAnchor(scanId, anchor) {
+  assertDevStoreEnabled();
   devAnchors.set(scanId, anchor);
   return anchor;
 }
 
 function getAnchor(scanId) {
+  assertDevStoreEnabled();
   return devAnchors.get(scanId);
 }
 

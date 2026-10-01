@@ -2,6 +2,7 @@
 
 const prisma = require('./prismaClient');
 const devStore = require('./devStore');
+const { isDev, logStructuredError, serviceUnavailable } = require('./failClosed');
 
 const ELEVATED_ROLES = Object.freeze(['Admin', 'Security Team', 'Auditor']);
 
@@ -39,7 +40,11 @@ async function getOwnedRepo(userId, id, role) {
       where: { id, ...repoOwnerFilter(userId, role) },
     });
     if (repo) return repo;
-  } catch (_) {}
+  } catch (err) {
+    if (!isDev) throw serviceUnavailable('ownership.repo_lookup_failed', err, { repoId: id });
+    logStructuredError('ownership.repo_lookup_failed', err, { repoId: id }, 'warning');
+  }
+  if (!isDev) return null;
   return getOwnedDevRepo(userId, id, role);
 }
 
@@ -55,7 +60,11 @@ async function getOwnedRepoByName(userId, names, role) {
       },
     });
     if (repo) return repo;
-  } catch (_) {}
+  } catch (err) {
+    if (!isDev) throw serviceUnavailable('ownership.repo_name_lookup_failed', err);
+    logStructuredError('ownership.repo_name_lookup_failed', err, {}, 'warning');
+  }
+  if (!isDev) return null;
 
   for (const name of candidates) {
     const repo = getOwnedDevRepo(userId, name, role);
@@ -70,7 +79,9 @@ async function getOwnedRepos(userId, role) {
       where: repoOwnerFilter(userId, role),
       orderBy: { createdAt: 'desc' },
     });
-  } catch (_) {
+  } catch (err) {
+    if (!isDev) throw serviceUnavailable('ownership.repo_list_failed', err);
+    logStructuredError('ownership.repo_list_failed', err, {}, 'warning');
     return Array.from(devStore.devRepos.values()).filter(repo => canAccessRepo(userId, role, repo));
   }
 }
@@ -82,8 +93,12 @@ async function getOwnedScan(userId, id, role) {
   try {
     const scan = await prisma.scan.findFirst({ where, include: { repo: true } });
     if (scan) return scan;
-  } catch (_) {}
+  } catch (err) {
+    if (!isDev) throw serviceUnavailable('ownership.scan_lookup_failed', err, { scanId: id });
+    logStructuredError('ownership.scan_lookup_failed', err, { scanId: id }, 'warning');
+  }
 
+  if (!isDev) return null;
   const scan = devStore.getScan(id);
   if (!scan) return null;
   const repo = await getOwnedRepo(userId, scan.repoId, role);
@@ -97,8 +112,12 @@ async function getOwnedFinding(userId, id, role) {
   try {
     const finding = await prisma.finding.findFirst({ where, include: { scan: { include: { repo: true } } } });
     if (finding) return finding;
-  } catch (_) {}
+  } catch (err) {
+    if (!isDev) throw serviceUnavailable('ownership.finding_lookup_failed', err, { findingId: id });
+    logStructuredError('ownership.finding_lookup_failed', err, { findingId: id }, 'warning');
+  }
 
+  if (!isDev) return null;
   for (const [scanId, findings] of devStore.devFindings.entries()) {
     const finding = findings.find(item => String(item.id) === String(id));
     if (!finding) continue;
@@ -109,6 +128,7 @@ async function getOwnedFinding(userId, id, role) {
 }
 
 function updateOwnedDevRepoCriticality(userId, id, tier, role) {
+  if (!isDev) throw new Error('devStore updates are only available in development');
   const repo = getOwnedDevRepo(userId, id, role);
   if (!repo) return null;
 
