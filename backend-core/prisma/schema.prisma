@@ -22,6 +22,23 @@ model User {
 
   repos     Repo[]
   auditLogs AuditLog[]
+  sessions  Session[]
+}
+
+// Refresh-token session record. One row per issued refresh token.
+// revokedAt is set on logout or on refresh-token reuse (rotation breach).
+model Session {
+  id               String    @id @default(uuid())
+  jti              String    @unique  // refresh token jti
+  userId           String
+  user             User      @relation(fields: [userId], references: [id])
+  refreshTokenHash String    // SHA-256 of the raw refresh token
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([userId])
+  @@index([jti])
 }
 
 model Repo {

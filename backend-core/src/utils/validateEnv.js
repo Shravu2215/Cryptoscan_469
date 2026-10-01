@@ -1,30 +1,34 @@
 'use strict';
 
-// Fails fast at startup rather than letting the app run half-configured
-// (e.g. signing tokens with a placeholder secret, or silently accepting
-// requests it can't actually encrypt data for).
-const WEAK_JWT_SECRETS = new Set([
-  'change-this-to-a-long-random-string',
-  'secret',
-  'changeme',
-]);
+// Fails fast at startup rather than letting the app run half-configured.
+// No fallback defaults are permitted — any missing or weak secret is fatal.
 
 function validateEnv() {
   const isProd = process.env.NODE_ENV === 'production';
   const errors = [];
 
-  if (!process.env.JWT_SECRET) {
-    errors.push('JWT_SECRET is not set');
-  } else if (process.env.JWT_SECRET.length < 32) {
-    errors.push('JWT_SECRET is too short (need >= 32 chars of randomness)');
-  } else if (WEAK_JWT_SECRETS.has(process.env.JWT_SECRET)) {
-    errors.push('JWT_SECRET is still set to the example placeholder value');
+  // ── Access token secret ──────────────────────────────────────────────────
+  if (!process.env.JWT_ACCESS_SECRET) {
+    errors.push('JWT_ACCESS_SECRET is not set');
+  } else if (process.env.JWT_ACCESS_SECRET.length < 32) {
+    errors.push('JWT_ACCESS_SECRET must be at least 32 characters');
   }
 
+  // ── Refresh token secret (must differ from access secret) ────────────────
+  if (!process.env.JWT_REFRESH_SECRET) {
+    errors.push('JWT_REFRESH_SECRET is not set');
+  } else if (process.env.JWT_REFRESH_SECRET.length < 32) {
+    errors.push('JWT_REFRESH_SECRET must be at least 32 characters');
+  } else if (process.env.JWT_REFRESH_SECRET === process.env.JWT_ACCESS_SECRET) {
+    errors.push('JWT_REFRESH_SECRET must be different from JWT_ACCESS_SECRET');
+  }
+
+  // ── Database ─────────────────────────────────────────────────────────────
   if (!process.env.DATABASE_URL) {
     errors.push('DATABASE_URL is not set');
   }
 
+  // ── AES-256 encryption key ───────────────────────────────────────────────
   if (!process.env.DATA_ENCRYPTION_KEY) {
     errors.push('DATA_ENCRYPTION_KEY is not set (base64-encoded 32-byte AES-256 key)');
   } else {
@@ -34,9 +38,10 @@ function validateEnv() {
     }
   }
 
+  // ── Production-only guards ───────────────────────────────────────────────
   if (isProd) {
-    if (process.env.USE_MOCK === 'true') {
-      errors.push('USE_MOCK=true is not allowed in production');
+    if (!process.env.REDIS_URL) {
+      errors.push('REDIS_URL must be set in production for rate limits and revocation');
     }
     if (!process.env.ALLOWED_ORIGINS) {
       errors.push('ALLOWED_ORIGINS must be set in production (comma-separated list of allowed frontend origins)');

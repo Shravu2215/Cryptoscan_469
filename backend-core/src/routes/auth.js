@@ -1,15 +1,50 @@
+'use strict';
+
 const express = require('express');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const prisma = require('../utils/prismaClient');
-const { isDev, logStructuredError, sendError, serviceUnavailable } = require('../utils/failClosed');
+const { issueAccessToken, issueRefreshToken, verifyRefreshToken, REFRESH_TTL_SECONDS } = require('../utils/tokenService');
+const { denylistJti, isJtiDenylisted } = require('../utils/redisClient');
 
 const router = express.Router();
 const isProd = process.env.NODE_ENV === 'production';
 
-// POST /auth/signup
-// Not in the original API contract but needed to create users before login works.
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function hashToken(raw) {
+  return crypto.createHash('sha256').update(raw).digest('hex');
+}
+
+/** Write the refresh token into an httpOnly cookie. */
+function setRefreshCookie(res, token) {
+  res.cookie('cs_refresh', token, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'strict' : 'lax',
+    maxAge: REFRESH_TTL_SECONDS * 1000,
+    path: '/auth/refresh',
+  });
+}
+
+/** Clear the refresh cookie. */
+function clearRefreshCookie(res) {
+  res.clearCookie('cs_refresh', { httpOnly: true, secure: isProd, sameSite: isProd ? 'strict' : 'lax', path: '/auth/refresh' });
+}
+
+/** Persist a new Session row and return it. */
+async function createSession(userId, jti, rawRefreshToken, expiresAt) {
+  return prisma.session.create({
+    data: {
+      userId,
+      jti,
+      refreshTokenHash: hashToken(rawRefreshToken),
+      expiresAt,
+    },
+  });
+}
+
+// ─── POST /auth/signup ────────────────────────────────────────────────────────
 // Deliberately does NOT accept a "role" field from the client — avoids the
 // role self-assignment vulnerability we hit in AssetFlow/GlobeTrotter.
 router.post('/signup', async (req, res) => {
@@ -33,14 +68,8 @@ router.post('/signup', async (req, res) => {
         data: { email, password: hashed, name, role: 'Developer' },
       });
     } catch (dbErr) {
-      if (!isDev) throw serviceUnavailable('auth.signup_persist_failed', dbErr);
-      logStructuredError('auth.signup_persist_failed', dbErr, {}, 'warning');
-      user = {
-        id: 'user-dev-' + Date.now(),
-        email: email,
-        name: name || email.split('@')[0],
-        role: 'Developer'
-      };
+      console.error('PostgreSQL error during signup:', dbErr.message);
+      return res.status(500).json({ error: 'Internal server error' });
     }
 
     return res.status(201).json({
@@ -50,11 +79,12 @@ router.post('/signup', async (req, res) => {
       role: user.role,
     });
   } catch (err) {
-    return sendError(res, err, 'auth.signup_failed');
+    console.error('Signup error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// POST /auth/login
+// ─── POST /auth/login ─────────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -64,50 +94,190 @@ router.post('/login', async (req, res) => {
     }
 
     let user;
+    let valid = false;
     try {
       user = await prisma.user.findUnique({ where: { email } });
       if (user) {
-        const valid = await bcrypt.compare(password, user.password);
-        if (!valid) {
-          return res.status(401).json({ error: 'Invalid credentials' });
-        }
+        valid = await bcrypt.compare(password, user.password);
+      } else {
+        // dummy compare to prevent timing attacks
+        await bcrypt.compare(password, '$2a$10$z.aBkbgKMKClaz769f.VaunPDzrwb79Y7FBZnCamFYrGFWbWFJwny');
+      }
+
+      if (!user || !valid) {
+        return res.status(401).json({ error: 'Invalid credentials' });
       }
     } catch (dbErr) {
-      if (!isDev) throw serviceUnavailable('auth.login_lookup_failed', dbErr);
-      logStructuredError('auth.login_lookup_failed', dbErr, {}, 'warning');
+      console.error('PostgreSQL error during login:', dbErr.message);
+      return res.status(500).json({ error: 'Internal server error' });
     }
 
-    if (!user) {
-      if (!isDev) {
-        return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' } });
-      }
-      logStructuredError('auth.login_dev_session', new Error('Creating a non-persistent development session'), {}, 'warning');
-      user = {
-        id: 'user-dev-' + Date.now(),
-        email: email,
-        name: email.split('@')[0],
-        role: 'Developer'
-      };
+    // Issue tokens
+    const { token: accessToken } = issueAccessToken(user);
+    const { token: refreshToken, jti: refreshJti, expiresAt: refreshExpiry } = issueRefreshToken(user);
+
+    // Persist session (best-effort — dev fallback users won't have a DB row)
+    try {
+      await createSession(user.id, refreshJti, refreshToken, refreshExpiry);
+    } catch (dbErr) {
+      console.warn('Could not persist session (DB unavailable):', dbErr.message);
     }
 
-    const secret = process.env.JWT_SECRET;
-    if (!secret) throw serviceUnavailable('auth.jwt_secret_missing', new Error('JWT_SECRET is not configured'));
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      secret,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    setRefreshCookie(res, refreshToken);
 
     return res.json({
-      token,
+      token: accessToken,
       user: { id: user.id, email: user.email, name: user.name || email.split('@')[0], role: user.role },
     });
   } catch (err) {
-    return sendError(res, err, 'auth.login_failed');
+    console.error('Login error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// GitHub OAuth
+// ─── POST /auth/refresh ───────────────────────────────────────────────────────
+// Refresh-token rotation: issues a new access + refresh pair.
+// Reuse of an already-rotated refresh token triggers full session revocation.
+router.post('/refresh', async (req, res) => {
+  const rawRefreshToken = req.cookies?.cs_refresh;
+
+  if (!rawRefreshToken) {
+    return res.status(401).json({ error: 'No refresh token' });
+  }
+
+  let payload;
+  try {
+    payload = verifyRefreshToken(rawRefreshToken);
+  } catch {
+    clearRefreshCookie(res);
+    return res.status(401).json({ error: 'Invalid or expired refresh token' });
+  }
+
+  const incomingJti = payload.jti;
+
+  // Check Redis denylist first (fast path)
+  try {
+    if (await isJtiDenylisted(incomingJti)) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ error: 'Refresh token has been revoked' });
+    }
+  } catch (_) {
+    // redisClient already logs; continue to DB check
+  }
+
+  // Look up the session in the database
+  let session;
+  try {
+    session = await prisma.session.findUnique({ where: { jti: incomingJti } });
+  } catch (dbErr) {
+    console.error('DB error during refresh:', dbErr.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+
+  if (!session) {
+    clearRefreshCookie(res);
+    return res.status(401).json({ error: 'Session not found' });
+  }
+
+  // Detect reuse of an already-rotated (revoked) token → revoke entire user session family
+  if (session.revokedAt) {
+    // Revoke all active sessions for this user (session-family invalidation)
+    try {
+      await prisma.session.updateMany({
+        where: { userId: session.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    } catch (dbErr) {
+      console.warn('Could not revoke sessions on reuse detection:', dbErr.message);
+    }
+    clearRefreshCookie(res);
+    return res.status(401).json({ error: 'Refresh token reuse detected — all sessions revoked' });
+  }
+
+  // Verify token hash matches what we stored (defence against DB-level token substitution)
+  if (hashToken(rawRefreshToken) !== session.refreshTokenHash) {
+    clearRefreshCookie(res);
+    return res.status(401).json({ error: 'Refresh token mismatch' });
+  }
+
+  // Revoke the old session row and denylist its JTI in Redis
+  const remaining = Math.floor((new Date(session.expiresAt) - Date.now()) / 1000);
+  try {
+    await prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
+    await denylistJti(incomingJti, remaining > 0 ? remaining : 1);
+  } catch (dbErr) {
+    console.warn('Could not revoke old session:', dbErr.message);
+  }
+
+  // Look up the current user record
+  let user;
+  try {
+    user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { id: true, email: true, name: true, role: true },
+    });
+  } catch (_) { /* fall through */ }
+
+  if (!user) {
+    user = { id: session.userId, email: payload.email || '', name: '', role: 'Developer' };
+  }
+
+  // Issue new token pair
+  const { token: newAccessToken } = issueAccessToken(user);
+  const { token: newRefreshToken, jti: newRefreshJti, expiresAt: newExpiry } = issueRefreshToken(user);
+
+  try {
+    await createSession(user.id, newRefreshJti, newRefreshToken, newExpiry);
+  } catch (dbErr) {
+    console.warn('Could not persist new session:', dbErr.message);
+  }
+
+  setRefreshCookie(res, newRefreshToken);
+
+  return res.json({
+    token: newAccessToken,
+    user: { id: user.id, email: user.email, name: user.name, role: user.role },
+  });
+});
+
+// ─── POST /auth/logout ────────────────────────────────────────────────────────
+// Invalidates the access token JTI in Redis and revokes the refresh session.
+router.post('/logout', async (req, res) => {
+  // Denylist the access token JTI if provided
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const rawAccess = authHeader.split(' ')[1];
+    try {
+      const { verifyAccessToken } = require('../utils/tokenService');
+      const payload = verifyAccessToken(rawAccess);
+      if (payload?.jti) {
+        const remaining = payload.exp ? Math.floor(payload.exp - Date.now() / 1000) : 900;
+        await denylistJti(payload.jti, remaining > 0 ? remaining : 1);
+      }
+    } catch (_) { /* expired or invalid — nothing to denylist */ }
+  }
+
+  // Revoke the refresh session
+  const rawRefreshToken = req.cookies?.cs_refresh;
+  if (rawRefreshToken) {
+    try {
+      const payload = verifyRefreshToken(rawRefreshToken);
+      if (payload?.jti) {
+        await prisma.session.updateMany({
+          where: { jti: payload.jti, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        const remaining = payload.exp ? Math.floor(payload.exp - Date.now() / 1000) : 1;
+        await denylistJti(payload.jti, remaining > 0 ? remaining : 1);
+      }
+    } catch (_) { /* already expired */ }
+  }
+
+  clearRefreshCookie(res);
+  return res.json({ message: 'Logged out' });
+});
+
+// ─── GitHub OAuth ─────────────────────────────────────────────────────────────
 router.get('/github', (req, res) => {
   const clientId = process.env.GITHUB_CLIENT_ID;
   const redirectUri = process.env.GITHUB_CALLBACK_URL;
@@ -150,7 +320,7 @@ router.get('/github/callback', async (req, res) => {
     });
     const tokenData = await tokenRes.json();
     if (tokenData.error) return res.redirect(`${process.env.FRONTEND_URL}/?error=GitHubAuthFailed`);
-    
+
     const accessToken = tokenData.access_token;
     const userRes = await fetch('https://api.github.com/user', { headers: { 'Authorization': `Bearer ${accessToken}` } });
     const githubUser = await userRes.json();
@@ -160,43 +330,41 @@ router.get('/github/callback', async (req, res) => {
     const primaryEmail = emails.find(e => e.primary)?.email || emails[0]?.email;
     if (!primaryEmail) return res.redirect(`${process.env.FRONTEND_URL}/?error=NoEmailProvidedByGitHub`);
 
-    let user;
-    try {
-      user = await prisma.user.findUnique({ where: { email: primaryEmail } });
-      if (user) {
-        if (!user.providerId) {
-          user = await prisma.user.update({
-            where: { id: user.id },
-            data: { provider: 'github', providerId: String(githubUser.id), avatar: githubUser.avatar_url }
-          });
-        }
-      } else {
-        user = await prisma.user.create({
-          data: {
-            email: primaryEmail,
-            name: githubUser.name || githubUser.login,
-            provider: 'github',
-            providerId: String(githubUser.id),
-            avatar: githubUser.avatar_url,
-            role: 'Developer'
-          }
+    let user = await prisma.user.findUnique({ where: { email: primaryEmail } });
+    if (user) {
+      if (!user.providerId) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { provider: 'github', providerId: String(githubUser.id), avatar: githubUser.avatar_url }
         });
       }
-    } catch (dbErr) {
-      throw serviceUnavailable('auth.github_user_persist_failed', dbErr);
+    } else {
+      user = await prisma.user.create({
+        data: {
+          email: primaryEmail,
+          name: githubUser.name || githubUser.login,
+          provider: 'github',
+          providerId: String(githubUser.id),
+          avatar: githubUser.avatar_url,
+          role: 'Developer'
+        }
+      });
     }
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    const { token: newAccessToken } = issueAccessToken(user);
+    const { token: newRefreshToken, jti: newJti, expiresAt: newExpiry } = issueRefreshToken(user);
 
-    res.cookie('token', token, { httpOnly: true, secure: isProd, sameSite: 'lax', maxAge: 24 * 60 * 60 * 1000 });
-    res.redirect(`${process.env.FRONTEND_URL}/dashboard.html`);
+    try {
+      await createSession(user.id, newJti, newRefreshToken, newExpiry);
+    } catch (dbErr) {
+      console.warn('Could not persist GitHub session:', dbErr.message);
+    }
+
+    setRefreshCookie(res, newRefreshToken);
+    // Pass access token via URL fragment so the frontend can store it in memory
+    res.redirect(`${process.env.FRONTEND_URL}/dashboard.html#token=${newAccessToken}`);
   } catch (err) {
-    if (err?.status === 503) return sendError(res, err, 'auth.github_callback_failed');
-    logStructuredError('auth.github_callback_failed', err);
+    console.error(err);
     res.redirect(`${process.env.FRONTEND_URL}/?error=ServerError`);
   }
 });

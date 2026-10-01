@@ -2,7 +2,6 @@ require('../../shared/preflight'); // ML-DSA Node version check — must be firs
 require('dotenv').config();
 const { validateEnv } = require('./utils/validateEnv');
 validateEnv();
-const { logStructuredError } = require('./utils/failClosed');
 
 const express = require('express');
 const cors = require('cors');
@@ -14,7 +13,7 @@ const repoRoutes = require('./routes/repos');
 const scanRoutes = require('./routes/scans');
 const { auditMiddleware } = require('./services/auditLog');
 const { corsOptions } = require('./config/cors');
-const { apiLimiter, authLimiter } = require('./middleware/rateLimit');
+const { apiLimiter, heavyLimiter, authLimiter } = require('./middleware/rateLimit');
 
 const app = express();
 
@@ -37,8 +36,7 @@ let commitHash = process.env.VERCEL_GIT_COMMIT_SHA || process.env.RENDER_GIT_COM
 if (!commitHash) {
   try {
     commitHash = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
-  } catch (err) {
-    logStructuredError('server.commit_hash_lookup_failed', err, {}, 'warning');
+  } catch (_) {
     commitHash = 'dev';
   }
 }
@@ -56,8 +54,8 @@ app.get('/api/version', getVersionInfo);
 
 app.use('/auth', authLimiter, authRoutes);
 app.use('/api/auth', authLimiter, authRoutes);
-app.use('/repos', repoRoutes);
-app.use('/scan', scanRoutes);
+app.use('/repos', heavyLimiter, repoRoutes);
+app.use('/scan', heavyLimiter, scanRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -71,6 +69,21 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`CryptoScan backend-core running on http://localhost:${PORT}`);
-});
+
+async function startServer() {
+  if (process.env.NODE_ENV === 'production') {
+    try {
+      const { getRedisClient } = require('./utils/redisClient');
+      await getRedisClient().ping();
+    } catch (err) {
+      console.error('FATAL ERROR: Redis is unreachable in production.', err.message);
+      process.exit(1);
+    }
+  }
+
+  app.listen(PORT, () => {
+    console.log(`CryptoScan backend-core running on http://localhost:${PORT}`);
+  });
+}
+
+startServer();
