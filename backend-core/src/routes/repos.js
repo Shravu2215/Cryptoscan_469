@@ -5,6 +5,12 @@ const fs = require('fs');
 const AdmZip = require('adm-zip');
 const { requireAuth } = require('../middleware/auth');
 const prisma = require('../utils/prismaClient');
+const {
+  getOwnedRepo,
+  getOwnedRepoByName,
+  getOwnedRepos,
+  updateOwnedDevRepoCriticality,
+} = require('../utils/ownership');
 
 const router = express.Router();
 
@@ -225,30 +231,12 @@ function normalizeCriticality(tier) {
 // GET /repos - list repositories
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const { devRepos } = require('../utils/devStore');
-    try {
-      const repos = await prisma.repo.findMany({
-        where: { uploadedBy: req.user.id },
-        orderBy: { createdAt: 'desc' },
-      });
-      const enriched = repos.map(r => ({
-        ...r,
-        criticality_tier: normalizeCriticality(r.businessCriticality) || 'Not tagged',
-      }));
-      return res.json(enriched);
-    } catch (_) {
-      const repos = Array.from(devRepos.values()).map(r => {
-        const crit = normalizeCriticality(r.businessCriticality || r.criticality_tier) || 'Not tagged';
-        return {
-          id: r.id,
-          name: r.name,
-          businessCriticality: crit,
-          criticality_tier: crit,
-          createdAt: r.createdAt,
-        };
-      });
-      return res.json(repos);
-    }
+    const repos = await getOwnedRepos(req.user.id, req.user.role);
+    const enriched = repos.map(r => ({
+      ...r,
+      criticality_tier: normalizeCriticality(r.businessCriticality) || 'Not tagged',
+    }));
+    return res.json(enriched);
   } catch (err) {
     console.error('List repos error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -258,17 +246,8 @@ router.get('/', requireAuth, async (req, res) => {
 // GET /repos/:id - get single repository
 router.get('/:id', requireAuth, async (req, res) => {
   try {
-    const { getRepo } = require('../utils/devStore');
-    let repo;
-    try {
-      repo = await prisma.repo.findUnique({ where: { id: req.params.id } });
-      if (!repo) {
-        repo = await prisma.repo.findFirst({ where: { name: req.params.id } });
-      }
-    } catch (_) {}
-    if (!repo) {
-      repo = getRepo(req.params.id);
-    }
+    const repo = await getOwnedRepo(req.user.id, req.params.id, req.user.role)
+      || await getOwnedRepoByName(req.user.id, req.params.id, req.user.role);
     if (!repo) return res.status(404).json({ error: 'Repository not found' });
     const crit = normalizeCriticality(repo.businessCriticality || repo.criticality_tier) || 'Not tagged';
     return res.json({
@@ -285,7 +264,6 @@ router.get('/:id', requireAuth, async (req, res) => {
 // PATCH /repos/:id - update businessCriticality / criticality_tier
 router.patch('/:id', requireAuth, async (req, res) => {
   try {
-    const { getRepo, updateRepoCriticality } = require('../utils/devStore');
     const rawTier = req.body.criticality_tier || req.body.businessCriticality;
     if (!rawTier) {
       return res.status(400).json({ error: 'criticality_tier or businessCriticality is required' });
@@ -296,46 +274,30 @@ router.patch('/:id', requireAuth, async (req, res) => {
         error: 'Invalid criticality tier. Accepted tiers: Critical, Important, Standard, Low, Not tagged' 
       });
     }
-    let repo;
-
-    try {
-      // Try lookup by id first, then name with and without .zip
-      const cleanName = req.params.id.replace(/\.zip$/i, '');
-      repo = await prisma.repo.findUnique({ where: { id: req.params.id } });
-      if (!repo) {
-        repo = await prisma.repo.findFirst({ 
-          where: { 
-            OR: [
-              { name: req.params.id },
-              { name: cleanName },
-              { name: cleanName + '.zip' }
-            ] 
-          } 
-        });
-      }
-      if (repo) {
-        repo = await prisma.repo.update({
-          where: { id: repo.id },
-          data: { businessCriticality: tier },
-        });
-      }
-    } catch (err) {
-      console.warn('Prisma repo update failed, using devStore:', err.message);
-    }
-
-    // Always keep devStore in sync
-    const devUpdated = updateRepoCriticality(req.params.id, tier);
-    if (!repo) {
-      repo = devUpdated;
-    } else if (devUpdated) {
-      repo.businessCriticality = tier;
-    }
-
+    const cleanName = req.params.id.replace(/\.zip$/i, '');
+    const repo = await getOwnedRepo(req.user.id, req.params.id, req.user.role)
+      || await getOwnedRepoByName(
+        req.user.id,
+        [req.params.id, cleanName, cleanName + '.zip'],
+        req.user.role,
+      );
     if (!repo) return res.status(404).json({ error: 'Repository not found' });
 
+    let updatedRepo;
+    if (require('../utils/devStore').devRepos.has(repo.id)) {
+      updatedRepo = updateOwnedDevRepoCriticality(req.user.id, repo.id, tier, req.user.role);
+    } else {
+      updatedRepo = await prisma.repo.update({
+        where: { id: repo.id },
+        data: { businessCriticality: tier },
+      });
+    }
+
+    if (!updatedRepo) return res.status(404).json({ error: 'Repository not found' });
+
     return res.json({
-      id: repo.id,
-      name: repo.name,
+      id: updatedRepo.id,
+      name: updatedRepo.name,
       businessCriticality: tier,
       criticality_tier: tier,
     });

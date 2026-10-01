@@ -1,7 +1,7 @@
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const prisma = require('../utils/prismaClient');
-const { canAccessRepo } = require('../utils/authz');
+const { getOwnedRepo, getOwnedScan, getOwnedFinding } = require('../utils/ownership');
 const { buildCbom } = require('../../../cbom-service/src/services/cbomGenerator');
 const { anchorCBOM } = require('../../../blockchain-module/scripts/anchor');
 const { verifyScan } = require('../../../blockchain-module/scripts/verify');
@@ -13,15 +13,8 @@ const router = express.Router();
 router.post('/:repoId', requireAuth, async (req, res) => {
   try {
     const { repoId } = req.params;
-    const { getRepo, saveScan, getScan, saveFindings } = require('../utils/devStore');
-
-    let repo;
-    try {
-      repo = await prisma.repo.findUnique({ where: { id: repoId } });
-    } catch (_) {}
-    if (!repo) {
-      repo = getRepo(repoId);
-    }
+    const { saveScan, saveFindings } = require('../utils/devStore');
+    const repo = await getOwnedRepo(req.user.id, repoId, req.user.role);
 
     if (!repo) {
       return res.status(404).json({ error: 'Repo not found' });
@@ -141,22 +134,16 @@ router.post('/:repoId', requireAuth, async (req, res) => {
 router.get('/:scanId/findings', requireAuth, async (req, res) => {
   try {
     const { scanId } = req.params;
-    const { getScan, getFindings, getRepo } = require('../utils/devStore');
+    const { getFindings } = require('../utils/devStore');
 
-    let scan, findings;
-    try {
-      scan = await prisma.scan.findUnique({ where: { id: scanId }, include: { repo: true } });
-      if (scan) {
-        findings = await prisma.finding.findMany({ where: { scanId } });
-      }
-    } catch (_) {}
-
-    if (!scan) {
-      scan = getScan(scanId);
-      findings = getFindings(scanId);
-    }
-
+    const scan = await getOwnedScan(req.user.id, scanId, req.user.role);
     if (!scan) return res.status(404).json({ error: 'Scan not found' });
+
+    let findings;
+    try {
+      findings = await prisma.finding.findMany({ where: { scanId } });
+    } catch (_) {}
+    if (!findings || findings.length === 0) findings = getFindings(scanId);
 
     // Live-join businessCriticality from the current repo record.
     // This means changing a repo's criticality tier is immediately reflected
@@ -165,11 +152,8 @@ router.get('/:scanId/findings', requireAuth, async (req, res) => {
     try {
       if (scan.repo && scan.repo.businessCriticality) {
         businessCriticality = scan.repo.businessCriticality;
-      } else if (scan.repoId || scan.repoName) {
-        const repo = getRepo(scan.repoId || scan.repoName);
-        if (repo && (repo.businessCriticality || repo.criticality_tier)) {
-          businessCriticality = repo.businessCriticality || repo.criticality_tier;
-        }
+      } else if (scan.repo && (scan.repo.businessCriticality || scan.repo.criticality_tier)) {
+        businessCriticality = scan.repo.businessCriticality || scan.repo.criticality_tier;
       }
     } catch (_) {}
 
@@ -205,11 +189,8 @@ router.get('/:scanId/findings', requireAuth, async (req, res) => {
 router.get('/:scanId/cbom', requireAuth, async (req, res) => {
   try {
     const { scanId } = req.params;
-    const scan = await prisma.scan.findUnique({ where: { id: scanId }, include: { repo: true } });
+    const scan = await getOwnedScan(req.user.id, scanId, req.user.role);
     if (!scan) return res.status(404).json({ error: 'Scan not found' });
-    if (!canAccessRepo(req.user, scan.repo)) {
-      return res.status(403).json({ error: 'You do not have access to this scan' });
-    }
 
     const dbFindings = await prisma.finding.findMany({ where: { scanId }, orderBy: { id: 'asc' } });
 
@@ -260,25 +241,9 @@ router.get('/:scanId/cbom', requireAuth, async (req, res) => {
 router.post('/:scanId/anchor', requireAuth, async (req, res) => {
   try {
     const { scanId } = req.params;
-    const { getScan, saveScan, getFindings, saveAnchor, getAnchor } = require('../utils/devStore');
-
-    let scan;
-    try {
-      scan = await prisma.scan.findUnique({ where: { id: scanId }, include: { repo: true } });
-    } catch (_) {}
-
-    if (!scan) {
-      scan = getScan(scanId);
-    }
-    if (!scan) {
-      scan = {
-        id: scanId,
-        repoId: (req.body && req.body.repoId) || 'repo-dev-1',
-        createdAt: new Date(),
-        repo: { name: (req.body && req.body.repoName) || 'Scanned Repository' }
-      };
-      saveScan(scan);
-    }
+    const { getFindings, saveAnchor } = require('../utils/devStore');
+    const scan = await getOwnedScan(req.user.id, scanId, req.user.role);
+    if (!scan) return res.status(404).json({ error: 'Scan not found' });
 
     let dbFindings = [];
     try {
@@ -416,22 +381,17 @@ router.post('/:scanId/anchor', requireAuth, async (req, res) => {
 router.get('/:scanId/verify', requireAuth, async (req, res) => {
   try {
     const { scanId } = req.params;
-    const { getScan, getAnchor, getFindings } = require('../utils/devStore');
+    const { getAnchor, getFindings } = require('../utils/devStore');
 
-    let scan, anchor;
+    const scan = await getOwnedScan(req.user.id, scanId, req.user.role);
+    if (!scan) return res.status(404).json({ error: 'Scan not found' });
+
+    let anchor;
     try {
-      scan = await prisma.scan.findUnique({ where: { id: scanId }, include: { repo: true } });
-      if (scan) {
-        anchor = await prisma.anchor.findUnique({ where: { scanId } });
-      }
+      anchor = await prisma.anchor.findUnique({ where: { scanId } });
     } catch (_) {}
 
-    if (!scan) scan = getScan(scanId);
     if (!anchor) anchor = getAnchor(scanId);
-
-    if (!scan) {
-      scan = { id: scanId, repoId: 'repo-dev-1', createdAt: new Date(), repo: { name: 'Scanned Repository' } };
-    }
 
     if (!anchor) {
       return res.status(404).json({ error: 'No anchor found for this scan' });
@@ -512,11 +472,8 @@ router.get('/:scanId/verify', requireAuth, async (req, res) => {
 router.get('/:scanId/migration-assessment', requireAuth, async (req, res) => {
   try {
     const { scanId } = req.params;
-    const scan = await prisma.scan.findUnique({ where: { id: scanId }, include: { repo: true } });
+    const scan = await getOwnedScan(req.user.id, scanId, req.user.role);
     if (!scan) return res.status(404).json({ error: 'Scan not found' });
-    if (!canAccessRepo(req.user, scan.repo)) {
-      return res.status(403).json({ error: 'You do not have access to this scan' });
-    }
 
     const rawFindings = await prisma.finding.findMany({ where: { scanId }, orderBy: { id: 'asc' } });
     const { assessMigration } = require('../../../cbom-service/src/services/migrationAssessment');
@@ -533,14 +490,11 @@ router.get('/:scanId/migration-assessment', requireAuth, async (req, res) => {
 router.put('/:scanId/findings/:findingId/resolve', requireAuth, async (req, res) => {
   try {
     const { scanId, findingId } = req.params;
-    
-    const scan = await prisma.scan.findUnique({ where: { id: scanId }, include: { repo: true } });
-    if (!scan) return res.status(404).json({ error: 'Scan not found' });
-    if (!canAccessRepo(req.user, scan.repo)) {
-      return res.status(403).json({ error: 'You do not have access to this scan' });
-    }
 
-    const finding = await prisma.finding.findUnique({ where: { id: findingId } });
+    const scan = await getOwnedScan(req.user.id, scanId, req.user.role);
+    if (!scan) return res.status(404).json({ error: 'Scan not found' });
+
+    const finding = await getOwnedFinding(req.user.id, findingId, req.user.role);
     if (!finding || finding.scanId !== scanId) {
       return res.status(404).json({ error: 'Finding not found in this scan' });
     }
