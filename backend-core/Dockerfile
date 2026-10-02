@@ -54,4 +54,4 @@ ENV NODE_ENV=production
 EXPOSE 3000
 
 # Apply pending migrations, then start the server.
-CMD ["sh", "-c", "npx prisma migrate deploy && node src/server.js"]
+CMD ["sh", "-c", "DATABASE_URL=\"${DIRECT_URL:-$DATABASE_URL}\" npx prisma migrate deploy && node src/server.js"]

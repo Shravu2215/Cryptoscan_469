@@ -27,9 +27,9 @@ services:
       - key: MAX_EXTRACTED_SIZE_MB
         value: "50"
       - key: DATABASE_URL
-        fromDatabase:
-          name: cryptoscan-demo-db
-          property: connectionString
+        sync: false
+      - key: DIRECT_URL
+        sync: false
       - key: REDIS_URL
         fromService:
           type: keyvalue
@@ -54,10 +54,5 @@ services:
       - key: KMS_PROVIDER
         value: env
 
-databases:
-  - name: cryptoscan-demo-db
-    databaseName: cryptoscan
-    user: cryptoscan_user
-    postgresMajorVersion: "16"
-    region: oregon
-    plan: free
+# PostgreSQL is external so this Blueprint does not consume Render's free DB slot.
+

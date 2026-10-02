@@ -35,5 +35,13 @@
     { "source": "/repositories.html", "destination": "/repositories.html" },
     { "source": "/profile", "destination": "/profile.html" },
     { "source": "/profile.html", "destination": "/profile.html" }
+  ],
+  "headers": [
+    { "source": "/auth/:path*", "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }] },
+    { "source": "/api/:path*", "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }] },
+    { "source": "/repos/:path*", "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }] },
+    { "source": "/scan/:path*", "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }] },
+    { "source": "/health", "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }] },
+    { "source": "/version", "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }] }
   ]
 }
