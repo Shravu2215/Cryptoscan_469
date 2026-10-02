@@ -6,6 +6,10 @@ CryptoScan is an end-to-end security platform that **discovers cryptographic ass
 
 It combines **AST-based code analysis, CycloneDX CBOM, risk assessment, Merkle integrity, RFC 3161 timestamping, post-quantum signatures, and Ethereum blockchain anchoring** into one workflow.
 
+## Live Demo
+
+[Open CryptoScan](https://cryptoscan469-frontend.vercel.app/)
+
 ---
 
 ## 🚀 What It Does

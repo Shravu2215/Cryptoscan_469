@@ -20,7 +20,7 @@ Never commit `.env`, private keys, passwords, or other secrets.
 1. Sign in to Vercel and import the GitHub repository `Shravu2215/Cryptoscan_469`.
 2. Set **Root Directory** to `frontend` and enable **Include files outside the root directory** if Vercel asks; this project uses only the `frontend` directory for the static site.
 3. Select **Other** as the framework preset. Leave the build command blank and set the output directory to `.` if requested.
-4. Deploy. Note the final production origin, for example `https://cryptoscan-469.vercel.app`. This is the link to give the judges.
+4. Deploy. The production origin is `https://cryptoscan469-frontend.vercel.app`. This is the link to give the judges.
 
 The API rewrites initially point to `https://cryptoscan-demo-api.onrender.com`. If Render assigns a different URL, replace that hostname in `frontend/vercel.json`, push the change, and wait for Vercel to redeploy.
 
@@ -34,8 +34,8 @@ The API rewrites initially point to `https://cryptoscan-demo-api.onrender.com`. 
 1. Sign in to Render and choose **New + → Blueprint**.
 2. Connect the same GitHub repository and select `main`. Render detects the root `render.yaml` and previews a free web service and free Key Value (Redis). This Blueprint does not create a Render Postgres database.
 3. During the Blueprint prompts, enter:
-   - `ALLOWED_ORIGINS`: the exact Vercel production origin, e.g. `https://cryptoscan-469.vercel.app` (no trailing slash).
-   - `FRONTEND_URL`: the same exact Vercel production origin.
+   - `ALLOWED_ORIGINS`: `https://cryptoscan469-frontend.vercel.app` (no trailing slash).
+   - `FRONTEND_URL`: `https://cryptoscan469-frontend.vercel.app`.
    - `DATABASE_URL`: Neon **pooled** connection string (hostname includes `-pooler`).
    - `DIRECT_URL`: Neon **direct/unpooled** connection string (hostname has no `-pooler`); Render uses this only for Prisma migrations.
    - `PRIVATE_KEY`: a throwaway private key generated with the command below. It is only required by current startup validation; without Sepolia test ETH, blockchain anchoring will not submit a real transaction.
