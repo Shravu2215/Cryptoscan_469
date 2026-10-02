@@ -2,11 +2,23 @@
 
 const assert = require('assert').strict;
 const util = require('util');
+const path = require('path');
 let ethers;
-try {
-  ethers = require('ethers');
-} catch (err) {
-  ethers = require('../blockchain-module/node_modules/ethers');
+const ethersPaths = [
+  'ethers',
+  path.resolve(__dirname, 'node_modules/ethers'),
+  path.resolve(__dirname, '../integrity-service/node_modules/ethers'),
+  path.resolve(__dirname, '../backend-core/node_modules/ethers'),
+  path.resolve(__dirname, '../blockchain-module/node_modules/ethers'),
+  path.resolve(__dirname, '../cbom-service/node_modules/ethers'),
+  path.resolve(process.cwd(), 'node_modules/ethers'),
+  path.resolve(process.cwd(), 'backend-core/node_modules/ethers')
+];
+for (const p of ethersPaths) {
+  try {
+    ethers = require(p);
+    if (ethers) break;
+  } catch (_) {}
 }
 const {
   getSigningKey,
