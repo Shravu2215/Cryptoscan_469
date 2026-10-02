@@ -104,4 +104,15 @@ async function startServer() {
   });
 }
 
-startServer();
+async function startServices() {
+  if (process.env.RUN_SCAN_WORKER === 'true') {
+    const { startWorker } = require('./queue/scanWorker');
+    await startWorker();
+  }
+  await startServer();
+}
+
+startServices().catch((err) => {
+  console.error('FATAL: Application startup failed.', err.message);
+  process.exit(1);
+});

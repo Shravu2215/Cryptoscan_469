@@ -1,0 +1,63 @@
+services:
+  - type: keyvalue
+    name: cryptoscan-demo-redis
+    region: oregon
+    plan: free
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    persistenceMode: off
+
+  - type: web
+    name: cryptoscan-demo-api
+    runtime: docker
+    region: oregon
+    plan: free
+    dockerfilePath: ./backend-core/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: RUN_SCAN_WORKER
+        value: "true"
+      - key: WORKER_CONCURRENCY
+        value: "1"
+      - key: MAX_UPLOAD_SIZE_MB
+        value: "10"
+      - key: MAX_EXTRACTED_SIZE_MB
+        value: "50"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cryptoscan-demo-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: cryptoscan-demo-redis
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: DATA_ENCRYPTION_KEY
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: CHAIN_MODE
+        value: public
+      - key: PUBLIC_RPC_URL
+        value: https://ethereum-sepolia-rpc.publicnode.com
+      - key: PRIVATE_KEY
+        sync: false
+      - key: KMS_PROVIDER
+        value: env
+
+databases:
+  - name: cryptoscan-demo-db
+    databaseName: cryptoscan
+    user: cryptoscan_user
+    postgresMajorVersion: "16"
+    region: oregon
+    plan: free
