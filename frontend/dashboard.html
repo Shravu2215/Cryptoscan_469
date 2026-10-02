@@ -1186,7 +1186,11 @@
       });
 
       // Main stat cards (make clickable)
-      updateStat('stat-risk-score', critCount > 0 ? 'CRITICAL' : (highCount > 0 ? 'HIGH' : 'LOW'), hasData);
+      const latestScan = allScans[0] || {};
+      const serverVerdict = (latestScan.overallPosture && latestScan.overallPosture.verdict) ||
+                            latestScan.postureVerdict ||
+                            (critCount > 0 ? 'CRITICAL' : (highCount > 0 ? 'HIGH' : 'LOW'));
+      updateStat('stat-risk-score', String(serverVerdict).toUpperCase(), hasData);
       updateStat('stat-files', (totalFilesScanned || 0).toLocaleString(), hasData);
       updateStat('stat-findings', totalFindings, hasData);
       updateStat('stat-critical', critCount, hasData);

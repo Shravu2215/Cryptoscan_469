@@ -4,6 +4,7 @@ const express = require('express');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const prisma = require('../utils/prismaClient');
+const { isDev, logStructuredError, sendError, serviceUnavailable } = require('../utils/failClosed');
 const { issueAccessToken, issueRefreshToken, verifyRefreshToken, REFRESH_TTL_SECONDS } = require('../utils/tokenService');
 const { denylistJti, isJtiDenylisted } = require('../utils/redisClient');
 
@@ -68,8 +69,8 @@ router.post('/signup', async (req, res) => {
         data: { email, password: hashed, name, role: 'Developer' },
       });
     } catch (dbErr) {
-      console.error('PostgreSQL error during signup:', dbErr.message);
-      return res.status(500).json({ error: 'Internal server error' });
+      if (!isDev) throw serviceUnavailable('auth.signup_persist_failed', dbErr);
+      logStructuredError('auth.signup_persist_failed', dbErr, {}, 'warning');
     }
 
     return res.status(201).json({
@@ -79,8 +80,7 @@ router.post('/signup', async (req, res) => {
       role: user.role,
     });
   } catch (err) {
-    console.error('Signup error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return sendError(res, err, 'auth.signup_failed');
   }
 });
 
@@ -108,8 +108,8 @@ router.post('/login', async (req, res) => {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
     } catch (dbErr) {
-      console.error('PostgreSQL error during login:', dbErr.message);
-      return res.status(500).json({ error: 'Internal server error' });
+      if (!isDev) throw serviceUnavailable('auth.login_lookup_failed', dbErr);
+      logStructuredError('auth.login_lookup_failed', dbErr, {}, 'warning');
     }
 
     // Issue tokens
@@ -130,8 +130,7 @@ router.post('/login', async (req, res) => {
       user: { id: user.id, email: user.email, name: user.name || email.split('@')[0], role: user.role },
     });
   } catch (err) {
-    console.error('Login error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return sendError(res, err, 'auth.login_failed');
   }
 });
 

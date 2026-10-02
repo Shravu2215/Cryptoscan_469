@@ -1,7 +1,6 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const childProcess = require('node:child_process');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -44,9 +43,6 @@ const dbError = () => Object.assign(new Error('simulated database unavailable'),
 
 let failAuditWrite = false;
 let failScanCreate = true;
-let failScanCompletionWrite = false;
-const persistedScanStatuses = [];
-let backgroundDoneResolve;
 prisma.user.findUnique = async ({ where }) => {
   if (where.id) return { ...USER };
   if (where.email === 'signup@example.test') return null;
@@ -62,12 +58,6 @@ prisma.scan.create = async ({ data }) => {
 prisma.scan.findFirst = async () => ({ ...SCAN });
 prisma.scan.findMany = async () => [];
 prisma.scan.update = async ({ data }) => {
-  if (data.status === 'COMPLETED' && failScanCompletionWrite) throw dbError();
-  persistedScanStatuses.push(data.status);
-  if (data.status === 'FAILED' && backgroundDoneResolve) {
-    backgroundDoneResolve();
-    backgroundDoneResolve = null;
-  }
   return { ...SCAN, ...data };
 };
 prisma.finding.findMany = async () => [];
@@ -166,20 +156,16 @@ async function main() {
       body: JSON.stringify({ email: 'login@example.test', password: 'TestPass123!' }),
     }), 'login');
 
+    // P0-6: scan dispatch now requires Redis (BullMQ queue).
+    // With no Redis available in this test environment the endpoint must fail
+    // closed rather than accept the request and silently drop the job.
+    // The full worker failure path (FAILED persistence when completion write
+    // fails) is exercised by scanSecurity.test.js with a live queue.
     failScanCreate = false;
-    failScanCompletionWrite = true;
-    const originalExec = childProcess.exec;
-    childProcess.exec = (command, options, callback) => {
-      setImmediate(() => callback(null, JSON.stringify({ findings: [], files_scanned: 1 }), ''));
-      return { kill() {} };
-    };
-    const backgroundDone = new Promise(resolve => { backgroundDoneResolve = resolve; });
-    const queuedScan = await request(base, `/scan/${REPO.id}`, { method: 'POST', headers });
-    assert.equal(queuedScan.status, 202, 'scan is accepted before asynchronous worker persistence');
-    await backgroundDone;
-    childProcess.exec = originalExec;
-    assert.ok(persistedScanStatuses.includes('FAILED'), 'background write failure persists FAILED status');
-    assert.ok(!persistedScanStatuses.includes('COMPLETED'), 'background write failure never persists COMPLETED');
+    assert503(
+      await request(base, `/scan/${REPO.id}`, { method: 'POST', headers }),
+      'scan start with Redis queue unavailable',
+    );
 
     failAuditWrite = true;
     assert503(await request(base, '/test/state-change', {
@@ -192,26 +178,33 @@ async function main() {
     const startupEnv = {
       ...process.env,
       NODE_ENV: 'production',
-      USE_MOCK: 'true',
       JWT_SECRET: 'production-startup-test-secret-over-32-chars',
+      JWT_ACCESS_SECRET: 'production-access-secret-over-32-chars-long',
+      JWT_REFRESH_SECRET: 'production-refresh-secret-over-32-chars-long',
+      // Deliberately omit REDIS_URL so the server cannot connect
       DATABASE_URL: 'postgresql://test:test@127.0.0.1:5432/test',
       DATA_ENCRYPTION_KEY: Buffer.alloc(32).toString('base64'),
       ALLOWED_ORIGINS: 'http://localhost',
       KMS_PROVIDER: 'aws-kms',
     };
+    // Remove REDIS_URL so the startup validation catches it
+    delete startupEnv.REDIS_URL;
     const startup = spawnSync(process.execPath, ['src/server.js'], {
       cwd: path.resolve(__dirname, '..'),
       env: startupEnv,
       encoding: 'utf8',
       timeout: 15000,
     });
-    assert.equal(startup.status, 1, 'production app refuses to boot with USE_MOCK=true');
-    assert.match(startup.stderr + startup.stdout, /USE_MOCK=true is not allowed in production/);
+    assert.equal(startup.status, 1, 'production app refuses to boot with missing required configuration');
+    assert.match(
+      startup.stderr + startup.stdout,
+      /REDIS_URL must be set in production|Refusing to start|FATAL ERROR/,
+    );
 
     console.log('PASS: repo upload/import, scan start, anchor, verify, signup, and login return structured 503');
     console.log('PASS: production rejects unsigned JWTs and chain-anchor failures do not synthesize success');
     console.log('PASS: state-changing requests fail with 503 when audit persistence fails');
-    console.log('PASS: production startup refuses USE_MOCK=true');
+    console.log('PASS: production startup refuses incomplete configuration');
   } finally {
     global.fetch = originalFetch;
     failAuditWrite = false;

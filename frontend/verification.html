@@ -2583,21 +2583,23 @@
       <tbody>
         ${findings.map(rawF => {
         const ef = typeof CryptoEngine !== 'undefined' ? CryptoEngine.enrichFinding(rawF) : rawF;
-        const risk = ef.risk || { X: 5, Y: 1, Z: 12, urgency_margin: 6, urgency_tier: 'Low', priority_score: 2 };
+        const qClass = ef.quantum_class || (ef.quantum === 'yes' ? 'broken' : 'resilient');
+        const hasMosca = ef.risk && ef.risk.mosca_applicable;
+        const risk = ef.risk || {};
         const sf = ef.subfactors || { data_sensitivity: 1, exposure: 1, system_role: 1, regulatory_impact: 2 };
         const fileLoc = (ef.file || ef.filePath || 'unknown') + (ef.line ? ':' + ef.line : '');
         const rec = ef.recommendation || ef.remediation || 'Upgrade to NIST PQC standard.';
 
         const critBadge = ef.criticality_label === 'Critical' ? 'badge-crit' : ef.criticality_label === 'High' ? 'badge-high' : ef.criticality_label === 'Medium' ? 'badge-med' : 'badge-low';
         const urgBadge = risk.urgency_tier === 'Critical' ? 'badge-crit' : risk.urgency_tier === 'High' ? 'badge-high' : risk.urgency_tier === 'Medium' ? 'badge-med' : 'badge-low';
-        const marginColor = risk.urgency_margin < 0 ? '#b91c1c' : (risk.urgency_margin <= 2 ? '#d97706' : '#059669');
+        const marginColor = (risk.urgency_margin !== undefined && risk.urgency_margin < 0) ? '#b91c1c' : ((risk.urgency_margin !== undefined && risk.urgency_margin <= 2) ? '#d97706' : '#059669');
 
         return `
             <tr>
               <td style="font-weight:600;">${ef.algorithm || ef.title || 'Cryptographic Finding'}</td>
-              <td><span class="badge badge-low" style="text-transform:uppercase;">${ef.type || 'algorithm'}</span></td>
+              <td><span class="badge badge-low" style="text-transform:uppercase;">${qClass}</span></td>
               <td>
-                <div style="font-weight:600; font-family:'JetBrains Mono',monospace;">Effective X: ${risk.X}y</div>
+                <div style="font-weight:600; font-family:'JetBrains Mono',monospace;">Effective X: ${hasMosca ? risk.X + 'y' : 'N/A'}</div>
                 <div style="font-size:10px; color:#64748b;">Sug: ${ef.suggested_lifetime || 5}y | Conf: ${ef.user_confirmed_lifetime ? ef.user_confirmed_lifetime + 'y' : 'None'}</div>
               </td>
               <td>
@@ -2605,12 +2607,17 @@
                 <div style="font-size:10px; color:#64748b; margin-top:2px;">DS:${sf.data_sensitivity} | EXP:${sf.exposure} | SR:${sf.system_role} | REG:${sf.regulatory_impact}</div>
               </td>
               <td>
+                ${hasMosca ? `
                 <div><span class="badge ${urgBadge}">${risk.urgency_tier || 'Low'} Urgency</span></div>
                 <div style="font-size:10px; color:#64748b; margin-top:2px;">Y(Mig):${risk.Y}y | Z(Threat):${risk.Z}y</div>
                 <div style="font-size:10px; font-weight:700; color:${marginColor};">Margin: ${risk.urgency_margin >= 0 ? '+' : ''}${risk.urgency_margin.toFixed(2)}y</div>
+                ` : `
+                <div><span class="badge badge-low">N/A</span></div>
+                <div style="font-size:10px; color:#64748b; margin-top:2px;">Excluded from Mosca</div>
+                `}
               </td>
               <td style="font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:800; color:#7c3aed; text-align:center;">
-                ${risk.priority_score.toFixed(2)}
+                ${hasMosca && typeof risk.priority_score === 'number' ? risk.priority_score.toFixed(2) : '—'}
               </td>
               <td style="font-family:'JetBrains Mono',monospace; font-size:11px;">${fileLoc}</td>
               <td style="font-size:11px;">${rec}</td>

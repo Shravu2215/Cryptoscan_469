@@ -15,6 +15,8 @@ const { isDev, logStructuredError, sendError, serviceUnavailable } = require('..
 
 const router = express.Router();
 
+const crypto = require('crypto');
+
 const UPLOAD_DIR = path.join(__dirname, '../../uploads');
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -23,8 +25,7 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `${unique}-${file.originalname}`);
+    cb(null, `${crypto.randomUUID()}.zip`);
   },
 });
 

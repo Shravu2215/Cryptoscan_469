@@ -30,6 +30,19 @@ from scanner.certificate_analyzer import CertificateAnalyzer
 from scanner.sca_correlation import correlate_sca_with_source
 from scanner.suppression import load_suppressions, apply_suppressions
 
+DEFAULT_MAX_SCAN_FILES = 10000
+DEFAULT_MAX_SCAN_BYTES = 250 * 1024 * 1024  # 250 MB
+
+try:
+    MAX_SCAN_FILES = int(os.environ.get("MAX_SCAN_FILES", DEFAULT_MAX_SCAN_FILES))
+except ValueError:
+    MAX_SCAN_FILES = DEFAULT_MAX_SCAN_FILES
+
+try:
+    MAX_SCAN_BYTES = int(os.environ.get("MAX_SCAN_BYTES", DEFAULT_MAX_SCAN_BYTES))
+except ValueError:
+    MAX_SCAN_BYTES = DEFAULT_MAX_SCAN_BYTES
+
 def _infer_library(f) -> str:
     if getattr(f, "library", None):
         return f.library
@@ -465,16 +478,56 @@ def scan_repo(repo_path, scan_id=None):
     temp_dir = None
     target_dir = repo_path
 
+    if not repo_path or not os.path.exists(repo_path):
+        return {
+            "status": "FAILED",
+            "error": f"Repository path does not exist: {repo_path}",
+            "failure_reason": f"Repository path does not exist: {repo_path}",
+        }
+
     if repo_path.lower().endswith(".zip"):
         temp_dir = tempfile.TemporaryDirectory()
         target_dir = temp_dir.name
         try:
             with zipfile.ZipFile(repo_path, 'r') as z:
-                z.extractall(target_dir)
+                total_extracted_bytes = 0
+                extracted_file_count = 0
+                real_target = os.path.realpath(target_dir)
+
+                for member in z.infolist():
+                    # Skip symlinks
+                    if (member.external_attr >> 16) & 0o120000 == 0o120000:
+                        continue
+
+                    target_member_path = os.path.realpath(os.path.join(target_dir, member.filename))
+                    if not (target_member_path == real_target or target_member_path.startswith(real_target + os.sep)):
+                        raise ValueError(f"Unsafe path in archive: {member.filename}")
+
+                    if member.is_dir():
+                        os.makedirs(target_member_path, exist_ok=True)
+                        continue
+
+                    extracted_file_count += 1
+                    if extracted_file_count > MAX_SCAN_FILES:
+                        raise ValueError(f"Archive exceeds maximum file count limit ({MAX_SCAN_FILES})")
+
+                    os.makedirs(os.path.dirname(target_member_path), exist_ok=True)
+                    with z.open(member, 'r') as src, open(target_member_path, 'wb') as dst:
+                        while True:
+                            chunk = src.read(65536)
+                            if not chunk:
+                                break
+                            total_extracted_bytes += len(chunk)
+                            if total_extracted_bytes > MAX_SCAN_BYTES:
+                                raise ValueError(f"Archive exceeds maximum extracted size limit ({MAX_SCAN_BYTES} bytes)")
+                            dst.write(chunk)
         except Exception as e:
             if temp_dir:
-                temp_dir.cleanup()
-            return {"status": "FAILED", "error": str(e)}
+                try:
+                    temp_dir.cleanup()
+                except Exception:
+                    pass
+            return {"status": "FAILED", "error": str(e), "failure_reason": str(e)}
 
     lockfile_resolver = LockfileVersionResolver(target_dir)
     py = PythonAnalyzer()
@@ -494,10 +547,40 @@ def scan_repo(repo_path, scan_id=None):
     files_error = 0
 
     all_files = []
+    total_scanned_bytes = 0
     for root, dirs, files in os.walk(target_dir):
         dirs[:] = [d for d in dirs if d not in {"node_modules", ".git", "venv", ".venv", "__pycache__", "vendor", "vendors", "bower_components", "dist", "build"}]
         for fn in files:
-            all_files.append(os.path.join(root, fn))
+            full_path = os.path.join(root, fn)
+            if os.path.islink(full_path):
+                continue
+            all_files.append(full_path)
+            if len(all_files) > MAX_SCAN_FILES:
+                if temp_dir:
+                    try:
+                        temp_dir.cleanup()
+                    except Exception:
+                        pass
+                return {
+                    "status": "FAILED",
+                    "error": f"Repository exceeds maximum file count limit ({MAX_SCAN_FILES})",
+                    "failure_reason": f"Repository exceeds maximum file count limit ({MAX_SCAN_FILES})"
+                }
+            try:
+                total_scanned_bytes += os.path.getsize(full_path)
+                if total_scanned_bytes > MAX_SCAN_BYTES:
+                    if temp_dir:
+                        try:
+                            temp_dir.cleanup()
+                        except Exception:
+                            pass
+                    return {
+                        "status": "FAILED",
+                        "error": f"Repository exceeds maximum scan size limit ({MAX_SCAN_BYTES} bytes)",
+                        "failure_reason": f"Repository exceeds maximum scan size limit ({MAX_SCAN_BYTES} bytes)"
+                    }
+            except OSError:
+                pass
 
     surface_map = _build_repo_surface_map(all_files, target_dir)
 

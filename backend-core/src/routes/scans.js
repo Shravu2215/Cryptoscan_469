@@ -6,19 +6,96 @@ const { isDev, logStructuredError, sendError, serviceUnavailable } = require('..
 const { buildCbom } = require('../../../cbom-service/src/services/cbomGenerator');
 const { anchorCBOM } = require('../../../blockchain-module/scripts/anchor');
 const { verifyScan } = require('../../../blockchain-module/scripts/verify');
+const {
+  classifyQuantum,
+  computeFindingMosca,
+  computeOverallPosture,
+  Z_PRESETS,
+  DEFAULT_Z_YEARS,
+} = require('../services/vulnScoring');
+const {
+  enqueueScan,
+  getActiveAndWaitingCountForUser,
+  MAX_CONCURRENT_SCANS_PER_USER,
+} = require('../queue/scanQueue');
 
 const router = express.Router();
 
-async function markScanFailed(scan, err, event) {
-  scan.status = 'FAILED';
-  logStructuredError(event, err, { scanId: scan.id });
+async function getUserQuantumZ(userId) {
+  let z = DEFAULT_Z_YEARS;
+  if (!userId) return z;
   try {
-    await prisma.scan.update({ where: { id: scan.id }, data: { status: 'FAILED' } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { quantumZ: true }
+    });
+    if (user && typeof user.quantumZ === 'number') {
+      z = user.quantumZ;
+    } else if (isDev) {
+      z = require('../utils/devStore').getUserZ(userId);
+    }
+  } catch (err) {
+    if (isDev) {
+      z = require('../utils/devStore').getUserZ(userId);
+    }
+  }
+  return z;
+}
+
+async function markScanFailed(scan, err, event, reason = null) {
+  scan.status = 'FAILED';
+  const failureReason = reason || (err && err.message) || 'Scan failed';
+  scan.failureReason = failureReason;
+  logStructuredError(event, err, { scanId: scan.id, failureReason });
+  try {
+    await prisma.scan.update({ where: { id: scan.id }, data: { status: 'FAILED', failureReason } });
   } catch (writeErr) {
     logStructuredError('scan.failed_status_write_failed', writeErr, { scanId: scan.id });
   }
   if (isDev) require('../utils/devStore').saveScan(scan);
 }
+
+// GET /scan/settings/z
+// Reads the authenticated user's own Z value (req.user.id)
+router.get('/settings/z', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const z = await getUserQuantumZ(userId);
+    return res.json({ z, presets: Z_PRESETS, defaultZ: DEFAULT_Z_YEARS });
+  } catch (err) {
+    return sendError(res, err, 'settings.z_read_failed');
+  }
+});
+
+// PUT /scan/settings/z
+// Writes the authenticated user's own Z value (req.user.id), validated: integer, range 1 to 50
+router.put('/settings/z', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    let { z } = req.body;
+    z = Number(z);
+    if (!Number.isInteger(z) || z < 1 || z > 50) {
+      return res.status(400).json({ error: 'Z must be an integer between 1 and 50 years' });
+    }
+
+    try {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { quantumZ: z }
+      });
+    } catch (err) {
+      if (!isDev) throw serviceUnavailable('settings.z_write_failed', err, { userId });
+      logStructuredError('settings.z_write_failed', err, { userId }, 'warning');
+      require('../utils/devStore').saveUserZ(userId, z);
+    }
+    if (isDev) {
+      require('../utils/devStore').saveUserZ(userId, z);
+    }
+    return res.json({ success: true, z, message: `Threat horizon Z updated to ${z} years` });
+  } catch (err) {
+    return sendError(res, err, 'settings.z_write_failed');
+  }
+});
 
 // POST /scan/:repoId
 // This creates the Scan row and flips status to RUNNING.
@@ -30,6 +107,22 @@ router.post('/:repoId', requireAuth, async (req, res) => {
 
     if (!repo) {
       return res.status(404).json({ error: 'Repo not found' });
+    }
+
+    // Check per-user concurrency (active + waiting jobs) — production only.
+    // In dev/mock mode there is no Redis; the queue is skipped entirely.
+    if (!isDev) {
+      let activeScanCount;
+      try {
+        activeScanCount = await getActiveAndWaitingCountForUser(req.user.id);
+      } catch (qErr) {
+        throw serviceUnavailable('scan.queue_unavailable', qErr, { repoId });
+      }
+      if (activeScanCount >= MAX_CONCURRENT_SCANS_PER_USER) {
+        return res.status(429).json({
+          error: `Too many concurrent scans. Maximum ${MAX_CONCURRENT_SCANS_PER_USER} in-flight scans allowed per user.`,
+        });
+      }
     }
 
     let scan;
@@ -44,87 +137,16 @@ router.post('/:repoId', requireAuth, async (req, res) => {
     }
     if (isDev) saveScan(scan);
 
-    // --- Scanner Engine hook ---
-    const { exec } = require('child_process');
-    const path = require('path');
-    const fs = require('fs');
-
-    (async () => {
+    // In dev/mock mode there is no Redis — skip the queue and return 202
+    // immediately (same behaviour as the old no-op exec mock).
+    // In production the queue is required; any failure propagates as 503.
+    if (!isDev) {
       try {
-        scan.status = 'RUNNING';
-        try {
-          await prisma.scan.update({ where: { id: scan.id }, data: { status: 'RUNNING' } });
-        } catch (err) {
-          await markScanFailed(scan, err, 'scan.running_status_write_failed');
-          return;
-        }
-        if (isDev) saveScan(scan);
-
-        let targetPath = repo.filePath;
-        const scannerDir = path.resolve(__dirname, '../../../scanner');
-        const absoluteRepoPath = path.isAbsolute(targetPath) ? targetPath : path.resolve(__dirname, '../../../', targetPath);
-
-        const isWin = process.platform === 'win32';
-        const venvPython = path.join(scannerDir, '.venv', isWin ? 'Scripts\\python.exe' : 'bin/python');
-        const pythonCmd = fs.existsSync(venvPython) ? `"${venvPython}"` : (isWin ? 'python' : 'python3');
-
-        exec(`${pythonCmd} pipeline.py "${absoluteRepoPath}"`, { cwd: scannerDir }, async (error, stdout, stderr) => {
-          if (error) {
-            await markScanFailed(scan, error, 'scan.engine_failed');
-            return;
-          }
-
-          try {
-            const result = JSON.parse(stdout);
-            const findings = result.findings || [];
-
-            const dbFindings = findings.map(f => ({
-              scanId: scan.id,
-              filePath: f.file,
-              lineNumber: f.line || null,
-              algorithm: f.algorithm || 'UNKNOWN',
-              library: f.library || 'Standard API',
-              version: f.version || '',
-              exposure: f.exposure || 'internal',
-              dataSensitivity: f.dataSensitivity || 'GENERAL',
-              usage: f.category || null,
-              keySize: f.key_size || (f.algorithm.includes('8192') ? 8192 : f.algorithm.includes('4096') ? 4096 : f.algorithm.includes('3072') ? 3072 : f.algorithm.includes('2048') ? 2048 : f.algorithm.includes('1024') ? 1024 : f.algorithm.includes('512') ? 512 : (f.algorithm.includes('56') || (f.algorithm.includes('DES') && !f.algorithm.includes('3DES'))) ? 56 : f.algorithm.includes('256') ? 256 : f.algorithm.includes('128') ? 128 : null),
-              quantumStatus: ['Quantum-Broken', 'Quantum-Weakened'].includes(f.quantum_risk)
-                ? 'Quantum Vulnerable' : 'Quantum Safe',
-              severity: (f.severity || 'Informational').toUpperCase(),
-              description: f.message || f.raw_call || '',
-              recommendation: f.recommendation || null,
-              confidence: `${f.confidence || 'Likely'}|${f.detection_method || 'ast'}`,
-              suppressed: Boolean(f.suppressed),
-              suppressionReason: f.suppression_reason || null
-            }));
-
-            try {
-              if (dbFindings.length > 0) {
-                await prisma.finding.createMany({ data: dbFindings });
-              }
-              await prisma.scan.update({ where: { id: scan.id }, data: { status: 'COMPLETED', completedAt: new Date() } });
-            } catch (err) {
-              await markScanFailed(scan, err, 'scan.results_persist_failed');
-              return;
-            }
-
-            scan.status = 'COMPLETED';
-            scan.completedAt = new Date();
-            scan.filesScanned = result.files_scanned !== undefined ? result.files_scanned : (result.file_manifest ? result.file_manifest.length : 0);
-            scan.systems = result.systems || [];
-            if (isDev) {
-              saveFindings(scan.id, dbFindings);
-              saveScan(scan);
-            }
-          } catch (parseError) {
-            await markScanFailed(scan, parseError, 'scan.output_parse_failed');
-          }
-        });
-      } catch (err) {
-        await markScanFailed(scan, err, 'scan.start_failed');
+        await enqueueScan({ scanId: scan.id, userId: req.user.id });
+      } catch (qErr) {
+        throw serviceUnavailable('scan.queue_enqueue_failed', qErr, { repoId, scanId: scan.id });
       }
-    })();
+    }
 
     return res.status(202).json({
       scanId: scan.id,
@@ -165,20 +187,43 @@ router.get('/:scanId/findings', requireAuth, async (req, res) => {
     const uniqueFiles = new Set(allFindings.map(f => f.filePath || f.file)).size;
     const uniqueAlgos = new Set(allFindings.map(f => f.algorithm).filter(a => a && a !== 'UNKNOWN')).size;
 
-    // Inject businessCriticality into each finding so every page reading this
-    // endpoint gets the same live value — single source of truth.
-    const enrichedFindings = allFindings.map(f => ({
-      ...f,
-      businessCriticality,
-      criticality_tier: businessCriticality,
-    }));
+    const userZ = await getUserQuantumZ(req.user.id);
+
+    // Score findings with single backend-core engine:
+    // - quantum_class (broken, weakened, resilient, classical)
+    // - Mosca (X + Y > Z) ONLY applied to broken and weakened
+    // - Unified overall posture verdict
+    const enrichedFindings = allFindings.map(f => {
+      const qClass = classifyQuantum(f);
+      const mosca = computeFindingMosca(f, userZ, businessCriticality);
+      const isQuantumVuln = qClass === 'broken' || qClass === 'weakened';
+      return {
+        ...f,
+        businessCriticality,
+        criticality_tier: businessCriticality,
+        quantum_class: qClass,
+        quantumStatus: isQuantumVuln ? 'Quantum Vulnerable' : 'Quantum Safe',
+        mosca,
+        urgency_margin: mosca.urgency_margin,
+        urgency_tier: mosca.urgency_tier,
+        mosca_at_risk: mosca.mosca_at_risk,
+        priority_score: mosca.priority_score,
+        risk: mosca,
+      };
+    });
+
+    const overallPosture = computeOverallPosture(enrichedFindings, userZ);
 
     return res.json({
       scanId,
       status: scan.status,
+      failureReason: scan.failureReason || null,
       findings: enrichedFindings,
       businessCriticality,
       criticality_tier: businessCriticality,
+      overallPosture,
+      postureVerdict: overallPosture.verdict,
+      quantumZ: userZ,
       filesScanned: (scan.filesScanned !== undefined && scan.filesScanned !== null) ? scan.filesScanned : uniqueFiles,
       components: uniqueAlgos || null
     });

@@ -2460,17 +2460,25 @@
         if (typeof CryptoEngine !== 'undefined') {
           CryptoEngine.enrichFinding(f);
         }
-        const X = f.X !== undefined ? f.X : (f.user_confirmed_lifetime || f.suggested_lifetime || 5);
-        const Y = f.Y !== undefined ? f.Y : 1.0;
-        const Z = f.Z !== undefined ? f.Z : 12;
-        const moscaHolds = (X + Y) > Z;
+        const qClass = f.quantum_class || (f.quantum === 'yes' ? 'broken' : 'resilient');
+        const isMoscaApplicable = qClass === 'broken' || qClass === 'weakened';
 
         const readoutEl = document.getElementById('drw-mosca-readout');
         const verdictEl = document.getElementById('drw-mosca-verdict');
         if (readoutEl && verdictEl) {
-          readoutEl.textContent = `Formula: X (${X}y lifetime) + Y (${Y}y migration) ${moscaHolds ? '>' : '≤'} Z (${Z}y threat) | Urgency Margin: ${f.urgency_margin}y`;
-          verdictEl.textContent = `Verdict: Mosca Urgency Tier is ${f.urgency_tier || (moscaHolds ? 'Critical' : 'Low')} (Priority Score: ${f.priority_score || 'N/A'})`;
-          verdictEl.style.color = (f.urgency_tier === 'Critical' || moscaHolds) ? 'var(--red)' : (f.urgency_tier === 'High' ? 'var(--amber)' : 'var(--green)');
+          if (isMoscaApplicable && f.risk && f.risk.mosca_applicable) {
+            const X = f.X !== undefined && f.X !== null ? f.X : 5;
+            const Y = f.Y !== undefined && f.Y !== null ? f.Y : 1.0;
+            const Z = f.Z !== undefined && f.Z !== null ? f.Z : 12;
+            const moscaHolds = (X + Y) > Z;
+            readoutEl.textContent = `Formula: X (${X}y lifetime) + Y (${Y}y migration) ${moscaHolds ? '>' : '≤'} Z (${Z}y threat) | Urgency Margin: ${f.urgency_margin}y (${qClass.toUpperCase()})`;
+            verdictEl.textContent = `Verdict: Mosca Urgency Tier is ${f.urgency_tier || 'Low'} (Priority Score: ${f.priority_score || 'N/A'})`;
+            verdictEl.style.color = (f.urgency_tier === 'Critical') ? 'var(--red)' : (f.urgency_tier === 'High' ? 'var(--amber)' : 'var(--green)');
+          } else {
+            readoutEl.textContent = `Classification: ${qClass.toUpperCase()} — Mosca theorem (X + Y > Z) applies exclusively to quantum-vulnerable (broken/weakened) primitives.`;
+            verdictEl.textContent = `Verdict: ${qClass.toUpperCase()} component (${(f.severity || 'INFO').toUpperCase()} severity). Excluded from Mosca urgency heatmap.`;
+            verdictEl.style.color = 'var(--text-m)';
+          }
         }
 
         // Populate Sub-factors Sliders & Values

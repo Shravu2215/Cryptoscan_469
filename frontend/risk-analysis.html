@@ -1354,26 +1354,40 @@
                 </button>
               </div>
 
-              <!-- Global Z Slider & Input -->
+              <!-- Global Z Slider & Input with Presets -->
               <div
-                style="margin-top: 20px; padding: 16px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: var(--r-md); display: flex; align-items: center; gap: 24px; flex-wrap: wrap;">
-                <div style="flex: 1; min-width: 280px;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <label for="global-z-slider" style="font-size: 13px; font-weight: 600; color: var(--text-h);">
-                      CRQC Quantum Threat Horizon (Z): <span id="global-z-val-display"
-                        style="color: var(--purple); font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700;">12</span>
-                      Years
-                    </label>
-                    <span style="font-size: 11px; color: var(--text-s);">Range: 1 – 30 Years</span>
-                  </div>
-                  <div style="display: flex; align-items: center; gap: 16px;">
-                    <input type="range" id="global-z-slider" min="1" max="30" step="1" value="12"
-                      oninput="onGlobalZChange(this.value)"
-                      style="flex: 1; accent-color: var(--purple); cursor: pointer;">
-                    <input type="number" id="global-z-input" min="1" max="30" step="1" value="12"
-                      onchange="onGlobalZChange(this.value)"
-                      style="width: 75px; padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-h); font-weight: 700; font-family: 'JetBrains Mono', monospace; text-align: center;">
-                  </div>
+                style="margin-top: 20px; padding: 16px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: var(--r-md); display: flex; flex-direction: column; gap: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <label for="global-z-slider" style="font-size: 13px; font-weight: 600; color: var(--text-h);">
+                    CRQC Quantum Threat Horizon (Z): <span id="global-z-val-display"
+                      style="color: var(--purple); font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700;">12</span>
+                    Years
+                  </label>
+                  <span style="font-size: 11px; color: var(--text-s);">Range: 1 – 50 Years</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 16px;">
+                  <input type="range" id="global-z-slider" min="1" max="50" step="1" value="12"
+                    oninput="onGlobalZChange(this.value)"
+                    style="flex: 1; accent-color: var(--purple); cursor: pointer;">
+                  <input type="number" id="global-z-input" min="1" max="50" step="1" value="12"
+                    onchange="onGlobalZChange(this.value)"
+                    style="width: 75px; padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-h); font-weight: 700; font-family: 'JetBrains Mono', monospace; text-align: center;">
+                </div>
+                <!-- Presets: Early, Median, Late -->
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; pt: 4px;">
+                  <span style="font-size: 12px; font-weight: 600; color: var(--text-m);">Threat Horizon Presets:</span>
+                  <button type="button" class="btn-sec" onclick="applyZPreset('early')" style="padding: 4px 10px; font-size: 12px;" title="Early quantum computer arrival (7y) — source in repo: backend-core vulnScoring.js:134 & cbom-service HNDL_CONFIG">
+                    ⚡ Early (7y)
+                  </button>
+                  <button type="button" class="btn-sec" onclick="applyZPreset('median')" style="padding: 4px 10px; font-size: 12px;" title="Median quantum computer arrival (12y, default) — source to confirm">
+                    🎯 Median (12y - Default)
+                  </button>
+                  <button type="button" class="btn-sec" onclick="applyZPreset('late')" style="padding: 4px 10px; font-size: 12px;" title="Late quantum computer arrival (20y) — source to confirm">
+                    ⏳ Late (20y)
+                  </button>
+                </div>
+                <div style="font-size: 11px; color: var(--text-s); line-height: 1.4;">
+                  Note: Mosca model (X + Y &gt; Z) is applied strictly to broken and weakened quantum findings. Classical and resilient findings (e.g. AES-256, SHA-256, HMAC, secrets) are excluded from the Mosca heatmap.
                 </div>
               </div>
 
@@ -1804,7 +1818,10 @@
         return 'badge-low';
       }
 
-      function syncGlobalZUI() {
+      async function syncGlobalZUI() {
+        if (typeof CryptoEngine !== 'undefined' && CryptoEngine.fetchGlobalZ) {
+          await CryptoEngine.fetchGlobalZ();
+        }
         const z = typeof CryptoEngine !== 'undefined' ? CryptoEngine.getGlobalZ() : 12;
         const slider = document.getElementById('global-z-slider');
         const input = document.getElementById('global-z-input');
@@ -1814,14 +1831,20 @@
         if (display) display.textContent = z;
       }
 
-      function onGlobalZChange(val) {
-        const z = parseFloat(val);
-        if (isNaN(z) || z < 1 || z > 30) return;
+      async function onGlobalZChange(val) {
+        const z = Math.round(parseFloat(val));
+        if (isNaN(z) || z < 1 || z > 50) return;
         if (typeof CryptoEngine !== 'undefined') {
-          CryptoEngine.setGlobalZ(z);
+          await CryptoEngine.setGlobalZ(z);
         }
         syncGlobalZUI();
         init();
+      }
+
+      function applyZPreset(presetName) {
+        const presets = { early: 7, median: 12, late: 20 };
+        const val = presets[presetName] || 12;
+        onGlobalZChange(val);
       }
 
       function toggleYLookupTable() {
@@ -1877,7 +1900,12 @@
           });
         });
 
+        // REQUIREMENT: Apply Mosca (X+Y>Z) ONLY to broken and weakened findings.
+        // Classical and resilient findings are excluded from the Mosca heatmap!
         allFindings.forEach(f => {
+          const qClass = f.quantum_class || (f.quantum === 'yes' ? 'broken' : 'resilient');
+          if (qClass !== 'broken' && qClass !== 'weakened') return;
+
           const c = f.criticality_label || 'Medium';
           const u = (f.risk && f.risk.urgency_tier) || 'Low';
           if (cellCounts[c] && cellCounts[c][u] !== undefined) {
@@ -1998,7 +2026,12 @@
         const countEl = document.getElementById('priority-table-count');
         if (!tbody) return;
 
-        let filtered = [...allFindings];
+        // Only broken and weakened findings appear in the Mosca priority-ranked fix list
+        let filtered = allFindings.filter(f => {
+          const qClass = f.quantum_class || (f.quantum === 'yes' ? 'broken' : 'resilient');
+          return qClass === 'broken' || qClass === 'weakened';
+        });
+
         if (activeMatrixFilter) {
           filtered = filtered.filter(f =>
             (f.criticality_label || 'Medium') === activeMatrixFilter.criticality &&
@@ -2151,11 +2184,24 @@
       }
 
       function computeFindingMosca(rawFinding, fileCount) {
+        const qClass = (rawFinding && rawFinding.quantum_class) || 'classical';
+        if (qClass !== 'broken' && qClass !== 'weakened') {
+          return {
+            mosca_applicable: false,
+            moscaX: '-',
+            moscaY: '-',
+            moscaZ: '-',
+            diff: 0,
+            isMet: false,
+            category: 'NOT_APPLICABLE',
+            categoryLabel: 'Not Applicable (Classical / Resilient)'
+          };
+        }
         const risk = (rawFinding && rawFinding.risk) ? rawFinding.risk : { X: 5, Y: 1.5, Z: 12, urgency_margin: 5.5, urgency_tier: 'Low' };
-        const x = risk.X !== undefined ? risk.X : 5;
-        const y = risk.Y !== undefined ? risk.Y : 1.5;
-        const z = risk.Z !== undefined ? risk.Z : 12;
-        const margin = (risk.urgency_margin !== undefined) ? risk.urgency_margin : (z - (x + y));
+        const x = risk.X !== undefined && risk.X !== null ? risk.X : 5;
+        const y = risk.Y !== undefined && risk.Y !== null ? risk.Y : 1.5;
+        const z = risk.Z !== undefined && risk.Z !== null ? risk.Z : (typeof CryptoEngine !== 'undefined' ? CryptoEngine.getGlobalZ() : 12);
+        const margin = (risk.urgency_margin !== undefined && risk.urgency_margin !== null) ? risk.urgency_margin : (z - (x + y));
         const isMet = (x + y) > z;
         let cat = 'SAFE_TIMELINE';
         let catLabel = 'Safe Under Current Timeline';
@@ -2168,6 +2214,7 @@
         }
         return {
           ...risk,
+          mosca_applicable: true,
           moscaX: `${x}y`,
           moscaY: `${y}y`,
           moscaZ: `${z}y`,
@@ -2185,10 +2232,13 @@
         if (!pV && !pH && !pS) return;
         let v = 0, h = 0, s = 0;
         migrationCandidates.forEach(c => {
-          const m = c.mosca || computeFindingMosca(c.rawFinding, c.fileCount);
+          const raw = c.rawFinding;
+          const qClass = (raw && raw.quantum_class) || 'classical';
+          if (qClass !== 'broken' && qClass !== 'weakened') return;
+          const m = c.mosca || computeFindingMosca(raw, c.fileCount);
           if (m.category === 'VULNERABLE_NOW') v++;
           else if (m.category === 'WITHIN_HORIZON') h++;
-          else s++;
+          else if (m.category === 'SAFE_TIMELINE') s++;
         });
         if (pV) pV.textContent = v;
         if (pH) pH.textContent = h;
@@ -2380,14 +2430,22 @@
         const hasHigh = allFindings.some(f => getSeverity(f) === 'HIGH');
         const hasQuant = allFindings.some(f => isQuantum(f));
 
+        const data = typeof CryptoEngine !== 'undefined' ? CryptoEngine.getData() : {};
+        const currentScan = (data.scans && data.scans.length > 0) ? data.scans[0] : (data.activeScan || {});
+
         const hero = document.getElementById('hero-card');
         const heroRisk = document.getElementById('hero-risk');
-        let overall = 'LOW';
+        // Single unified overall posture verdict from server
+        const serverVerdict = (currentScan.overallPosture && currentScan.overallPosture.verdict) ||
+                              currentScan.postureVerdict ||
+                              (allFindings.some(f => f.risk && f.risk.urgency_tier === 'Critical') ? 'CRITICAL' : (allFindings.some(f => f.risk && f.risk.urgency_tier === 'High') ? 'HIGH' : 'LOW'));
+        let overall = String(serverVerdict).toUpperCase();
 
         if (hero && heroRisk) {
-          if (hasCrit || hasQuant) { overall = 'CRITICAL'; hero.className = 'risk-hero risk-crit'; heroRisk.className = 'risk-hero-val crit'; }
-          else if (hasHigh) { overall = 'HIGH'; hero.className = 'risk-hero risk-high'; heroRisk.className = 'risk-hero-val high'; }
-          else { overall = 'MEDIUM'; heroRisk.className = 'risk-hero-val high'; } // fallback styling
+          if (overall === 'CRITICAL') { hero.className = 'risk-hero risk-crit'; heroRisk.className = 'risk-hero-val crit'; }
+          else if (overall === 'HIGH') { hero.className = 'risk-hero risk-high'; heroRisk.className = 'risk-hero-val high'; }
+          else if (overall === 'MEDIUM') { hero.className = 'risk-hero risk-high'; heroRisk.className = 'risk-hero-val high'; }
+          else { hero.className = 'risk-hero'; heroRisk.className = 'risk-hero-val'; }
 
           heroRisk.textContent = overall;
         }

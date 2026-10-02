@@ -640,48 +640,55 @@ const CryptoEngine = {
     return Number(entry[complexityKey] || 1.0);
   },
 
+  _cachedZ: 12,
+
   getGlobalZ: function() {
-    const saved = localStorage.getItem('cs_global_z');
-    return saved ? Number(saved) : 12;
+    return this._cachedZ !== undefined ? Number(this._cachedZ) : 12;
   },
 
-  setGlobalZ: function(val) {
-    localStorage.setItem('cs_global_z', String(val));
+  setGlobalZ: async function(val) {
+    const num = Math.round(Number(val));
+    if (isNaN(num) || num < 1 || num > 50) return;
+    this._cachedZ = num;
+    try {
+      const apiBase = (window.Auth && window.Auth.API_BASE) ? window.Auth.API_BASE : '';
+      const token = window.Auth ? window.Auth.getToken() : null;
+      if (token && apiBase) {
+        await fetch(`${apiBase}/scan/settings/z`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ z: num })
+        });
+      }
+    } catch (e) {
+      console.warn('Could not sync Z to server:', e);
+    }
     window.dispatchEvent(new Event('cryptoscan_data_updated'));
   },
 
-  computeMoscaRisk: function(finding, globalZ) {
-    const Z = globalZ !== undefined ? Number(globalZ) : this.getGlobalZ();
-    const X = (finding.user_confirmed_lifetime !== undefined && finding.user_confirmed_lifetime !== null && finding.user_confirmed_lifetime !== '')
-      ? Number(finding.user_confirmed_lifetime)
-      : Number(finding.suggested_lifetime || this.estimateLifetime(finding).suggested_lifetime);
-
-    const Y = this.estimateMigrationTime(finding);
-    const urgency_margin = Math.round((Z - (X + Y)) * 10) / 10;
-    const mosca_at_risk = (X + Y) > Z;
-
-    let urgency_tier = 'Low';
-    if (urgency_margin < 0) {
-      urgency_tier = 'Critical';
-    } else if (urgency_margin <= 2) {
-      urgency_tier = 'High';
-    } else if (urgency_margin <= 5) {
-      urgency_tier = 'Medium';
+  fetchGlobalZ: async function() {
+    try {
+      const apiBase = (window.Auth && window.Auth.API_BASE) ? window.Auth.API_BASE : '';
+      const token = window.Auth ? window.Auth.getToken() : null;
+      if (token && apiBase) {
+        const res = await fetch(`${apiBase}/scan/settings/z`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && typeof data.z === 'number') {
+            this._cachedZ = data.z;
+            return data.z;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch Z from server:', e);
     }
-
-    const tierWeights = { Critical: 4, High: 3, Medium: 2, Low: 1 };
-    const critScore = finding.criticality_score !== undefined ? Number(finding.criticality_score) : 3.0;
-    const priority_score = Math.round((tierWeights[urgency_tier] * critScore) * 10) / 10;
-
-    return {
-      X,
-      Y,
-      Z,
-      urgency_margin,
-      mosca_at_risk,
-      urgency_tier,
-      priority_score
-    };
+    return this.getGlobalZ();
   },
 
   extractMode: function(finding) {
@@ -742,15 +749,28 @@ const CryptoEngine = {
     f.modification_reason = f.modification_reason || crit.modification_reason;
     f.modified_at = f.modified_at || crit.modified_at;
 
-    const mosca = this.computeMoscaRisk(f, globalZ);
+    // Pass through server-computed quantum_class and Mosca risk.
+    // Frontend only renders values returned by the API (single engine).
+    f.quantum_class = f.quantum_class || (f.quantum === 'yes' ? 'broken' : 'resilient');
+    const mosca = f.risk || f.mosca || null;
     f.risk = mosca;
-    f.X = mosca.X;
-    f.Y = mosca.Y;
-    f.Z = mosca.Z;
-    f.urgency_margin = mosca.urgency_margin;
-    f.mosca_at_risk = mosca.mosca_at_risk;
-    f.urgency_tier = mosca.urgency_tier;
-    f.priority_score = mosca.priority_score;
+    if (mosca && mosca.mosca_applicable) {
+      f.X = mosca.X;
+      f.Y = mosca.Y;
+      f.Z = mosca.Z;
+      f.urgency_margin = mosca.urgency_margin;
+      f.mosca_at_risk = Boolean(mosca.mosca_at_risk);
+      f.urgency_tier = mosca.urgency_tier;
+      f.priority_score = mosca.priority_score;
+    } else {
+      f.X = null;
+      f.Y = null;
+      f.Z = mosca ? mosca.Z : this.getGlobalZ();
+      f.urgency_margin = null;
+      f.mosca_at_risk = false;
+      f.urgency_tier = null;
+      f.priority_score = null;
+    }
 
     if (f.latencyImpactMs === undefined || f.latencyImpactMs === null) {
       const algo = (f.algorithm || f.title || '').toUpperCase();
@@ -839,6 +859,13 @@ const CryptoEngine = {
         suppressed: Boolean(f.suppressed),
         suppressionReason: f.suppressionReason || null,
         status: f.status || 'ACTIVE',
+        quantum_class: f.quantum_class,
+        mosca: f.mosca,
+        urgency_margin: f.urgency_margin,
+        urgency_tier: f.urgency_tier,
+        mosca_at_risk: f.mosca_at_risk,
+        priority_score: f.priority_score,
+        risk: f.risk || f.mosca || null,
         user_confirmed_lifetime: f.user_confirmed_lifetime !== undefined ? f.user_confirmed_lifetime : null,
         criticality_score: f.criticality_score,
         criticality_label: f.criticality_label,

@@ -6,6 +6,7 @@ const devRepos = new Map();
 const devScans = new Map();
 const devFindings = new Map();
 const devAnchors = new Map();
+const devUserZ = new Map();
 
 function assertDevStoreEnabled() {
   if (!isDev) throw new Error('devStore is only available in development');
@@ -92,11 +93,23 @@ function getAnchor(scanId) {
   return devAnchors.get(scanId);
 }
 
+function saveUserZ(userId, z) {
+  assertDevStoreEnabled();
+  devUserZ.set(String(userId), Number(z));
+  return Number(z);
+}
+
+function getUserZ(userId) {
+  assertDevStoreEnabled();
+  return devUserZ.get(String(userId)) ?? 12;
+}
+
 module.exports = {
   devRepos,
   devScans,
   devFindings,
   devAnchors,
+  devUserZ,
   saveRepo,
   getRepo,
   updateRepoCriticality,
@@ -106,4 +119,6 @@ module.exports = {
   getFindings,
   saveAnchor,
   getAnchor,
+  saveUserZ,
+  getUserZ,
 };

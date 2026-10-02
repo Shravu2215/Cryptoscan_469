@@ -57,6 +57,35 @@ services:
       timeout: 5s
       retries: 5
 
+  scan-worker:
+    build:
+      context: .
+      dockerfile: backend-core/Dockerfile.worker
+    user: "10001:10001"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2048M
+    volumes:
+      - backend-uploads:/app/backend-core/uploads:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=512m
+    environment:
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://cryptoscan_user:cryptoscan_password@postgres:5432/cryptoscan
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   nginx:
     image: nginx:1.27-alpine
     ports:

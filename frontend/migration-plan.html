@@ -1396,7 +1396,10 @@
         return 'badge-low';
       }
 
-      function syncGlobalZUI() {
+      async function syncGlobalZUI() {
+        if (typeof CryptoEngine !== 'undefined' && CryptoEngine.fetchGlobalZ) {
+          await CryptoEngine.fetchGlobalZ();
+        }
         const z = typeof CryptoEngine !== 'undefined' ? CryptoEngine.getGlobalZ() : 12;
         const slider = document.getElementById('global-z-slider');
         const input = document.getElementById('global-z-input');
@@ -1406,11 +1409,11 @@
         if (display) display.textContent = z;
       }
 
-      function onGlobalZChange(val) {
-        const z = parseFloat(val);
-        if (isNaN(z) || z < 1 || z > 30) return;
+      async function onGlobalZChange(val) {
+        const z = Math.round(parseFloat(val));
+        if (isNaN(z) || z < 1 || z > 50) return;
         if (typeof CryptoEngine !== 'undefined') {
-          CryptoEngine.setGlobalZ(z);
+          await CryptoEngine.setGlobalZ(z);
         }
         syncGlobalZUI();
         init();
@@ -1469,7 +1472,12 @@
           });
         });
 
+        // REQUIREMENT: Apply Mosca (X+Y>Z) ONLY to broken and weakened findings.
+        // Classical and resilient findings are excluded from the Mosca heatmap!
         allFindings.forEach(f => {
+          const qClass = f.quantum_class || (f.quantum === 'yes' ? 'broken' : 'resilient');
+          if (qClass !== 'broken' && qClass !== 'weakened') return;
+
           const c = f.criticality_label || 'Medium';
           const u = (f.risk && f.risk.urgency_tier) || 'Low';
           if (cellCounts[c] && cellCounts[c][u] !== undefined) {
@@ -1565,7 +1573,12 @@
         const countEl = document.getElementById('priority-table-count');
         if (!tbody) return;
 
-        let filtered = [...allFindings];
+        // Only broken and weakened findings appear in the Mosca priority-ranked fix list
+        let filtered = allFindings.filter(f => {
+          const qClass = f.quantum_class || (f.quantum === 'yes' ? 'broken' : 'resilient');
+          return qClass === 'broken' || qClass === 'weakened';
+        });
+
         if (activeMatrixFilter) {
           filtered = filtered.filter(f =>
             (f.criticality_label || 'Medium') === activeMatrixFilter.criticality &&
@@ -1981,14 +1994,22 @@
         const hasHigh = allFindings.some(f => getSeverity(f) === 'HIGH');
         const hasQuant = allFindings.some(f => isQuantum(f));
 
+        const data = typeof CryptoEngine !== 'undefined' ? CryptoEngine.getData() : {};
+        const currentScan = (data.scans && data.scans.length > 0) ? data.scans[0] : (data.activeScan || {});
+
         const hero = document.getElementById('hero-card');
         const heroRisk = document.getElementById('hero-risk');
-        let overall = 'LOW';
+        // Single unified overall posture verdict from server
+        const serverVerdict = (currentScan.overallPosture && currentScan.overallPosture.verdict) ||
+                              currentScan.postureVerdict ||
+                              (allFindings.some(f => f.risk && f.risk.urgency_tier === 'Critical') ? 'CRITICAL' : (allFindings.some(f => f.risk && f.risk.urgency_tier === 'High') ? 'HIGH' : 'LOW'));
+        let overall = String(serverVerdict).toUpperCase();
 
         if (hero && heroRisk) {
-          if (hasCrit || hasQuant) { overall = 'CRITICAL'; hero.className = 'risk-hero risk-crit'; heroRisk.className = 'risk-hero-val crit'; }
-          else if (hasHigh) { overall = 'HIGH'; hero.className = 'risk-hero risk-high'; heroRisk.className = 'risk-hero-val high'; }
-          else { overall = 'MEDIUM'; heroRisk.className = 'risk-hero-val high'; } // fallback styling
+          if (overall === 'CRITICAL') { hero.className = 'risk-hero risk-crit'; heroRisk.className = 'risk-hero-val crit'; }
+          else if (overall === 'HIGH') { hero.className = 'risk-hero risk-high'; heroRisk.className = 'risk-hero-val high'; }
+          else if (overall === 'MEDIUM') { hero.className = 'risk-hero risk-high'; heroRisk.className = 'risk-hero-val high'; }
+          else { hero.className = 'risk-hero'; heroRisk.className = 'risk-hero-val'; }
 
           heroRisk.textContent = overall;
         }

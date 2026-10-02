@@ -1,0 +1,51 @@
+# Build context MUST be the repository root (not backend-core/)
+# Build with: docker build -f backend-core/Dockerfile.worker -t cryptoscan-scan-worker .
+FROM node:20-bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 \
+      python3-venv \
+      python3-pip \
+      openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create dedicated non-root user and group
+RUN groupadd -g 10001 appgroup && \
+    useradd -u 10001 -g appgroup -s /bin/sh -m appuser
+
+WORKDIR /app
+
+# Sibling modules
+COPY blockchain-module/package.json blockchain-module/package-lock.json ./blockchain-module/
+RUN cd blockchain-module && npm install --omit=dev --ignore-scripts
+
+COPY cbom-service/package.json cbom-service/package-lock.json ./cbom-service/
+RUN cd cbom-service && npm install --omit=dev --ignore-scripts
+
+COPY blockchain-module ./blockchain-module
+COPY integrity-service ./integrity-service
+COPY scanner ./scanner
+COPY shared ./shared
+COPY cbom-service ./cbom-service
+
+# Setup Python virtualenv for scanner
+RUN python3 -m venv scanner/.venv \
+    && scanner/.venv/bin/pip install --no-cache-dir -r scanner/requirements.txt
+
+# backend-core dependencies
+COPY backend-core/package.json backend-core/package-lock.json ./backend-core/
+WORKDIR /app/backend-core
+RUN npm install --omit=dev --ignore-scripts
+
+COPY backend-core .
+
+RUN npx prisma generate
+
+# Ensure non-root appuser owns app files
+RUN chown -R appuser:appgroup /app
+
+USER appuser
+
+ENV NODE_ENV=production
+
+CMD ["node", "src/queue/scanWorker.js"]
