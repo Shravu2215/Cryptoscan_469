@@ -88,6 +88,8 @@ services:
 
   nginx:
     image: nginx:1.27-alpine
+    ports:
+      - "127.0.0.1:8080:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
@@ -99,6 +101,7 @@ services:
 
   caddy:
     image: caddy:2-alpine
+    profiles: ["vps"]
     environment:
       DOMAIN: ${DOMAIN:?Set DOMAIN in root .env}
     ports:

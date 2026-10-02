@@ -101,8 +101,8 @@ From the repository root, validate the Compose config and build/start the stack:
 
 ```bash
 sudo docker compose config --quiet
-sudo docker compose up -d --build
-sudo docker compose ps
+sudo docker compose --profile vps up -d --build
+sudo docker compose --profile vps ps
 ```
 
 The backend container runs `prisma migrate deploy` before starting the API. Do not run `prisma migrate dev` on the production database. Caddy needs the hostname to resolve to this VPS and ports 80/443 reachable before it can issue the HTTPS certificate.
@@ -131,8 +131,8 @@ To deploy a later `main` update:
 
 ```bash
 git pull --ff-only origin main
-sudo docker compose up -d --build
-sudo docker compose ps
+sudo docker compose --profile vps up -d --build
+sudo docker compose --profile vps ps
 ```
 
 Back up PostgreSQL regularly and store the backup outside this VPS:
