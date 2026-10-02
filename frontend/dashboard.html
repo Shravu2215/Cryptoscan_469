@@ -1169,10 +1169,7 @@
       // Calculate totals across ALL scans
       let totalFilesScanned = allScans.reduce((sum, s) => sum + (s.filesScanned || s.filesDiscovered || 0), 0)
         || (new Set(allFindings.map(f => f.file || f.filePath)).size) || 0;
-      let totalCbomComponents = allScans.reduce((sum, s) => {
-        if (s.summary && s.summary.components_total !== undefined) return sum + s.summary.components_total;
-        return sum + (s.assetsFound || (s.cbom ? s.cbom.length : 0));
-      }, 0)
+      let totalCbomComponents = allScans.reduce((sum, s) => sum + (s.assetsFound || (s.cbom ? s.cbom.length : 0)), 0)
         || (new Set(allFindings.map(f => f.algorithm)).size) || 0;
       let langsSet = new Set();
       let apisSet = new Set();
@@ -1189,11 +1186,7 @@
       });
 
       // Main stat cards (make clickable)
-      const latestScan = allScans[0] || {};
-      const serverVerdict = (latestScan.overallPosture && latestScan.overallPosture.verdict) ||
-                            latestScan.postureVerdict ||
-                            (critCount > 0 ? 'CRITICAL' : (highCount > 0 ? 'HIGH' : 'LOW'));
-      updateStat('stat-risk-score', String(serverVerdict).toUpperCase(), hasData);
+      updateStat('stat-risk-score', critCount > 0 ? 'CRITICAL' : (highCount > 0 ? 'HIGH' : 'LOW'), hasData);
       updateStat('stat-files', (totalFilesScanned || 0).toLocaleString(), hasData);
       updateStat('stat-findings', totalFindings, hasData);
       updateStat('stat-critical', critCount, hasData);
@@ -1249,7 +1242,7 @@
         emptyRepos.style.display = 'none';
         tbody.innerHTML = scanRows.map(({ s, timeStr, riskBadge, riskLabel, verifBadge, findingsCount }) => `
       <tr style="cursor:pointer;" onclick="window.location.href='findings.html'">
-        <td><span style="font-weight:600;color:var(--text-h);">${escapeHtml(s.repoName || 'Scanned Repository')}</span></td>
+        <td><span style="font-weight:600;color:var(--text-h);">${s.repoName || 'Scanned Repository'}</span></td>
         <td><span style="font-size:12px;color:var(--text-s)">${timeStr}</span></td>
         <td><span class="badge badge-med">GENERATED (${findingsCount})</span></td>
         <td><span class="badge ${riskBadge}">${riskLabel}</span></td>
@@ -1416,14 +1409,13 @@
           }
 
           const fileCount = item.files.size || 1;
-          const safeAlgo = escapeHtml(algo);
           return `
         <div class="risk-item" style="cursor:pointer;" onclick="window.location.href='findings.html?algo=${encodeURIComponent(algo)}'">
           <div>
-            <div class="risk-algo">${safeAlgo} ${qTag}</div>
+            <div class="risk-algo">${algo} ${qTag}</div>
             <div class="risk-count">${fileCount} affected file${fileCount > 1 ? 's' : ''} (${item.count} finding${item.count > 1 ? 's' : ''})</div>
           </div>
-          <span class="badge ${badgeClass}">${escapeHtml(item.severity)}</span>
+          <span class="badge ${badgeClass}">${item.severity}</span>
         </div>
       `;
         }).join('');
@@ -1489,15 +1481,14 @@
           let badgeClass = 'badge-med';
           if (item.severity.toUpperCase() === 'CRITICAL') badgeClass = 'badge-crit';
           if (item.severity.toUpperCase() === 'HIGH') badgeClass = 'badge-high';
-          const safeSys = escapeHtml(sys);
 
           return `
         <div class="risk-item" style="cursor:pointer;" onclick="window.location.href='findings.html?search=${encodeURIComponent(sys)}'">
           <div>
-            <div class="risk-algo">${safeSys}</div>
+            <div class="risk-algo">${sys}</div>
             <div class="risk-count">${item.count} finding(s) • ${item.quant} quantum-vulnerable</div>
           </div>
-          <span class="badge ${badgeClass}">${escapeHtml(item.severity)}</span>
+          <span class="badge ${badgeClass}">${item.severity}</span>
         </div>
       `;
         }).join('');
@@ -1621,7 +1612,6 @@
     window.addEventListener('load', syncBadges);
     window.addEventListener('cryptoscan_data_updated', syncBadges);
   </script>
-  <script src="assets/js/security.js"></script>
   <script src="assets/js/auth.js"></script>
   <script src="assets/js/shell.js"></script>
 </body>

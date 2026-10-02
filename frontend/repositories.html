@@ -889,10 +889,10 @@
 
         // Live-fetch repositories from backend
         try {
-          const token = (window.Auth && window.Auth.getToken && window.Auth.getToken()) || '';
+          const token = localStorage.getItem('cs_token');
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 1000);
-          const res = await fetch('/repos', {
+          const res = await fetch('http://localhost:3000/repos', {
             headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             signal: controller.signal
           });
@@ -958,12 +958,12 @@
       const el = document.getElementById(id);
       const sub = document.getElementById(id + '-sub');
       if (hasData) {
-        el.textContent = val;  // use textContent — val may contain attacker data
-        sub.textContent = 'From scanned data';
+        el.innerHTML = val;
+        sub.innerHTML = 'From scanned data';
         sub.style.color = 'var(--text-s)';
       } else {
         el.innerHTML = '<span class="empty-val">—</span>';
-        sub.textContent = 'No data available';
+        sub.innerHTML = 'No data available';
       }
     }
 
@@ -1225,8 +1225,8 @@
 
       // 2. Persist to backend API (sync single source of truth)
       try {
-        const token = (window.Auth && window.Auth.getToken && window.Auth.getToken()) || '';
-        const res = await fetch(`/repos/${encodeURIComponent(repoId)}`, {
+        const token = localStorage.getItem('cs_token');
+        const res = await fetch(`http://localhost:3000/repos/${encodeURIComponent(repoId)}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -1479,8 +1479,6 @@
       }
     });
   </script>
-  <script src="assets/js/security.js"></script>
-  <script src="assets/js/auth.js"></script>
   <script src="assets/js/shell.js"></script>
 </body>
 

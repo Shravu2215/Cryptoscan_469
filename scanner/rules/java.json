@@ -1,0 +1,81 @@
+[
+  {
+    "id": "java-md5-digest",
+    "name": "MD5 Hash Algorithm in Java",
+    "category": "hash",
+    "algorithm": "MD5",
+    "severity": "High",
+    "quantum_risk": "Classical Risk",
+    "message": "MD5 is cryptographically broken and vulnerable to collision attacks.",
+    "recommendation": "Upgrade to SHA-256 or SHA-3.",
+    "pattern": "MessageDigest\\.getInstance\\s*\\(\\s*[\"']MD5[\"']",
+    "library": "java.security.MessageDigest",
+    "specificity": 3
+  },
+  {
+    "id": "java-sha1-digest",
+    "name": "SHA-1 Hash Algorithm in Java",
+    "category": "hash",
+    "algorithm": "SHA-1",
+    "severity": "Medium",
+    "quantum_risk": "Classical Risk",
+    "message": "SHA-1 is deprecated and collision-vulnerable.",
+    "recommendation": "Upgrade to SHA-256, SHA-384, or SHA-512.",
+    "pattern": "MessageDigest\\.getInstance\\s*\\(\\s*[\"']SHA-?1[\"']",
+    "library": "java.security.MessageDigest",
+    "specificity": 3
+  },
+  {
+    "id": "java-des-cipher",
+    "name": "DES Cipher in Java",
+    "category": "symmetric-cipher",
+    "algorithm": "DES",
+    "severity": "Critical",
+    "quantum_risk": "Classical Risk",
+    "message": "DES has an insufficient 56-bit key length.",
+    "recommendation": "Use AES-256-GCM.",
+    "pattern": "Cipher\\.getInstance\\s*\\(\\s*[\"']DES(?:/|[\"'])",
+    "library": "javax.crypto.Cipher",
+    "specificity": 4
+  },
+  {
+    "id": "java-ecb-mode",
+    "name": "ECB Cipher Mode in Java",
+    "category": "symmetric-cipher",
+    "algorithm": "AES-ECB",
+    "severity": "High",
+    "quantum_risk": "Classical Risk",
+    "message": "ECB mode does not provide pattern confidentiality.",
+    "recommendation": "Use authenticated encryption modes like GCM.",
+    "pattern": "Cipher\\.getInstance\\s*\\(\\s*[\"'][^\"']+/ECB/[^\"']*[\"']",
+    "library": "javax.crypto.Cipher",
+    "mode": "ECB",
+    "specificity": 4
+  },
+  {
+    "id": "java-rsa-small-key",
+    "name": "Small RSA Key Size in Java",
+    "category": "asymmetric",
+    "algorithm": "RSA-1024",
+    "severity": "Critical",
+    "quantum_risk": "Quantum-Broken",
+    "message": "RSA keys smaller than 2048 bits are vulnerable to classical factorization and broken under quantum computing.",
+    "recommendation": "Use RSA >= 3072 bits or migrate to Post-Quantum Cryptography (ML-KEM / ML-DSA).",
+    "pattern": "KeyPairGenerator\\.getInstance\\s*\\(\\s*[\"']RSA[\"'].*?\\.initialize\\s*\\(\\s*(?:512|1024)\\b",
+    "library": "java.security.KeyPairGenerator",
+    "specificity": 4
+  },
+  {
+    "id": "java-rsa-quantum-broken",
+    "name": "RSA Public-Key Algorithm in Java",
+    "category": "asymmetric",
+    "algorithm": "RSA",
+    "severity": "Critical",
+    "quantum_risk": "Quantum-Broken",
+    "message": "RSA is vulnerable to Shor's algorithm on quantum computers.",
+    "recommendation": "Prepare transition to post-quantum algorithms such as ML-KEM or ML-DSA.",
+    "pattern": "KeyPairGenerator\\.getInstance\\s*\\(\\s*[\"']RSA[\"']",
+    "library": "java.security.KeyPairGenerator",
+    "specificity": 2
+  }
+]

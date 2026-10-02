@@ -18,25 +18,7 @@ const { apiLimiter, heavyLimiter, authLimiter } = require('./middleware/rateLimi
 const app = express();
 
 app.set('trust proxy', 1); // behind nginx/load balancer in production
-app.use(helmet({
-  contentSecurityPolicy: {
-    reportOnly: true,
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:"],
-      connectSrc: ["'self'", "http://localhost:3000"],
-      reportUri: ['/api/csp-report'],
-    },
-  },
-}));
-
-app.post('/api/csp-report', express.json({ type: 'application/csp-report' }), (req, res) => {
-  console.warn('[CSP-REPORT]', JSON.stringify(req.body));
-  res.status(204).end();
-});
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors(corsOptions()));
 app.use(express.json());
 const path = require('path');
@@ -104,15 +86,4 @@ async function startServer() {
   });
 }
 
-async function startServices() {
-  if (process.env.RUN_SCAN_WORKER === 'true') {
-    const { startWorker } = require('./queue/scanWorker');
-    await startWorker();
-  }
-  await startServer();
-}
-
-startServices().catch((err) => {
-  console.error('FATAL: Application startup failed.', err.message);
-  process.exit(1);
-});
+startServer();

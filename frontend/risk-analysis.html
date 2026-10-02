@@ -1354,40 +1354,26 @@
                 </button>
               </div>
 
-              <!-- Global Z Slider & Input with Presets -->
+              <!-- Global Z Slider & Input -->
               <div
-                style="margin-top: 20px; padding: 16px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: var(--r-md); display: flex; flex-direction: column; gap: 16px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                  <label for="global-z-slider" style="font-size: 13px; font-weight: 600; color: var(--text-h);">
-                    CRQC Quantum Threat Horizon (Z): <span id="global-z-val-display"
-                      style="color: var(--purple); font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700;">12</span>
-                    Years
-                  </label>
-                  <span style="font-size: 11px; color: var(--text-s);">Range: 1 – 50 Years</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 16px;">
-                  <input type="range" id="global-z-slider" min="1" max="50" step="1" value="12"
-                    oninput="onGlobalZChange(this.value)"
-                    style="flex: 1; accent-color: var(--purple); cursor: pointer;">
-                  <input type="number" id="global-z-input" min="1" max="50" step="1" value="12"
-                    onchange="onGlobalZChange(this.value)"
-                    style="width: 75px; padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-h); font-weight: 700; font-family: 'JetBrains Mono', monospace; text-align: center;">
-                </div>
-                <!-- Presets: Early, Median, Late -->
-                <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; pt: 4px;">
-                  <span style="font-size: 12px; font-weight: 600; color: var(--text-m);">Threat Horizon Presets:</span>
-                  <button type="button" class="btn-sec" onclick="applyZPreset('early')" style="padding: 4px 10px; font-size: 12px;" title="Early quantum computer arrival (7y) — source in repo: backend-core vulnScoring.js:134 & cbom-service HNDL_CONFIG">
-                    ⚡ Early (7y)
-                  </button>
-                  <button type="button" class="btn-sec" onclick="applyZPreset('median')" style="padding: 4px 10px; font-size: 12px;" title="Median quantum computer arrival (12y, default) — source to confirm">
-                    🎯 Median (12y - Default)
-                  </button>
-                  <button type="button" class="btn-sec" onclick="applyZPreset('late')" style="padding: 4px 10px; font-size: 12px;" title="Late quantum computer arrival (20y) — source to confirm">
-                    ⏳ Late (20y)
-                  </button>
-                </div>
-                <div style="font-size: 11px; color: var(--text-s); line-height: 1.4;">
-                  Note: Mosca model (X + Y &gt; Z) is applied strictly to broken and weakened quantum findings. Classical and resilient findings (e.g. AES-256, SHA-256, HMAC, secrets) are excluded from the Mosca heatmap.
+                style="margin-top: 20px; padding: 16px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: var(--r-md); display: flex; align-items: center; gap: 24px; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 280px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label for="global-z-slider" style="font-size: 13px; font-weight: 600; color: var(--text-h);">
+                      CRQC Quantum Threat Horizon (Z): <span id="global-z-val-display"
+                        style="color: var(--purple); font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700;">12</span>
+                      Years
+                    </label>
+                    <span style="font-size: 11px; color: var(--text-s);">Range: 1 – 30 Years</span>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 16px;">
+                    <input type="range" id="global-z-slider" min="1" max="30" step="1" value="12"
+                      oninput="onGlobalZChange(this.value)"
+                      style="flex: 1; accent-color: var(--purple); cursor: pointer;">
+                    <input type="number" id="global-z-input" min="1" max="30" step="1" value="12"
+                      onchange="onGlobalZChange(this.value)"
+                      style="width: 75px; padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-h); font-weight: 700; font-family: 'JetBrains Mono', monospace; text-align: center;">
+                  </div>
                 </div>
               </div>
 
@@ -1797,7 +1783,6 @@
       }
     </style>
 
-    <script src="assets/js/security.js"></script>
     <script src="assets/js/engine.js"></script>
     <script>
       let allFindings = [];
@@ -1819,10 +1804,7 @@
         return 'badge-low';
       }
 
-      async function syncGlobalZUI() {
-        if (typeof CryptoEngine !== 'undefined' && CryptoEngine.fetchGlobalZ) {
-          await CryptoEngine.fetchGlobalZ();
-        }
+      function syncGlobalZUI() {
         const z = typeof CryptoEngine !== 'undefined' ? CryptoEngine.getGlobalZ() : 12;
         const slider = document.getElementById('global-z-slider');
         const input = document.getElementById('global-z-input');
@@ -1832,20 +1814,14 @@
         if (display) display.textContent = z;
       }
 
-      async function onGlobalZChange(val) {
-        const z = Math.round(parseFloat(val));
-        if (isNaN(z) || z < 1 || z > 50) return;
+      function onGlobalZChange(val) {
+        const z = parseFloat(val);
+        if (isNaN(z) || z < 1 || z > 30) return;
         if (typeof CryptoEngine !== 'undefined') {
-          await CryptoEngine.setGlobalZ(z);
+          CryptoEngine.setGlobalZ(z);
         }
         syncGlobalZUI();
         init();
-      }
-
-      function applyZPreset(presetName) {
-        const presets = { early: 7, median: 12, late: 20 };
-        const val = presets[presetName] || 12;
-        onGlobalZChange(val);
       }
 
       function toggleYLookupTable() {
@@ -1862,16 +1838,14 @@
         if (!tbody) return;
         tbody.innerHTML = Object.keys(table).map(type => {
           const item = table[type];
-          const safeType = escapeHtml(type.replace('_', ' '));
-          const safeKey = escapeHtml(type);
           return `
       <tr style="border-bottom: 1px solid var(--border-color);">
-        <td style="padding: 8px 12px; font-weight: 600; color: var(--text-h); text-transform: capitalize;">${safeType}</td>
+        <td style="padding: 8px 12px; font-weight: 600; color: var(--text-h); text-transform: capitalize;">${type.replace('_', ' ')}</td>
         <td style="padding: 8px 12px; text-align: center;">
-          <input type="number" step="0.05" min="0.01" value="${item.simple}" onchange="updateYLookupVal('${safeKey}', 'simple', this.value)" style="width: 80px; padding: 4px 8px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-h); text-align: center; font-family: 'JetBrains Mono', monospace;">
+          <input type="number" step="0.05" min="0.01" value="${item.simple}" onchange="updateYLookupVal('${type}', 'simple', this.value)" style="width: 80px; padding: 4px 8px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-h); text-align: center; font-family: 'JetBrains Mono', monospace;">
         </td>
         <td style="padding: 8px 12px; text-align: center;">
-          <input type="number" step="0.05" min="0.01" value="${item.complex}" onchange="updateYLookupVal('${safeKey}', 'complex', this.value)" style="width: 80px; padding: 4px 8px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-h); text-align: center; font-family: 'JetBrains Mono', monospace;">
+          <input type="number" step="0.05" min="0.01" value="${item.complex}" onchange="updateYLookupVal('${type}', 'complex', this.value)" style="width: 80px; padding: 4px 8px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-h); text-align: center; font-family: 'JetBrains Mono', monospace;">
         </td>
       </tr>
     `;
@@ -1903,12 +1877,7 @@
           });
         });
 
-        // REQUIREMENT: Apply Mosca (X+Y>Z) ONLY to broken and weakened findings.
-        // Classical and resilient findings are excluded from the Mosca heatmap!
         allFindings.forEach(f => {
-          const qClass = f.quantum_class || (f.quantum === 'yes' ? 'broken' : 'resilient');
-          if (qClass !== 'broken' && qClass !== 'weakened') return;
-
           const c = f.criticality_label || 'Medium';
           const u = (f.risk && f.risk.urgency_tier) || 'Low';
           if (cellCounts[c] && cellCounts[c][u] !== undefined) {
@@ -2029,12 +1998,7 @@
         const countEl = document.getElementById('priority-table-count');
         if (!tbody) return;
 
-        // Only broken and weakened findings appear in the Mosca priority-ranked fix list
-        let filtered = allFindings.filter(f => {
-          const qClass = f.quantum_class || (f.quantum === 'yes' ? 'broken' : 'resilient');
-          return qClass === 'broken' || qClass === 'weakened';
-        });
-
+        let filtered = [...allFindings];
         if (activeMatrixFilter) {
           filtered = filtered.filter(f =>
             (f.criticality_label || 'Medium') === activeMatrixFilter.criticality &&
@@ -2063,21 +2027,17 @@
           const risk = f.risk || { X: 5, Y: 1, Z: 12, urgency_margin: 6, urgency_tier: 'Low', priority_score: 2 };
           const marginColor = risk.urgency_margin < 0 ? 'var(--red)' : (risk.urgency_margin <= 2 ? 'var(--amber)' : 'var(--green)');
           const marginPrefix = risk.urgency_margin >= 0 ? '+' : '';
-          const rawName = f.title || f.algorithm || 'Cryptographic Finding';
-          const rawLoc = f.file ? `${f.file}${f.line ? ':' + f.line : ''}` : (f.repoName || '');
-          const name = escapeHtml(rawName);
-          const loc = escapeHtml(rawLoc);
-          const typeLabel = escapeHtml(f.type || 'algorithm');
-          const safeAlgoKey = escapeHtml(f.algorithm || rawName);
+          const name = f.title || f.algorithm || 'Cryptographic Finding';
+          const loc = f.file ? `${f.file}${f.line ? ':' + f.line : ''}` : (f.repoName || '');
 
           return `
-      <tr onclick="onPriorityRowClick('${safeAlgoKey}')" style="transition: background 0.15s ease; cursor: pointer;">
+      <tr onclick="onPriorityRowClick('${f.algorithm || name}')" style="transition: background 0.15s ease; cursor: pointer;">
         <td style="padding: 12px 16px;">
           <div style="font-weight: 600; color: var(--text-h); font-size: 13px;">${name}</div>
           <div style="font-size: 11px; color: var(--text-m); font-family: 'JetBrains Mono', monospace; margin-top: 2px;">${loc}</div>
         </td>
         <td style="padding: 12px 16px; text-align: center;">
-          <span class="badge badge-quant" style="text-transform: uppercase; font-size: 10px;">${typeLabel}</span>
+          <span class="badge badge-quant" style="text-transform: uppercase; font-size: 10px;">${f.type || 'algorithm'}</span>
         </td>
         <td style="padding: 12px 16px; text-align: center; font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text-h);">
           ${risk.X}y
@@ -2191,24 +2151,11 @@
       }
 
       function computeFindingMosca(rawFinding, fileCount) {
-        const qClass = (rawFinding && rawFinding.quantum_class) || 'classical';
-        if (qClass !== 'broken' && qClass !== 'weakened') {
-          return {
-            mosca_applicable: false,
-            moscaX: '-',
-            moscaY: '-',
-            moscaZ: '-',
-            diff: 0,
-            isMet: false,
-            category: 'NOT_APPLICABLE',
-            categoryLabel: 'Not Applicable (Classical / Resilient)'
-          };
-        }
         const risk = (rawFinding && rawFinding.risk) ? rawFinding.risk : { X: 5, Y: 1.5, Z: 12, urgency_margin: 5.5, urgency_tier: 'Low' };
-        const x = risk.X !== undefined && risk.X !== null ? risk.X : 5;
-        const y = risk.Y !== undefined && risk.Y !== null ? risk.Y : 1.5;
-        const z = risk.Z !== undefined && risk.Z !== null ? risk.Z : (typeof CryptoEngine !== 'undefined' ? CryptoEngine.getGlobalZ() : 12);
-        const margin = (risk.urgency_margin !== undefined && risk.urgency_margin !== null) ? risk.urgency_margin : (z - (x + y));
+        const x = risk.X !== undefined ? risk.X : 5;
+        const y = risk.Y !== undefined ? risk.Y : 1.5;
+        const z = risk.Z !== undefined ? risk.Z : 12;
+        const margin = (risk.urgency_margin !== undefined) ? risk.urgency_margin : (z - (x + y));
         const isMet = (x + y) > z;
         let cat = 'SAFE_TIMELINE';
         let catLabel = 'Safe Under Current Timeline';
@@ -2221,7 +2168,6 @@
         }
         return {
           ...risk,
-          mosca_applicable: true,
           moscaX: `${x}y`,
           moscaY: `${y}y`,
           moscaZ: `${z}y`,
@@ -2239,13 +2185,10 @@
         if (!pV && !pH && !pS) return;
         let v = 0, h = 0, s = 0;
         migrationCandidates.forEach(c => {
-          const raw = c.rawFinding;
-          const qClass = (raw && raw.quantum_class) || 'classical';
-          if (qClass !== 'broken' && qClass !== 'weakened') return;
-          const m = c.mosca || computeFindingMosca(raw, c.fileCount);
+          const m = c.mosca || computeFindingMosca(c.rawFinding, c.fileCount);
           if (m.category === 'VULNERABLE_NOW') v++;
           else if (m.category === 'WITHIN_HORIZON') h++;
-          else if (m.category === 'SAFE_TIMELINE') s++;
+          else s++;
         });
         if (pV) pV.textContent = v;
         if (pH) pH.textContent = h;
@@ -2437,22 +2380,14 @@
         const hasHigh = allFindings.some(f => getSeverity(f) === 'HIGH');
         const hasQuant = allFindings.some(f => isQuantum(f));
 
-        const data = typeof CryptoEngine !== 'undefined' ? CryptoEngine.getData() : {};
-        const currentScan = (data.scans && data.scans.length > 0) ? data.scans[0] : (data.activeScan || {});
-
         const hero = document.getElementById('hero-card');
         const heroRisk = document.getElementById('hero-risk');
-        // Single unified overall posture verdict from server
-        const serverVerdict = (currentScan.overallPosture && currentScan.overallPosture.verdict) ||
-                              currentScan.postureVerdict ||
-                              (allFindings.some(f => f.risk && f.risk.urgency_tier === 'Critical') ? 'CRITICAL' : (allFindings.some(f => f.risk && f.risk.urgency_tier === 'High') ? 'HIGH' : 'LOW'));
-        let overall = String(serverVerdict).toUpperCase();
+        let overall = 'LOW';
 
         if (hero && heroRisk) {
-          if (overall === 'CRITICAL') { hero.className = 'risk-hero risk-crit'; heroRisk.className = 'risk-hero-val crit'; }
-          else if (overall === 'HIGH') { hero.className = 'risk-hero risk-high'; heroRisk.className = 'risk-hero-val high'; }
-          else if (overall === 'MEDIUM') { hero.className = 'risk-hero risk-high'; heroRisk.className = 'risk-hero-val high'; }
-          else { hero.className = 'risk-hero'; heroRisk.className = 'risk-hero-val'; }
+          if (hasCrit || hasQuant) { overall = 'CRITICAL'; hero.className = 'risk-hero risk-crit'; heroRisk.className = 'risk-hero-val crit'; }
+          else if (hasHigh) { overall = 'HIGH'; hero.className = 'risk-hero risk-high'; heroRisk.className = 'risk-hero-val high'; }
+          else { overall = 'MEDIUM'; heroRisk.className = 'risk-hero-val high'; } // fallback styling
 
           heroRisk.textContent = overall;
         }
@@ -2462,9 +2397,7 @@
 
         const data = typeof CryptoEngine !== 'undefined' ? CryptoEngine.getData() : {};
         const currentScan = (data.scans && data.scans.length > 0) ? data.scans[0] : (data.activeScan || {});
-        const componentsAtRisk = (currentScan.summary && currentScan.summary.components_total !== undefined)
-          ? currentScan.summary.components_total
-          : (currentScan.assetsFound || (currentScan.cbom ? currentScan.cbom.length : 0) || migrationCandidates.length);
+        const componentsAtRisk = currentScan.assetsFound || (currentScan.cbom ? currentScan.cbom.length : 0) || migrationCandidates.length;
 
         const critCount = allFindings.filter(f => getSeverity(f) === 'CRITICAL').length;
         const highCount = allFindings.filter(f => getSeverity(f) === 'HIGH').length;
@@ -2611,19 +2544,15 @@
           const m = c.mosca || computeFindingMosca(c.rawFinding, c.fileCount);
           const mBadgeClass = m.category === 'VULNERABLE_NOW' ? 'badge-crit' : (m.category === 'WITHIN_HORIZON' ? 'badge-high' : 'badge-safe');
 
-          const safeAlgo = escapeHtml(c.algorithm);
-          const safePurpose = escapeHtml(c.purpose);
-          const safeReplacement = escapeHtml(c.replacement || 'None specified');
-
           return `
       <div class="rec-card p${c.priority}">
         <div class="rec-hd">
           <div>
-            <div class="rec-algo">${safeAlgo}</div>
+            <div class="rec-algo">${c.algorithm}</div>
             <div class="rec-purpose">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--text-s);"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              ${safePurpose}
-              <span class="badge ${mBadgeClass}" style="margin-left:8px; font-size:10px;">${escapeHtml(m.categoryLabel)}</span>
+              ${c.purpose}
+              <span class="badge ${mBadgeClass}" style="margin-left:8px; font-size:10px;">${m.categoryLabel}</span>
             </div>
           </div>
           <div class="rec-priority-badge p${c.priority}">${priorityLabel}</div>
@@ -2632,7 +2561,7 @@
         <div class="rec-grid">
           <div class="rg-card">
             <div class="rg-lbl">Current Risk</div>
-            <div class="rg-val"><span class="badge ${getBadgeClass(c.severity)}" style="padding:3px 8px;">${escapeHtml(c.severity)}</span></div>
+            <div class="rg-val"><span class="badge ${getBadgeClass(c.severity)}" style="padding:3px 8px;">${c.severity}</span></div>
           </div>
           <div class="rg-card">
             <div class="rg-lbl">Quantum Exposure</div>
@@ -2662,7 +2591,7 @@
           </div>
           <div>
             <div class="replace-lbl">Recommended NIST PQC Replacement</div>
-            <div class="replace-val">${safeReplacement}</div>
+            <div class="replace-val">${c.replacement || 'None specified'}</div>
           </div>
         </div>
 
@@ -2714,10 +2643,10 @@
         <div class="tl-num">0${i + 1}</div>
         <div class="tl-content">
           <div class="tl-hd">
-            <span class="tl-algo">${escapeHtml(c.algorithm)}</span>
-            <span class="badge ${getBadgeClass(c.severity)}">${escapeHtml(c.severity)}</span>
+            <span class="tl-algo">${c.algorithm}</span>
+            <span class="badge ${getBadgeClass(c.severity)}">${c.severity}</span>
           </div>
-          <div style="font-size:12px; color:var(--text-m); margin-bottom:4px;">→ Replace with <span style="color:var(--text-h); font-weight:600;">${escapeHtml(c.replacement)}</span></div>
+          <div style="font-size:12px; color:var(--text-m); margin-bottom:4px;">→ Replace with <span style="color:var(--text-h); font-weight:600;">${c.replacement}</span></div>
           <div style="font-size:11px; color:var(--text-s);">${c.fileCount} affected files</div>
           ${depStr}
         </div>
@@ -2814,7 +2743,7 @@
           filelist.textContent = 'No files identified';
         } else {
           const shown = files.slice(0, maxShow);
-          let html = shown.map(f => `<div style="font-family:'JetBrains Mono',monospace; padding:2px 0; color:var(--text-h);">${escapeHtml(f)}</div>`).join('');
+          let html = shown.map(f => `<div style="font-family:'JetBrains Mono',monospace; padding:2px 0; color:var(--text-h);">${f}</div>`).join('');
           if (files.length > maxShow) {
             html += `<div style="color:var(--text-s); font-style:italic; padding-top:4px;">+${files.length - maxShow} more files</div>`;
           }

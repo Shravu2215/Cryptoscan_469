@@ -570,6 +570,7 @@ def _analyze_kms_hsm(file_path: str, source: str) -> List[Finding]:
                     recommendation="Hardware-backed / Cloud KMS key custody verified. Ensure key rotation policies and PQC migration readiness are enabled on KMS keys.",
                     code_snippet=stripped[:100],
                     confidence=Confidence.CONFIRMED,
+                    specificity=1,
                     tags=tags,
                 ))
                 break

@@ -1030,6 +1030,51 @@
       border-color: rgba(6, 182, 212, 0.2);
     }
 
+    /* Language badges — one hue per broad category */
+    .badge-lang {
+      background: rgba(99, 102, 241, 0.1);
+      color: #818cf8;
+      border-color: rgba(99, 102, 241, 0.2);
+    }
+    .badge-lang-py   { background:rgba(59,130,246,.12); color:#60a5fa; border-color:rgba(59,130,246,.25); }
+    .badge-lang-js   { background:rgba(234,179,8,.12);  color:#ca8a04; border-color:rgba(234,179,8,.25); }
+    .badge-lang-ts   { background:rgba(56,189,248,.12); color:#0ea5e9; border-color:rgba(56,189,248,.25); }
+    .badge-lang-java { background:rgba(249,115,22,.12); color:#ea580c; border-color:rgba(249,115,22,.25); }
+    .badge-lang-go   { background:rgba(20,184,166,.12); color:#14b8a6; border-color:rgba(20,184,166,.25); }
+    .badge-lang-rs   { background:rgba(239,68,68,.12);  color:#ef4444; border-color:rgba(239,68,68,.25); }
+    .badge-lang-kt   { background:rgba(168,85,247,.12); color:#a855f7; border-color:rgba(168,85,247,.25); }
+    .badge-lang-sh   { background:rgba(52,211,153,.12); color:#10b981; border-color:rgba(52,211,153,.25); }
+    .badge-lang-cfg  { background:rgba(251,191,36,.12); color:#f59e0b; border-color:rgba(251,191,36,.25); }
+    .badge-lang-cert { background:rgba(6,182,212,.12);  color:#06b6d4; border-color:rgba(6,182,212,.25); }
+    .badge-lang-infra{ background:rgba(167,139,250,.12);color:#a78bfa; border-color:rgba(167,139,250,.25); }
+
+    /* Language summary chip bar */
+    .lang-summary-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 0 4px 0;
+    }
+    .lang-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .lang-chip:hover { opacity: .75; }
+    .lang-chip-count {
+      font-size: 10px;
+      opacity: .75;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
     .tbl-wrapper {
       overflow-x: auto;
     }
@@ -1287,6 +1332,9 @@
             <div class="det-items" id="det-items"></div>
           </div>
 
+          <!-- Language Summary Bar -->
+          <div id="lang-summary-bar" class="lang-summary-bar" style="display:none;"></div>
+
           <!-- Summary Cards -->
           <div class="stats-grid">
             <div class="scard scard-primary">
@@ -1364,6 +1412,9 @@
                   <select id="filter-algo" class="filter-sel" onchange="handleFilterChange()">
                     <option value="ALL">All Algorithms</option>
                   </select>
+                  <select id="filter-lang" class="filter-sel" onchange="handleFilterChange()">
+                    <option value="ALL">All Languages</option>
+                  </select>
                 </div>
 
                 <div id="chips-container" class="chips-area" style="display:none;"></div>
@@ -1377,6 +1428,7 @@
                         <th>Type</th>
                         <th title="Internal: code/system only accessible inside the company (admin tools, batch jobs). External: code/system directly reachable from the internet (public API, login page) — external findings carry higher risk.">Exposure</th>
                         <th>Detection</th>
+                        <th>Language</th>
                         <th>Mode</th>
                         <th>Confidence</th>
                         <th>Quantum Status</th>
@@ -1681,10 +1733,10 @@
         };
 
         try {
-          const token = (window.Auth && window.Auth.getToken && window.Auth.getToken()) || '';
+          const token = localStorage.getItem('cs_token');
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 1000);
-          const res = await fetch('/repos', {
+          const res = await fetch('http://localhost:3000/repos', {
             headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             signal: controller.signal
           });
@@ -1749,6 +1801,7 @@
 
         populateAlgorithmFilter();
         populateLifetimeFilter();
+        populateLanguageFilter();
         updateSummaryStats();
         updateRiskChart();
         updateTopRisks();
@@ -1817,6 +1870,55 @@
         } else {
           sel.value = 'ALL';
         }
+      }
+
+      // ── Language filter population ──────────────────────────────────────────
+      function populateLanguageFilter() {
+        const sel = document.getElementById('filter-lang');
+        if (!sel) return;
+        const langCounts = {};
+        allFindings.forEach(f => {
+          const lang = f.language || f.language_name || 'Unknown';
+          langCounts[lang] = (langCounts[lang] || 0) + 1;
+        });
+        sel.innerHTML = '<option value="ALL">All Languages</option>';
+        Object.entries(langCounts)
+          .sort((a, b) => b[1] - a[1])
+          .forEach(([lang, cnt]) => {
+            const opt = document.createElement('option');
+            opt.value = lang;
+            opt.textContent = `${lang} (${cnt})`;
+            sel.appendChild(opt);
+          });
+      }
+
+      // ── Language summary chip bar ───────────────────────────────────────────
+      function updateLanguageSummary(findings) {
+        const bar = document.getElementById('lang-summary-bar');
+        if (!bar) return;
+        if (!findings || findings.length === 0) { bar.style.display = 'none'; return; }
+        const langCounts = {};
+        findings.forEach(f => {
+          const lang = f.language || f.language_name || 'Unknown';
+          langCounts[lang] = (langCounts[lang] || 0) + 1;
+        });
+        bar.style.display = 'flex';
+        const currentLang = document.getElementById('filter-lang') ? document.getElementById('filter-lang').value : 'ALL';
+        bar.innerHTML = Object.entries(langCounts)
+          .sort((a, b) => b[1] - a[1])
+          .map(([lang, cnt]) => {
+            const cls = getLangBadgeClass(lang);
+            const isActive = currentLang === lang;
+            return `<span class="lang-chip badge ${cls}" onclick="setLangFilter('${encodeURIComponent(lang)}')" title="Filter: ${lang}" style="${isActive ? 'outline:2px solid currentColor; outline-offset:1px;' : ''}">${lang} <span class="lang-chip-count">${cnt}</span></span>`;
+          }).join('');
+      }
+
+      function setLangFilter(encoded) {
+        const lang = decodeURIComponent(encoded);
+        const sel = document.getElementById('filter-lang');
+        if (!sel) return;
+        sel.value = (sel.value === lang) ? 'ALL' : lang;
+        handleFilterChange();
       }
 
       function updateSummaryStats() {
@@ -1958,6 +2060,36 @@
         const map = { ast: 'AST', entropy: 'Entropy', sca: 'SCA', config: 'Config', infra: 'Infra', regex: 'Regex', manifest: 'Manifest', container: 'Container', binary: 'Binary', certificate: 'Certificate' };
         return map[m] || (m || 'Unknown').toUpperCase();
       }
+
+      // ── Language badge helper ───────────────────────────────────────────────
+      function getLangBadgeClass(lang) {
+        if (!lang || lang === 'Unknown') return 'badge-lang';
+        const l = lang.toLowerCase();
+        if (l === 'python') return 'badge-lang-py';
+        if (l === 'javascript' || l === 'jsx' || l === 'node (package.json)') return 'badge-lang-js';
+        if (l === 'typescript' || l === 'tsx') return 'badge-lang-ts';
+        if (l === 'java' || l === 'kotlin' || l === 'scala' || l === 'groovy') return 'badge-lang-java';
+        if (l === 'go' || l === 'go module') return 'badge-lang-go';
+        if (l === 'rust') return 'badge-lang-rs';
+        if (l === 'kotlin') return 'badge-lang-kt';
+        if (l.includes('bash') || l.includes('shell') || l === 'zsh' || l === 'powershell' || l === 'batch') return 'badge-lang-sh';
+        if (l === 'certificate' || l === 'private key' || l === 'pkcs#12' || l === 'java keystore' || l === 'csr' || l === 'ssh key') return 'badge-lang-cert';
+        if (l === 'dockerfile' || l === 'docker compose' || l === 'nginx config' || l === 'apache config' || l === 'openssl config' || l === 'terraform/hcl' || l === 'kubernetes manifest' || l === 'helm' || l === 'ansible' || l === 'github actions' || l === 'gitlab ci') return 'badge-lang-infra';
+        if (l === 'json' || l === 'yaml' || l === 'toml' || l === 'ini' || l === 'properties' || l === 'dotenv' || l === 'config file') return 'badge-lang-cfg';
+        return 'badge-lang';
+      }
+      let selectedDetectionFilter = 'ALL';
+
+      function setDetectionFilter(method) {
+        if (selectedDetectionFilter === method) {
+          selectedDetectionFilter = 'ALL';
+        } else {
+          selectedDetectionFilter = method;
+        }
+        updateDetectionCoverage();
+        handleFilterChange();
+      }
+
       function updateDetectionCoverage() {
         const panel = document.getElementById('detection-panel');
         const items = document.getElementById('det-items');
@@ -1967,16 +2099,19 @@
         const colors = { ast: '#38bdf8', entropy: '#fbbf24', sca: '#a78bfa', config: '#34d399', infra: '#f97316', regex: '#94a3b8', manifest: '#f56565', container: '#a855f7', binary: '#ec4899', certificate: '#06b6d4' };
         const counts = {};
         allFindings.forEach(f => {
-          const m = f.detection_method || 'ast';
+          const m = (f.detection_method || 'ast').toLowerCase();
           counts[m] = (counts[m] || 0) + 1;
         });
-        items.innerHTML = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([m, c]) => `
-    <div class="det-item">
+        items.innerHTML = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([m, c]) => {
+          const isSelected = selectedDetectionFilter.toLowerCase() === m;
+          return `
+    <div class="det-item ${isSelected ? 'active-filter' : ''}" style="cursor:pointer; user-select:none; ${isSelected ? 'border-color:var(--purple); background:rgba(139,92,246,0.15);' : ''}" onclick="setDetectionFilter('${m}')" title="Filter by ${getDetLabel(m)}">
       <span class="det-dot" style="background:${colors[m] || '#94a3b8'}"></span>
       ${getDetLabel(m)}
       <span class="det-count">${c}</span>
     </div>
-  `).join('');
+  `;
+        }).join('');
       }
 
       function updateRiskChart() {
@@ -2015,18 +2150,15 @@
         const sorted = Object.keys(map).sort((a, b) => map[b].count - map[a].count).slice(0, 5);
 
         const list = document.getElementById('top-risks-list');
-        list.innerHTML = sorted.map(algo => {
-          const safeAlgo = escapeHtml(algo);
-          return `
-    <div class="risk-item" style="cursor:pointer;" data-algo="${safeAlgo}" onclick="setAlgoFilter(this.dataset.algo)">
+        list.innerHTML = sorted.map(algo => `
+    <div class="risk-item" style="cursor:pointer;" onclick="setAlgoFilter('${algo}')">
       <div>
-        <div class="risk-algo">${safeAlgo}</div>
+        <div class="risk-algo">${algo}</div>
         <div class="risk-count">${map[algo].count} affected files</div>
       </div>
       <span class="badge ${getBadgeClass(map[algo].sev)}">${map[algo].sev}</span>
     </div>
-  `;
-        }).join('');
+  `).join('');
       }
 
       function setAlgoFilter(algo) {
@@ -2042,6 +2174,7 @@
         const criticality = document.getElementById('filter-criticality') ? document.getElementById('filter-criticality').value : 'ALL';
         const exposure = document.getElementById('filter-exposure') ? document.getElementById('filter-exposure').value : 'ALL';
         const algo = document.getElementById('filter-algo').value;
+        const lang = document.getElementById('filter-lang') ? document.getElementById('filter-lang').value : 'ALL';
 
         filteredFindings = allFindings.filter(f => {
           const searchClean = search.replace(/\.zip$/i, '').trim();
@@ -2051,7 +2184,8 @@
             (f.repoName || '').toLowerCase().includes(search) ||
             (f.repoName || '').toLowerCase().replace(/\.zip$/i, '').includes(searchClean) ||
             (f.algorithm || f.title || '').toLowerCase().includes(search) ||
-            (f.algorithm || f.title || '').toLowerCase().includes(searchClean);
+            (f.algorithm || f.title || '').toLowerCase().includes(searchClean) ||
+            (f.language || f.language_name || '').toLowerCase().includes(search);
           const matchRisk = risk === 'ALL' || getSeverity(f) === risk;
 
           const fExpRaw = (f.exposure || 'internal').toLowerCase();
@@ -2081,12 +2215,19 @@
           const fCrit = getBusinessCriticality(f);
           const matchCriticality = criticality === 'ALL' || fCrit.toLowerCase() === criticality.toLowerCase();
 
-          return matchSearch && matchRisk && matchType && matchLifetime && matchCriticality && matchExposure && matchAlgo;
+          const fDet = (f.detection_method || (f.detection ? f.detection.toLowerCase() : 'ast')).toLowerCase();
+          const matchDet = selectedDetectionFilter === 'ALL' || fDet === selectedDetectionFilter.toLowerCase() || (f.detection && f.detection.toLowerCase().includes(selectedDetectionFilter.toLowerCase()));
+
+          const fLang = (f.language || f.language_name || 'Unknown');
+          const matchLang = !lang || lang === 'ALL' || fLang === lang;
+
+          return matchSearch && matchRisk && matchType && matchLifetime && matchCriticality && matchExposure && matchAlgo && matchDet && matchLang;
         });
 
         currentPage = 1;
         updateSummaryStats();
-        renderChips(search, risk, type, lifetime, criticality, exposure, algo);
+        renderChips(search, risk, type, lifetime, criticality, exposure, algo, selectedDetectionFilter, lang);
+        updateLanguageSummary(filteredFindings);
         renderTable();
       }
 
@@ -2098,55 +2239,53 @@
         if (document.getElementById('filter-criticality')) document.getElementById('filter-criticality').value = 'ALL';
         if (document.getElementById('filter-exposure')) document.getElementById('filter-exposure').value = 'ALL';
         document.getElementById('filter-algo').value = 'ALL';
+        if (document.getElementById('filter-lang')) document.getElementById('filter-lang').value = 'ALL';
+        selectedDetectionFilter = 'ALL';
+        updateDetectionCoverage();
         handleFilterChange();
       }
 
-      function renderChips(search, risk, type, lifetime, criticality, exposure, algo) {
+      function renderChips(search, risk, type, lifetime, criticality, exposure, algo, det, lang) {
         const container = document.getElementById('chips-container');
         container.innerHTML = '';
         let active = false;
 
+        if (det && det !== 'ALL') {
+          active = true;
+          container.innerHTML += `<div class="filter-chip"><span>Detection:</span> ${getDetLabel(det)} <button onclick="setDetectionFilter('ALL')">×</button></div>`;
+        }
         if (risk && risk !== 'ALL') {
           active = true;
-          const chip = document.createElement('div'); chip.className = 'filter-chip';
-          chip.innerHTML = `<span>Risk:</span> ${escapeHtml(risk)} <button onclick="document.getElementById('filter-risk').value='ALL';handleFilterChange()">×</button>`;
-          container.appendChild(chip);
+          container.innerHTML += `<div class="filter-chip"><span>Risk:</span> ${risk} <button onclick="document.getElementById('filter-risk').value='ALL';handleFilterChange()">×</button></div>`;
         }
         if (type && type !== 'ALL') {
           active = true;
-          const chip = document.createElement('div'); chip.className = 'filter-chip';
-          chip.innerHTML = `<span>Type:</span> ${escapeHtml(type.replace(/_/g, ' '))} <button onclick="document.getElementById('filter-type').value='ALL';handleFilterChange()">×</button>`;
-          container.appendChild(chip);
+          container.innerHTML += `<div class="filter-chip"><span>Type:</span> ${type.replace(/_/g, ' ')} <button onclick="document.getElementById('filter-type').value='ALL';handleFilterChange()">×</button></div>`;
         }
         if (lifetime && lifetime !== 'ALL') {
           active = true;
-          const chip = document.createElement('div'); chip.className = 'filter-chip';
-          chip.innerHTML = `<span>Lifetime:</span> ${escapeHtml(lifetime)} ${lifetime === '1' ? 'Year' : 'Years'} <button onclick="document.getElementById('filter-lifetime').value='ALL';handleFilterChange()">×</button>`;
-          container.appendChild(chip);
+          container.innerHTML += `<div class="filter-chip"><span>Lifetime:</span> ${lifetime} ${lifetime === '1' ? 'Year' : 'Years'} <button onclick="document.getElementById('filter-lifetime').value='ALL';handleFilterChange()">×</button></div>`;
         }
         if (criticality && criticality !== 'ALL') {
           active = true;
-          const chip = document.createElement('div'); chip.className = 'filter-chip';
-          chip.innerHTML = `<span>Criticality:</span> ${escapeHtml(criticality)} <button onclick="document.getElementById('filter-criticality').value='ALL';handleFilterChange()">×</button>`;
-          container.appendChild(chip);
+          container.innerHTML += `<div class="filter-chip"><span>Criticality:</span> ${criticality} <button onclick="document.getElementById('filter-criticality').value='ALL';handleFilterChange()">×</button></div>`;
         }
         if (exposure && exposure !== 'ALL') {
           active = true;
-          const chip = document.createElement('div'); chip.className = 'filter-chip';
-          chip.innerHTML = `<span>Exposure:</span> ${escapeHtml(exposure)} <button onclick="document.getElementById('filter-exposure').value='ALL';handleFilterChange()">×</button>`;
-          container.appendChild(chip);
+          container.innerHTML += `<div class="filter-chip"><span>Exposure:</span> ${exposure} <button onclick="document.getElementById('filter-exposure').value='ALL';handleFilterChange()">×</button></div>`;
         }
         if (algo && algo !== 'ALL') {
           active = true;
-          const chip = document.createElement('div'); chip.className = 'filter-chip';
-          chip.innerHTML = `<span>Algo:</span> ${escapeHtml(algo)} <button onclick="document.getElementById('filter-algo').value='ALL';handleFilterChange()">×</button>`;
-          container.appendChild(chip);
+          container.innerHTML += `<div class="filter-chip"><span>Algo:</span> ${algo} <button onclick="document.getElementById('filter-algo').value='ALL';handleFilterChange()">×</button></div>`;
+        }
+        if (lang && lang !== 'ALL') {
+          active = true;
+          const escapedLang = lang.replace(/'/g, "\\'");
+          container.innerHTML += `<div class="filter-chip"><span>Language:</span> ${lang} <button onclick="document.getElementById('filter-lang').value='ALL';handleFilterChange()">×</button></div>`;
         }
         if (search) {
           active = true;
-          const chip = document.createElement('div'); chip.className = 'filter-chip';
-          chip.innerHTML = `<span>Search:</span> &ldquo;${escapeHtml(search)}&rdquo; <button onclick="document.getElementById('filter-search').value='';handleFilterChange()">×</button>`;
-          container.appendChild(chip);
+          container.innerHTML += `<div class="filter-chip"><span>Search:</span> "${search}" <button onclick="document.getElementById('filter-search').value='';handleFilterChange()">×</button></div>`;
         }
 
         if (active) {
@@ -2201,6 +2340,9 @@
           const detMethod = f.detection_method || 'ast';
           const detClass = getDetBadgeClass(detMethod);
           const detLabel = getDetLabel(detMethod);
+          const langVal = (f.language || f.language_name || 'Unknown');
+          const langSafe = langVal.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+          const langClass = getLangBadgeClass(langVal);
           const expObj = (typeof CryptoEngine !== 'undefined' && CryptoEngine.classifyExposure) ? CryptoEngine.classifyExposure(f) : { exposure_label: 'Internal', exposure_confidence: 'Low', triggered_signals: [] };
           const rawExpStr = (f.exposure || '').toLowerCase();
           let isExtRow = false;
@@ -2229,43 +2371,32 @@
           const bizCrit = getBusinessCriticality(f);
           const critBadgeClass = bizCrit === 'Critical' ? 'badge-crit' : bizCrit === 'High' ? 'badge-high' : bizCrit === 'Medium' ? 'badge-med' : 'badge-low';
 
-          // Escape all attacker-controlled display values
-          const safeAlgo = escapeHtml(algo);
-          const safeType = escapeHtml(type.replace(/_/g, ' '));
-          const safeMode = escapeHtml(mode);
-          const safeConf = escapeHtml(conf);
-          const safeQuant = escapeHtml(quant);
-          const safePurpose = escapeHtml(purpose);
-          const safeFile = escapeHtml(f.file || 'unknown');
-          const safeLine = escapeHtml(String(f.line || '?'));
-          const safeBizCrit = escapeHtml(bizCrit);
-          const safeExpSignals = escapeHtml(expSignals);
-
           return `
       <tr class="finding-row" style="cursor:pointer;" data-index="${i}">
         <td><span class="badge ${getBadgeClass(sev)}">${sev}</span></td>
-        <td><span style="font-weight:600;color:var(--text-h)" class="code-font">${safeAlgo}</span></td>
-        <td><span class="badge badge-ast" style="font-size:11px; text-transform:uppercase;">${safeType}</span></td>
-        <td><span class="badge ${expClass}" title="Triggered Exposure Signals: ${safeExpSignals}">${expDisplayText}</span></td>
+        <td><span style="font-weight:600;color:var(--text-h)" class="code-font">${algo}</span></td>
+        <td><span class="badge badge-ast" style="font-size:11px; text-transform:uppercase;">${type.replace(/_/g, ' ')}</span></td>
+        <td><span class="badge ${expClass}" title="Triggered Exposure Signals: ${expSignals}">${expDisplayText}</span></td>
         <td><span class="badge ${detClass}">${detLabel}</span></td>
-        <td>${safeMode}</td>
-        <td><span class="badge ${confClass}">${safeConf}</span></td>
-        <td><span class="badge ${qClass}">${safeQuant}</span></td>
-        <td>${safePurpose}</td>
+        <td><span class="badge ${langClass}">${langSafe}</span></td>
+        <td>${mode}</td>
+        <td><span class="badge ${confClass}">${conf}</span></td>
+        <td><span class="badge ${qClass}">${quant}</span></td>
+        <td>${purpose}</td>
         <td>
-          <span class="badge ${lifetimeBadgeClass}" style="font-family:'JetBrains Mono',monospace; font-weight:700; cursor:help;" title="${escapeHtml(lifetimeObj.rationale || 'System-Calculated Protection Lifetime')}">
+          <span class="badge ${lifetimeBadgeClass}" style="font-family:'JetBrains Mono',monospace; font-weight:700; cursor:help;" title="${lifetimeObj.rationale || 'System-Calculated Protection Lifetime'}">
             ${lifetime} ${lifetime === 1 ? 'yr' : 'yrs'}
           </span>
         </td>
         <td>
-          <span class="badge ${critBadgeClass}" style="cursor:pointer;" title="Click to view &amp; override sub-factors" onclick="event.stopPropagation(); openCriticalityPanelForIndex(${start + i})">
-            ${safeBizCrit} (${critScore}) ⚙️
+          <span class="badge ${critBadgeClass}" style="cursor:pointer;" title="Click to view & override sub-factors" onclick="event.stopPropagation(); openCriticalityPanelForIndex(${start + i})">
+            ${bizCrit} (${critScore}) ⚙️
           </span>
         </td>
-        <td><span class="code-font" style="color:var(--text-m);">${safeFile}</span></td>
-        <td><span class="code-font" style="color:var(--text-m);">${safeLine}</span></td>
+        <td><span class="code-font" style="color:var(--text-m);">${f.file || 'unknown'}</span></td>
+        <td><span class="code-font" style="color:var(--text-m);">${f.line || '?'}</span></td>
         <td>
-          <button class="btn-sec" style="padding:4px 8px;font-size:11px;" onclick="event.stopPropagation(); window.location.href='risk-migration.html?algo=${encodeURIComponent(algo)}'">&gt; Migrate</button>
+          <button class="btn-sec" style="padding:4px 8px;font-size:11px;" onclick="event.stopPropagation(); window.location.href='risk-migration.html?algo=${encodeURIComponent(algo)}'">Migrate</button>
         </td>
       </tr>
     `;
@@ -2322,6 +2453,7 @@
               quantum_risk: qRisk,
               mode: mode,
               exposure: exposure,
+              language: f.language || f.language_name || 'Unknown',
               criticality: criticality,
               file: f.file || f.filePath || '',
               line: f.line || 0,
@@ -2351,7 +2483,7 @@
         // CSV Export
         const headers = [
           'Algorithm', 'Category', 'Severity', 'Quantum Risk', 'Mode',
-          'Exposure', 'Criticality', 'File', 'Line', 'Raw Call Site', 'Recommendation'
+          'Exposure', 'Language', 'Criticality', 'File', 'Line', 'Raw Call Site', 'Recommendation'
         ];
 
         const escapeCsv = (str) => {
@@ -2385,6 +2517,7 @@
             escapeCsv(qRisk),
             escapeCsv(mode),
             escapeCsv(exposure),
+            escapeCsv(f.language || f.language_name || 'Unknown'),
             escapeCsv(criticality),
             escapeCsv(f.file || f.filePath || ''),
             escapeCsv(f.line || 0),
@@ -2489,25 +2622,17 @@
         if (typeof CryptoEngine !== 'undefined') {
           CryptoEngine.enrichFinding(f);
         }
-        const qClass = f.quantum_class || (f.quantum === 'yes' ? 'broken' : 'resilient');
-        const isMoscaApplicable = qClass === 'broken' || qClass === 'weakened';
+        const X = f.X !== undefined ? f.X : (f.user_confirmed_lifetime || f.suggested_lifetime || 5);
+        const Y = f.Y !== undefined ? f.Y : 1.0;
+        const Z = f.Z !== undefined ? f.Z : 12;
+        const moscaHolds = (X + Y) > Z;
 
         const readoutEl = document.getElementById('drw-mosca-readout');
         const verdictEl = document.getElementById('drw-mosca-verdict');
         if (readoutEl && verdictEl) {
-          if (isMoscaApplicable && f.risk && f.risk.mosca_applicable) {
-            const X = f.X !== undefined && f.X !== null ? f.X : 5;
-            const Y = f.Y !== undefined && f.Y !== null ? f.Y : 1.0;
-            const Z = f.Z !== undefined && f.Z !== null ? f.Z : 12;
-            const moscaHolds = (X + Y) > Z;
-            readoutEl.textContent = `Formula: X (${X}y lifetime) + Y (${Y}y migration) ${moscaHolds ? '>' : '≤'} Z (${Z}y threat) | Urgency Margin: ${f.urgency_margin}y (${qClass.toUpperCase()})`;
-            verdictEl.textContent = `Verdict: Mosca Urgency Tier is ${f.urgency_tier || 'Low'} (Priority Score: ${f.priority_score || 'N/A'})`;
-            verdictEl.style.color = (f.urgency_tier === 'Critical') ? 'var(--red)' : (f.urgency_tier === 'High' ? 'var(--amber)' : 'var(--green)');
-          } else {
-            readoutEl.textContent = `Classification: ${qClass.toUpperCase()} — Mosca theorem (X + Y > Z) applies exclusively to quantum-vulnerable (broken/weakened) primitives.`;
-            verdictEl.textContent = `Verdict: ${qClass.toUpperCase()} component (${(f.severity || 'INFO').toUpperCase()} severity). Excluded from Mosca urgency heatmap.`;
-            verdictEl.style.color = 'var(--text-m)';
-          }
+          readoutEl.textContent = `Formula: X (${X}y lifetime) + Y (${Y}y migration) ${moscaHolds ? '>' : '≤'} Z (${Z}y threat) | Urgency Margin: ${f.urgency_margin}y`;
+          verdictEl.textContent = `Verdict: Mosca Urgency Tier is ${f.urgency_tier || (moscaHolds ? 'Critical' : 'Low')} (Priority Score: ${f.priority_score || 'N/A'})`;
+          verdictEl.style.color = (f.urgency_tier === 'Critical' || moscaHolds) ? 'var(--red)' : (f.urgency_tier === 'High' ? 'var(--amber)' : 'var(--green)');
         }
 
         // Populate Sub-factors Sliders & Values
@@ -2531,7 +2656,7 @@
 
         const sigEl = document.getElementById('drw-exposure-signals');
         if (sigEl) {
-          sigEl.innerHTML = (expSignals || []).map(s => `<div>&#x2022; ${escapeHtml(s)}</div>`).join('');
+          sigEl.innerHTML = (expSignals || []).map(s => `<div>• ${s}</div>`).join('');
         }
 
         const auditSpan = document.getElementById('drw-audit-trail');
@@ -2654,8 +2779,7 @@
       window.addEventListener('load', init);
       window.addEventListener('cryptoscan_data_updated', init);
     </script>
-    <script src="assets/js/security.js"></script>
-    <script src="assets/js/auth.js"></script>
+    <script src="assets/js/auth.js?v=3"></script>
     <script src="assets/js/shell.js"></script>
 </body>
 

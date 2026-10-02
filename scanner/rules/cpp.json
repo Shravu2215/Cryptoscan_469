@@ -1,0 +1,54 @@
+[
+  {
+    "id": "cpp-openssl-md5",
+    "name": "OpenSSL MD5 in C/C++",
+    "category": "hash",
+    "algorithm": "MD5",
+    "severity": "High",
+    "quantum_risk": "Classical Risk",
+    "message": "MD5 is collision-vulnerable and obsolete.",
+    "recommendation": "Use EVP_sha256() or EVP_sha512().",
+    "pattern": "MD5_Init|MD5_Update|MD5_Final|EVP_md5\\s*\\(",
+    "library": "openssl/md5.h",
+    "specificity": 3
+  },
+  {
+    "id": "cpp-openssl-sha1",
+    "name": "OpenSSL SHA-1 in C/C++",
+    "category": "hash",
+    "algorithm": "SHA-1",
+    "severity": "Medium",
+    "quantum_risk": "Classical Risk",
+    "message": "SHA-1 is deprecated due to collision attacks.",
+    "recommendation": "Use EVP_sha256().",
+    "pattern": "SHA1_Init|SHA1_Update|SHA1_Final|EVP_sha1\\s*\\(",
+    "library": "openssl/sha.h",
+    "specificity": 3
+  },
+  {
+    "id": "cpp-openssl-des",
+    "name": "DES Cipher in C/C++",
+    "category": "symmetric-cipher",
+    "algorithm": "DES",
+    "severity": "Critical",
+    "quantum_risk": "Classical Risk",
+    "message": "DES has an obsolete 56-bit key size.",
+    "recommendation": "Use EVP_aes_256_gcm().",
+    "pattern": "DES_ncbc_encrypt|DES_ecb_encrypt|EVP_des_\\w+\\s*\\(",
+    "library": "openssl/des.h",
+    "specificity": 4
+  },
+  {
+    "id": "cpp-openssl-rsa-broken",
+    "name": "RSA Public Key in C/C++",
+    "category": "asymmetric",
+    "algorithm": "RSA",
+    "severity": "Critical",
+    "quantum_risk": "Quantum-Broken",
+    "message": "RSA is vulnerable to Shor's algorithm on quantum computers.",
+    "recommendation": "Migrate to Post-Quantum Cryptography (ML-KEM / ML-DSA / liboqs).",
+    "pattern": "RSA_generate_key|EVP_PKEY_CTX_new_id\\s*\\(\\s*EVP_PKEY_RSA",
+    "library": "openssl/rsa.h",
+    "specificity": 3
+  }
+]

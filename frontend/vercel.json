@@ -2,15 +2,6 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
-    { "source": "/auth/:path*", "destination": "https://cryptoscan-demo-api.onrender.com/auth/:path*" },
-    { "source": "/api/auth/:path*", "destination": "https://cryptoscan-demo-api.onrender.com/api/auth/:path*" },
-    { "source": "/repos", "destination": "https://cryptoscan-demo-api.onrender.com/repos" },
-    { "source": "/repos/:path*", "destination": "https://cryptoscan-demo-api.onrender.com/repos/:path*" },
-    { "source": "/scan/:repoId/:path*", "destination": "https://cryptoscan-demo-api.onrender.com/scan/:repoId/:path*" },
-    { "source": "/scan/:repoId", "destination": "https://cryptoscan-demo-api.onrender.com/scan/:repoId" },
-    { "source": "/health", "destination": "https://cryptoscan-demo-api.onrender.com/health" },
-    { "source": "/version", "destination": "https://cryptoscan-demo-api.onrender.com/version" },
-    { "source": "/api/:path*", "destination": "https://cryptoscan-demo-api.onrender.com/api/:path*" },
     { "source": "/login", "destination": "/login.html" },
     { "source": "/login.html", "destination": "/login.html" },
     { "source": "/signup", "destination": "/signup.html" },
@@ -35,13 +26,5 @@
     { "source": "/repositories.html", "destination": "/repositories.html" },
     { "source": "/profile", "destination": "/profile.html" },
     { "source": "/profile.html", "destination": "/profile.html" }
-  ],
-  "headers": [
-    { "source": "/auth/:path*", "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }] },
-    { "source": "/api/:path*", "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }] },
-    { "source": "/repos/:path*", "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }] },
-    { "source": "/scan/:path*", "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }] },
-    { "source": "/health", "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }] },
-    { "source": "/version", "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }] }
   ]
 }

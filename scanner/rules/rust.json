@@ -1,0 +1,41 @@
+[
+  {
+    "id": "rust-md5-hash",
+    "name": "MD5 in Rust",
+    "category": "hash",
+    "algorithm": "MD5",
+    "severity": "High",
+    "quantum_risk": "Classical Risk",
+    "message": "MD5 is collision-broken.",
+    "recommendation": "Use sha2 or sha3 crates.",
+    "pattern": "md-5|md5::Md5|Md5::new",
+    "library": "md-5",
+    "specificity": 3
+  },
+  {
+    "id": "rust-sha1-hash",
+    "name": "SHA-1 in Rust",
+    "category": "hash",
+    "algorithm": "SHA-1",
+    "severity": "Medium",
+    "quantum_risk": "Classical Risk",
+    "message": "SHA-1 is deprecated.",
+    "recommendation": "Use Sha256 / Sha512.",
+    "pattern": "sha-1|sha1::Sha1|Sha1::new",
+    "library": "sha-1",
+    "specificity": 3
+  },
+  {
+    "id": "rust-rsa-quantum-broken",
+    "name": "RSA in Rust",
+    "category": "asymmetric",
+    "algorithm": "RSA",
+    "severity": "Critical",
+    "quantum_risk": "Quantum-Broken",
+    "message": "RSA is vulnerable to Shor's algorithm on quantum computers.",
+    "recommendation": "Plan migration to Post-Quantum algorithms (e.g. ml-kem crate).",
+    "pattern": "RsaPrivateKey::new|rsa::RsaPrivateKey",
+    "library": "rsa",
+    "specificity": 3
+  }
+]

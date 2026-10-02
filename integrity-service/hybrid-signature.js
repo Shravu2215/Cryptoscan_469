@@ -7,13 +7,10 @@ const path = require('path');
 let ethers;
 const ethersPaths = [
   'ethers',
-  path.resolve(__dirname, 'node_modules/ethers'),
-  path.resolve(__dirname, '../integrity-service/node_modules/ethers'),
   path.resolve(__dirname, '../backend-core/node_modules/ethers'),
   path.resolve(__dirname, '../blockchain-module/node_modules/ethers'),
   path.resolve(__dirname, '../cbom-service/node_modules/ethers'),
   path.resolve(process.cwd(), 'node_modules/ethers'),
-  path.resolve(process.cwd(), 'integrity-service/node_modules/ethers'),
   path.resolve(process.cwd(), 'backend-core/node_modules/ethers')
 ];
 for (const p of ethersPaths) {
@@ -87,16 +84,7 @@ function computePqcKeyId(publicKey) {
  * @returns {{ keyId: string, publicKey: crypto.KeyObject }} Public key registration info.
  */
 function generatePqcKeyPair(options = {}) {
-  let keyPair;
-  try {
-    keyPair = crypto.generateKeyPairSync('ml-dsa-65');
-  } catch (err) {
-    if (err && err.code === 'ERR_INVALID_ARG_VALUE') {
-      keyPair = crypto.generateKeyPairSync('ed25519');
-    } else {
-      throw err;
-    }
-  }
+  const keyPair = crypto.generateKeyPairSync('ml-dsa-65');
   const keyId = options.keyId || computePqcKeyId(keyPair.publicKey);
 
   const entry = {
@@ -202,12 +190,7 @@ async function signHybrid(message, options = {}) {
     pqcKeyEntry = getActivePqcKey();
   }
 
-  let rawPqcSig = crypto.sign(null, preparedMessage, pqcKeyEntry.privateKey);
-  if (rawPqcSig.length < 3309) {
-    const padded = Buffer.alloc(3309);
-    rawPqcSig.copy(padded);
-    rawPqcSig = padded;
-  }
+  const rawPqcSig = crypto.sign(null, preparedMessage, pqcKeyEntry.privateKey);
   const pqcSig = rawPqcSig.toString('base64');
 
   return {
@@ -304,10 +287,7 @@ function verifyHybrid(message, hybridSignature, options = {}) {
 
         // FIPS 204 ML-DSA-65 signatures are exactly 3,309 bytes
         if (pqcSigBuf && pqcSigBuf.length === 3309) {
-          const sigToVerify = (pqcPublicKey.asymmetricKeyType === 'ed25519')
-            ? pqcSigBuf.subarray(0, 64)
-            : pqcSigBuf;
-          pqcValid = crypto.verify(null, preparedMessage, pqcPublicKey, sigToVerify);
+          pqcValid = crypto.verify(null, preparedMessage, pqcPublicKey, pqcSigBuf);
         }
       }
     } catch {

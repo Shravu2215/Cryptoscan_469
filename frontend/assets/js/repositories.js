@@ -176,7 +176,6 @@ class RepositoriesPage {
       const score = repo.score || 100;
       const counts = repo.counts || { critical: 0, high: 0, medium: 0, low: 0 };
       const qPct = repo.quantumReadyPct || 100;
-      const safeName = escapeHtml(repo.name);
 
       const card = document.createElement('div');
       card.className = 'repo-card';
@@ -188,7 +187,7 @@ class RepositoriesPage {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
             </div>
             <div class="rc-text">
-              <div class="rc-name">${safeName}</div>
+              <div class="rc-name">${repo.name}</div>
               <div class="rc-source">GitHub / Workspace</div>
             </div>
           </div>
@@ -206,7 +205,7 @@ class RepositoriesPage {
 
         <div class="rc-meta">
           <div class="meta-item"><span class="meta-lbl">Quantum Readiness</span><span class="meta-val ${qPct === 100 ? 'quantum-ready' : ''}">${qPct}%</span></div>
-          <div class="meta-item" style="text-align: right;"><span class="meta-lbl">Last Scan</span><span class="meta-val">${escapeHtml(repo.lastScan || '')}</span></div>
+          <div class="meta-item" style="text-align: right;"><span class="meta-lbl">Last Scan</span><span class="meta-val">${repo.lastScan || ''}</span></div>
         </div>
 
         <div class="rc-actions">
@@ -219,7 +218,6 @@ class RepositoriesPage {
     });
   }
 }
-
 
 document.addEventListener('DOMContentLoaded', () => {
   window.RepositoriesPageInstance = new RepositoriesPage();

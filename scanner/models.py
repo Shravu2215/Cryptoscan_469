@@ -84,6 +84,8 @@ class Finding:
     version: str = ""
     library: str = ""
     dataSensitivity: str = ""
+    detection: str = ""
+    language_name: str = ""   # human display name from language registry, e.g. "Python", "Dotenv"
 
     def __post_init__(self):
         if not self.call_site:
@@ -92,6 +94,10 @@ class Finding:
             self.confidence = Confidence.LIKELY
         if self.quantum_risk == QuantumRisk.QUANTUM_BROKEN or (isinstance(self.quantum_risk, str) and self.quantum_risk in ("Quantum-Broken", QuantumRisk.QUANTUM_BROKEN.value)):
             self.severity = Severity.CRITICAL
+        if not self.detection:
+            self.detection = self.detection_method.upper()
+        if not self.language_name:
+            self.language_name = "Unknown"
 
     @property
     def fingerprint(self) -> str:
@@ -110,7 +116,7 @@ class Finding:
             return "binary"
         if self.language == "certificate" or "certificate" in self.rule_id:
             return "certificate"
-        if self.language in {"python", "javascript"} and not self.rule_id.startswith("entropy-"):
+        if self.language in {"python", "javascript", "typescript", "java", "go", "c", "cpp", "csharp", "rust", "php", "ruby", "kotlin"} and not self.rule_id.startswith("entropy-") and not self.rule_id.startswith("config-") and not self.rule_id.startswith("hardware-"):
             return "ast"
         if self.rule_id.startswith("entropy-"):
             return "entropy"
@@ -131,6 +137,7 @@ class Finding:
         d["suppression_reason"] = self.suppression_reason
         d["fingerprint"] = self.fingerprint
         d["detection_method"] = self.detection_method
+        d["detection"] = self.detection or self.detection_method.upper()
         d["exposure"] = self.exposure
         d["exposure_signals"] = self.exposure_signals
         d["exposure_rationale"] = self.exposure_rationale
@@ -138,4 +145,5 @@ class Finding:
         d["version"] = self.version
         d["library"] = self.library
         d["dataSensitivity"] = self.dataSensitivity
+        d["language_name"] = self.language_name or "Unknown"
         return d

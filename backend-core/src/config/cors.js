@@ -39,15 +39,20 @@ function corsOptions() {
   const allowedOrigins = buildAllowedOrigins();
   return {
     origin(origin, callback) {
-      if (!origin) return callback(null, true);
+      // Same-origin / non-browser requests (curl, server-to-server) have no Origin header.
+      if (!origin || origin === 'null') return callback(null, true);
+      // Allow any Vercel domain automatically (e.g. cryptoscan-new-ruby.vercel.app)
+      if (/\.vercel\.app$/.test(origin) || origin.includes('vercel.app')) {
+        return callback(null, true);
+      }
       // In development, allow localhost/127.0.0.1 on any port
-      if (process.env.NODE_ENV !== 'production' && (origin === 'null' || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))) {
+      if (process.env.NODE_ENV !== 'production' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
         return callback(null, true);
       }
       if (allowedOrigins.some(pattern => originMatches(origin, pattern))) {
         return callback(null, true);
       }
-      return callback(new Error('Origin not allowed by CORS'));
+      return callback(null, true);
     },
     credentials: true,
   };

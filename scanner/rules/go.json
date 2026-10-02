@@ -1,0 +1,67 @@
+[
+  {
+    "id": "go-md5-hash",
+    "name": "MD5 Hash in Go",
+    "category": "hash",
+    "algorithm": "MD5",
+    "severity": "High",
+    "quantum_risk": "Classical Risk",
+    "message": "MD5 is cryptographically weak and vulnerable to collision attacks.",
+    "recommendation": "Use crypto/sha256 or crypto/sha512.",
+    "pattern": "md5\\.(?:New|Sum)",
+    "library": "crypto/md5",
+    "specificity": 3
+  },
+  {
+    "id": "go-sha1-hash",
+    "name": "SHA-1 Hash in Go",
+    "category": "hash",
+    "algorithm": "SHA-1",
+    "severity": "Medium",
+    "quantum_risk": "Classical Risk",
+    "message": "SHA-1 is deprecated and collision-vulnerable.",
+    "recommendation": "Use crypto/sha256 or crypto/sha3.",
+    "pattern": "sha1\\.(?:New|Sum)",
+    "library": "crypto/sha1",
+    "specificity": 3
+  },
+  {
+    "id": "go-des-cipher",
+    "name": "DES Cipher in Go",
+    "category": "symmetric-cipher",
+    "algorithm": "DES",
+    "severity": "Critical",
+    "quantum_risk": "Classical Risk",
+    "message": "DES has an obsolete 56-bit key size.",
+    "recommendation": "Use crypto/aes with GCM mode.",
+    "pattern": "des\\.New(?:TripleDESCipher|Cipher)",
+    "library": "crypto/des",
+    "specificity": 4
+  },
+  {
+    "id": "go-rsa-quantum-broken",
+    "name": "RSA in Go",
+    "category": "asymmetric",
+    "algorithm": "RSA",
+    "severity": "Critical",
+    "quantum_risk": "Quantum-Broken",
+    "message": "RSA is broken by Shor's algorithm on cryptographically relevant quantum computers.",
+    "recommendation": "Plan migration to Post-Quantum algorithms (ML-KEM / ML-DSA).",
+    "pattern": "rsa\\.GenerateKey|rsa\\.Encrypt|rsa\\.Sign",
+    "library": "crypto/rsa",
+    "specificity": 3
+  },
+  {
+    "id": "go-ecdsa-quantum-broken",
+    "name": "ECDSA in Go",
+    "category": "asymmetric",
+    "algorithm": "ECDSA",
+    "severity": "Critical",
+    "quantum_risk": "Quantum-Broken",
+    "message": "Elliptic Curve Cryptography is vulnerable to Shor's algorithm.",
+    "recommendation": "Migrate to Post-Quantum Signature Schemes (ML-DSA / SLH-DSA).",
+    "pattern": "ecdsa\\.GenerateKey|ecdsa\\.Sign",
+    "library": "crypto/ecdsa",
+    "specificity": 3
+  }
+]

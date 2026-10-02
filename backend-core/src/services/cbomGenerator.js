@@ -105,21 +105,30 @@ function buildCbom(scan) {
     if (severityCounts[bucket] !== undefined) severityCounts[bucket]++;
   }
 
+  const crypto = require('crypto');
+  const deterministicUuid = crypto.createHash('md5')
+    .update((scan.commitHash || scan.repoId || scan.scanId || '') + '-cbom')
+    .digest('hex').replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5');
+
   return {
     bomFormat: 'CycloneDX',
     specVersion: '1.6',
-    serialNumber: `urn:uuid:cbom-${scan.scanId}`,
+    serialNumber: `urn:uuid:${deterministicUuid}`,
     version: 1,
     metadata: {
-      timestamp: scan.createdAt ? new Date(scan.createdAt).toISOString() : new Date(0).toISOString(),
+      timestamp: new Date(0).toISOString(),
       component: {
         type: 'application',
         name: scan.repoId || scan.scanId,
       },
       properties: [
-        { name: 'scanId', value: scan.scanId },
+        { name: 'inputHash', value: scan.commitHash || 'unknown' },
         { name: 'findingCount', value: String(findings.length) },
       ],
+    },
+    unhashedMetadata: {
+      timestamp: scan.createdAt ? new Date(scan.createdAt).toISOString() : new Date(0).toISOString(),
+      scanId: scan.scanId
     },
     components,
     summary: {

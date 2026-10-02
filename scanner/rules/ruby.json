@@ -1,0 +1,41 @@
+[
+  {
+    "id": "ruby-md5-digest",
+    "name": "MD5 in Ruby OpenSSL",
+    "category": "hash",
+    "algorithm": "MD5",
+    "severity": "High",
+    "quantum_risk": "Classical Risk",
+    "message": "MD5 is cryptographically weak.",
+    "recommendation": "Use OpenSSL::Digest::SHA256.",
+    "pattern": "OpenSSL::Digest::MD5|Digest::MD5",
+    "library": "openssl",
+    "specificity": 3
+  },
+  {
+    "id": "ruby-sha1-digest",
+    "name": "SHA-1 in Ruby OpenSSL",
+    "category": "hash",
+    "algorithm": "SHA-1",
+    "severity": "Medium",
+    "quantum_risk": "Classical Risk",
+    "message": "SHA-1 is deprecated.",
+    "recommendation": "Use OpenSSL::Digest::SHA256.",
+    "pattern": "OpenSSL::Digest::SHA1|Digest::SHA1",
+    "library": "openssl",
+    "specificity": 3
+  },
+  {
+    "id": "ruby-des-cipher",
+    "name": "DES in Ruby OpenSSL",
+    "category": "symmetric-cipher",
+    "algorithm": "DES",
+    "severity": "Critical",
+    "quantum_risk": "Classical Risk",
+    "message": "DES has an insufficient 56-bit key length.",
+    "recommendation": "Use AES-256-GCM.",
+    "pattern": "OpenSSL::Cipher::DES|OpenSSL::Cipher\\.new\\s*\\(\\s*['\"]DES",
+    "library": "openssl",
+    "specificity": 4
+  }
+]

@@ -20,7 +20,6 @@
 const { detectPurpose, getMigrationGuidance, calculateCryptoAgilityScore } = require('./purposeDetection');
 const { normalizeFamily } = require('./primitiveFamily');
 const { normalizeDataLifetime, calculateQuantumExposureWindow, scoreFinding } = require('./vulnScoring');
-const { logStructuredError } = require('../utils/failClosed');
 
 // -----------------------------------------------------------------------
 // Classification helpers
@@ -312,8 +311,8 @@ function simulateMigration(component) {
     );
     riskScore = scored.preBusinessRiskScore;
     riskSeverity = scored.severity;
-  } catch (err) {
-    logStructuredError('migration_simulation.risk_scoring_failed', err, {}, 'warning');
+  } catch (_) {
+    // If scoring fails, leave null — simulation is still valid
   }
 
   // ---- Migration steps ----

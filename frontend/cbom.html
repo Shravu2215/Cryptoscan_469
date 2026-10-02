@@ -764,7 +764,7 @@ async function init() {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1000);
-    const res = await fetch('/repos', { signal: controller.signal });
+    const res = await fetch('http://localhost:3000/repos', { signal: controller.signal });
     clearTimeout(timeoutId);
     if (res.ok) {
       const repos = await res.json();
@@ -816,13 +816,12 @@ async function init() {
           algorithm: algo,
           type: enriched.type || getAlgoType(algo),
           mode: (algo.split('-')[1] || '—').toUpperCase(),
-          quantum_class: enriched.quantum_class || (enriched.quantum === 'yes' ? 'broken' : 'resilient'),
           suggested_lifetime: enriched.suggested_lifetime || 5,
           user_confirmed_lifetime: enriched.user_confirmed_lifetime || null,
           subfactors: enriched.subfactors || { data_sensitivity: 1, exposure: 1, system_role: 1, regulatory_impact: 2 },
           criticality_score: enriched.criticality_score || 2.0,
           criticality_label: enriched.criticality_label || 'Medium',
-          moscaRisk: enriched.risk || enriched.mosca || null,
+          moscaRisk: enriched.risk || { X: 5, Y: 1, Z: 12, urgency_margin: 6, urgency_tier: 'Low', priority_score: 2 },
           purpose: enriched.usage || enriched.category || 'Data Protection',
           exposure: enriched.exposure || 'internal',
           criticality: itemCrit,
@@ -833,7 +832,7 @@ async function init() {
           keySize: enriched.keySize || '—',
           latencyImpactMs: enriched.latencyImpactMs ?? (enriched.performanceImpact ? enriched.performanceImpact.latencyImpactMs : 2.0),
           risk: (enriched.severity || 'SAFE').toUpperCase(),
-          quantumVulnerable: enriched.quantum_class ? (enriched.quantum_class === 'broken' || enriched.quantum_class === 'weakened') : (enriched.quantum === 'yes' || qRisk.includes('vulnerable') || qRisk.includes('broken')),
+          quantumVulnerable: enriched.quantum === 'yes' || qRisk.includes('vulnerable') || qRisk.includes('broken') || Boolean(enriched.isQuantumVulnerable) || isAsymmetricVuln,
           usageContext: enriched.snippet || enriched.remediation || 'Standard implementation detected.'
         };
     });
@@ -884,9 +883,7 @@ function updateSummaryStats() {
   const targetScans = currentScan.findings ? [currentScan] : (data.scans || []);
   const allFindings = targetScans.flatMap(s => s.findings || []);
 
-  const totalComps = (currentScan.summary && currentScan.summary.components_total !== undefined)
-    ? currentScan.summary.components_total
-    : (currentScan.assetsFound || (currentScan.cbom ? currentScan.cbom.length : 0) || (new Set(allFindings.map(f => f.algorithm)).size) || inventory.length);
+  const totalComps = currentScan.assetsFound || (currentScan.cbom ? currentScan.cbom.length : 0) || (new Set(allFindings.map(f => f.algorithm)).size) || inventory.length;
   const critCount = allFindings.filter(f => (f.severity || '').toUpperCase() === 'CRITICAL').length;
   const highCount = allFindings.filter(f => (f.severity || '').toUpperCase() === 'HIGH').length;
   const quantCount = allFindings.filter(f => f.quantum === 'yes' || (f.quantumStatus || '').toLowerCase().includes('vuln') || Boolean(f.isQuantumVulnerable)).length;
@@ -926,18 +923,15 @@ function updateCharts() {
 
   // Types Chart (Usage)
   const maxType = Math.max(...Object.values(types), 1);
-  document.getElementById('chart-types').innerHTML = Object.keys(types).sort((a,b)=>types[b]-types[a]).map(t => {
-    const safeT = escapeHtml(t);
-    return `
+  document.getElementById('chart-types').innerHTML = Object.keys(types).sort((a,b)=>types[b]-types[a]).map(t => `
     <div class="mini-bar-row">
-      <div class="mini-bar-lbl">${safeT}</div>
+      <div class="mini-bar-lbl">${t}</div>
       <div class="mini-bar-track">
         <div class="mini-bar-fill" style="width:${(types[t]/maxType)*100}%; background:var(--green)"></div>
       </div>
       <div class="mini-bar-val">${types[t]}</div>
     </div>
-  `;
-  }).join('');
+  `).join('');
   
   // Also replicate to Cryptographic Usage list on sidebar
   document.getElementById('usage-list').innerHTML = document.getElementById('chart-types').innerHTML;
@@ -952,15 +946,12 @@ function updateCharts() {
   
   // Libraries
   const sortedLibs = Object.keys(libs).sort((a,b)=>libs[b]-libs[a]).slice(0, 5);
-  document.getElementById('lib-list').innerHTML = sortedLibs.map(l => {
-    const safeL = escapeHtml(l);
-    return `
+  document.getElementById('lib-list').innerHTML = sortedLibs.map(l => `
     <div class="lib-item">
-      <div class="lib-name">${safeL}</div>
+      <div class="lib-name">${l}</div>
       <div class="lib-count">${libs[l]} components</div>
     </div>
-  `;
-  }).join('') || '<div class="empty-msg" style="padding:16px;">No libraries detected</div>';
+  `).join('') || '<div class="empty-msg" style="padding:16px;">No libraries detected</div>';
   
   // Quantum Readiness
   document.getElementById('quantum-readiness').innerHTML = `
@@ -1063,18 +1054,18 @@ function renderTable() {
     const critClass = getCriticalityBadgeClass(c.criticality);
     return `
       <tr class="cbom-row" style="cursor:pointer;" data-index="${i}">
-        <td><span style="font-weight:600;color:var(--text-h)">${escapeHtml(c.algorithm)}</span></td>
-        <td><span class="badge badge-quant" style="text-transform:uppercase;">${escapeHtml(c.type)}</span></td>
-        <td>${escapeHtml(c.mode)}</td>
-        <td>${escapeHtml(c.purpose)}</td>
+        <td><span style="font-weight:600;color:var(--text-h)">${c.algorithm}</span></td>
+        <td><span class="badge badge-quant" style="text-transform:uppercase;">${c.type}</span></td>
+        <td>${c.mode}</td>
+        <td>${c.purpose}</td>
         <td><span class="badge ${expClass}">${expLabel}</span></td>
-        <td><span class="badge ${critClass}">${escapeHtml(c.criticality || 'Not tagged')}</span></td>
-        <td><span class="code-font" style="color:var(--text-m);">${escapeHtml(c.file)}</span></td>
-        <td>${escapeHtml(c.library)}</td>
-        <td><span class="code-font">${escapeHtml(c.version)}</span></td>
-        <td><span class="code-font">${escapeHtml(c.keySize)}</span></td>
-        <td><span class="code-font">${escapeHtml(String(c.latencyImpactMs))} ms</span></td>
-        <td><span class="badge ${getBadgeClass(c.risk)}">${escapeHtml(c.risk)}</span></td>
+        <td><span class="badge ${critClass}">${c.criticality || 'Not tagged'}</span></td>
+        <td><span class="code-font" style="color:var(--text-m);">${c.file}</span></td>
+        <td>${c.library}</td>
+        <td><span class="code-font">${c.version}</span></td>
+        <td><span class="code-font">${c.keySize}</span></td>
+        <td><span class="code-font">${c.latencyImpactMs} ms</span></td>
+        <td><span class="badge ${getBadgeClass(c.risk)}">${c.risk}</span></td>
       </tr>
     `;
   }).join('');
@@ -1165,12 +1156,11 @@ function generateCycloneDX() {
           { name: "crypto:subfactor_exposure", value: String(sf.exposure) },
           { name: "crypto:subfactor_system_role", value: String(sf.system_role) },
           { name: "crypto:subfactor_regulatory_impact", value: String(sf.regulatory_impact) },
-          { name: "crypto:quantum_class", value: String(c.quantum_class || 'classical') },
-          { name: "crypto:migration_time_Y", value: String(risk.Y ?? 'N/A') },
-          { name: "crypto:threat_horizon_Z", value: String(risk.Z ?? 'N/A') },
-          { name: "crypto:urgency_margin", value: String(risk.urgency_margin ?? 'N/A') },
-          { name: "crypto:urgency_tier", value: String(risk.urgency_tier ?? 'N/A') },
-          { name: "crypto:priority_score", value: String(risk.priority_score ?? 'N/A') },
+          { name: "crypto:migration_time_Y", value: String(risk.Y) },
+          { name: "crypto:threat_horizon_Z", value: String(risk.Z) },
+          { name: "crypto:urgency_margin", value: String(risk.urgency_margin) },
+          { name: "crypto:urgency_tier", value: String(risk.urgency_tier) },
+          { name: "crypto:priority_score", value: String(risk.priority_score) },
           { name: "crypto:purpose", value: c.purpose },
           { name: "crypto:exposure", value: c.exposure || "internal" },
           { name: "crypto:businessCriticality", value: c.criticality || "Not tagged" },
@@ -1216,7 +1206,6 @@ window.addEventListener('load', init);
 window.addEventListener('cryptoscan_data_updated', init);
 </script>
 </div>
-<script src="assets/js/security.js"></script>
 <script src="assets/js/auth.js"></script>
 <script src="assets/js/shell.js"></script>
 </body>

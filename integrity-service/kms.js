@@ -67,29 +67,6 @@ function getSigningKey() {
   return activeKey;
 }
 
-const path = require('path');
-
-function resolveEthers() {
-  const ethersPaths = [
-    'ethers',
-    path.resolve(__dirname, 'node_modules/ethers'),
-    path.resolve(__dirname, '../integrity-service/node_modules/ethers'),
-    path.resolve(__dirname, '../backend-core/node_modules/ethers'),
-    path.resolve(__dirname, '../blockchain-module/node_modules/ethers'),
-    path.resolve(__dirname, '../cbom-service/node_modules/ethers'),
-    path.resolve(process.cwd(), 'node_modules/ethers'),
-    path.resolve(process.cwd(), 'integrity-service/node_modules/ethers'),
-    path.resolve(process.cwd(), 'backend-core/node_modules/ethers')
-  ];
-  for (const p of ethersPaths) {
-    try {
-      const eth = require(p);
-      if (eth) return eth;
-    } catch (_) {}
-  }
-  throw new Error('Failed to resolve ethers module in integrity-service/kms.js');
-}
-
 /**
  * Resolves an ethers Signer for classical (secp256k1) signatures and transactions.
  *
@@ -103,7 +80,12 @@ function resolveEthers() {
  * @returns {Promise<import('ethers').Signer>}
  */
 async function getSigner(provider) {
-  const ethers = resolveEthers();
+  let ethers;
+  try {
+    ethers = require('ethers');
+  } catch {
+    ethers = require('../blockchain-module/node_modules/ethers');
+  }
 
   const provider_ = process.env.KMS_PROVIDER || 'env';
 

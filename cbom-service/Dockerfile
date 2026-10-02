@@ -1,6 +1,6 @@
 # Build context is the repo root so that shared/ is available.
 # Build with:  docker build -f cbom-service/Dockerfile -t cryptoscan-cbom-service .
-FROM node:24-bookworm-slim
+FROM node:20-bookworm-slim
 
 WORKDIR /app
 

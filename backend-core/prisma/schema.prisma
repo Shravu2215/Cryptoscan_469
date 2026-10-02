@@ -18,7 +18,6 @@ model User {
   providerId String?
   avatar     String?
   role       String   @default("Developer")
-  quantumZ   Int      @default(12) // Temporary store for user's Mosca threat horizon Z; moves to organisation model later
   createdAt  DateTime @default(now())
 
   repos     Repo[]
@@ -65,7 +64,6 @@ model Scan {
   scannerVersion String?  @default("2.0.0")
   createdAt      DateTime @default(now())
   completedAt    DateTime?
-  failureReason  String?
 
   findings    Finding[]
   cbom        Cbom?
@@ -91,8 +89,12 @@ model Finding {
   suppressed        Boolean  @default(false)
   suppressionReason String?
   status            String   @default("ACTIVE") // ACTIVE, RESOLVED
+  detection         String?  @default("AST")    // display-ready detection method (AST, REGEX, ...)
+  detection_method  String?  @default("ast")    // raw detection method key
+  language          String?  @default("Unknown") // language display name from language registry
   createdAt         DateTime @default(now())
 }
+
 
 model Cbom {
   id          String   @id @default(uuid())

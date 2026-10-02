@@ -1,22 +1,12 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-let ethersModule;
-try {
-  ethersModule = require('ethers');
-} catch (_) {
-  try {
-    ethersModule = require(path.resolve(__dirname, '../../backend-core/node_modules/ethers'));
-  } catch (_) {
-    ethersModule = require(path.resolve(__dirname, '../node_modules/ethers'));
-  }
-}
-const ethers = ethersModule.ethers || ethersModule;
+const { ethers } = require('ethers');
 const { buildMerkleTree } = require('../../integrity-service/merkle');
 const { getSigner } = require('../../integrity-service/kms');
 const { requestTimestamp } = require('../../integrity-service/timestamp');
-try { require('dotenv').config({ path: path.join(__dirname, '..', '.env') }); } catch (_) {}
-try { require('dotenv').config(); } catch (_) {}
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config();
 
 /**
  * Real anchor flow — Merkle-tree root commitment + KMS signing + RFC 3161 timestamping:

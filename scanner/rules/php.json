@@ -1,0 +1,41 @@
+[
+  {
+    "id": "php-md5-hash",
+    "name": "MD5 Hash in PHP",
+    "category": "hash",
+    "algorithm": "MD5",
+    "severity": "High",
+    "quantum_risk": "Classical Risk",
+    "message": "MD5 is cryptographically weak.",
+    "recommendation": "Use password_hash() for passwords or hash('sha256') for digests.",
+    "pattern": "\\bmd5\\s*\\(|hash\\s*\\(\\s*['\"]md5['\"]",
+    "library": "ext-hash",
+    "specificity": 3
+  },
+  {
+    "id": "php-sha1-hash",
+    "name": "SHA-1 Hash in PHP",
+    "category": "hash",
+    "algorithm": "SHA-1",
+    "severity": "Medium",
+    "quantum_risk": "Classical Risk",
+    "message": "SHA-1 is deprecated.",
+    "recommendation": "Use hash('sha256', ...).",
+    "pattern": "\\bsha1\\s*\\(|hash\\s*\\(\\s*['\"]sha1['\"]",
+    "library": "ext-hash",
+    "specificity": 3
+  },
+  {
+    "id": "php-des-mcrypt",
+    "name": "DES / Mcrypt in PHP",
+    "category": "symmetric-cipher",
+    "algorithm": "DES",
+    "severity": "Critical",
+    "quantum_risk": "Classical Risk",
+    "message": "DES and mcrypt are obsolete and removed in modern PHP.",
+    "recommendation": "Use openssl_encrypt() with AES-256-GCM or Sodium.",
+    "pattern": "mcrypt_encrypt|openssl_encrypt\\s*\\([^,]+,\\s*['\"]DES",
+    "library": "openssl",
+    "specificity": 4
+  }
+]

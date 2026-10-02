@@ -1,0 +1,68 @@
+[
+  {
+    "id": "csharp-md5-crypto",
+    "name": "MD5 Hash in C#/.NET",
+    "category": "hash",
+    "algorithm": "MD5",
+    "severity": "High",
+    "quantum_risk": "Classical Risk",
+    "message": "MD5 is cryptographically broken and vulnerable to collision attacks.",
+    "recommendation": "Use SHA256.Create() or SHA512.Create().",
+    "pattern": "MD5(?:CryptoServiceProvider)?\\.Create\\s*\\(|new\\s+MD5CryptoServiceProvider\\s*\\(",
+    "library": "System.Security.Cryptography.MD5",
+    "specificity": 3
+  },
+  {
+    "id": "csharp-sha1-crypto",
+    "name": "SHA-1 Hash in C#/.NET",
+    "category": "hash",
+    "algorithm": "SHA-1",
+    "severity": "Medium",
+    "quantum_risk": "Classical Risk",
+    "message": "SHA-1 is deprecated due to theoretical and practical collision attacks.",
+    "recommendation": "Upgrade to SHA256 or SHA384.",
+    "pattern": "SHA1(?:CryptoServiceProvider)?\\.Create\\s*\\(|new\\s+SHA1CryptoServiceProvider\\s*\\(",
+    "library": "System.Security.Cryptography.SHA1",
+    "specificity": 3
+  },
+  {
+    "id": "csharp-des-cipher",
+    "name": "DES Cipher in C#/.NET",
+    "category": "symmetric-cipher",
+    "algorithm": "DES",
+    "severity": "Critical",
+    "quantum_risk": "Classical Risk",
+    "message": "DES has an insufficient 56-bit key length.",
+    "recommendation": "Use Aes.Create() with GCM or CBC + HMAC.",
+    "pattern": "DESCryptoServiceProvider|TripleDESCryptoServiceProvider|DES\\.Create\\s*\\(",
+    "library": "System.Security.Cryptography.DES",
+    "specificity": 4
+  },
+  {
+    "id": "csharp-ecb-mode",
+    "name": "ECB Cipher Mode in C#/.NET",
+    "category": "symmetric-cipher",
+    "algorithm": "AES-ECB",
+    "severity": "High",
+    "quantum_risk": "Classical Risk",
+    "message": "CipherMode.ECB leaks data patterns and is vulnerable to replay attacks.",
+    "recommendation": "Use CipherMode.CBC or AesGcm.",
+    "pattern": "CipherMode\\.ECB",
+    "library": "System.Security.Cryptography.CipherMode",
+    "mode": "ECB",
+    "specificity": 4
+  },
+  {
+    "id": "csharp-rsa-quantum-broken",
+    "name": "RSA in C#/.NET",
+    "category": "asymmetric",
+    "algorithm": "RSA",
+    "severity": "Critical",
+    "quantum_risk": "Quantum-Broken",
+    "message": "RSA is vulnerable to Shor's algorithm on quantum computers.",
+    "recommendation": "Prepare for PQC migration (ML-KEM / ML-DSA).",
+    "pattern": "RSA\\.Create\\s*\\(|new\\s+RSACryptoServiceProvider\\s*\\(",
+    "library": "System.Security.Cryptography.RSA",
+    "specificity": 3
+  }
+]

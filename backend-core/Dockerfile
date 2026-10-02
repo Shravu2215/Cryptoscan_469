@@ -7,7 +7,7 @@
 #   - ../../../cbom-service       (cbomGenerator, signedCbomExport, migrationAssessment)
 #   - ../../shared                (preflight, utilities)
 # Build with:  docker build -f backend-core/Dockerfile -t cryptoscan-backend-core .
-FROM node:24-bookworm-slim
+FROM node:20-bookworm-slim
 
 # python3 is required at runtime — backend-core spawns scanner/pipeline.py
 # via execFile for every scan.
@@ -54,4 +54,4 @@ ENV NODE_ENV=production
 EXPOSE 3000
 
 # Apply pending migrations, then start the server.
-CMD ["sh", "-c", "DATABASE_URL=\"${DIRECT_URL:-$DATABASE_URL}\" npx prisma migrate deploy && node src/server.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node src/server.js"]

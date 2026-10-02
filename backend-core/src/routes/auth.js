@@ -4,10 +4,8 @@ const express = require('express');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const prisma = require('../utils/prismaClient');
-const { isDev, logStructuredError, sendError, serviceUnavailable } = require('../utils/failClosed');
 const { issueAccessToken, issueRefreshToken, verifyRefreshToken, REFRESH_TTL_SECONDS } = require('../utils/tokenService');
 const { denylistJti, isJtiDenylisted } = require('../utils/redisClient');
-const csrfCheck = require('../utils/csrf');
 
 const router = express.Router();
 const isProd = process.env.NODE_ENV === 'production';
@@ -70,8 +68,8 @@ router.post('/signup', async (req, res) => {
         data: { email, password: hashed, name, role: 'Developer' },
       });
     } catch (dbErr) {
-      if (!isDev) throw serviceUnavailable('auth.signup_persist_failed', dbErr);
-      logStructuredError('auth.signup_persist_failed', dbErr, {}, 'warning');
+      console.error('PostgreSQL error during signup:', dbErr.message);
+      return res.status(500).json({ error: 'Internal server error' });
     }
 
     return res.status(201).json({
@@ -81,7 +79,8 @@ router.post('/signup', async (req, res) => {
       role: user.role,
     });
   } catch (err) {
-    return sendError(res, err, 'auth.signup_failed');
+    console.error('Signup error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -109,8 +108,8 @@ router.post('/login', async (req, res) => {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
     } catch (dbErr) {
-      if (!isDev) throw serviceUnavailable('auth.login_lookup_failed', dbErr);
-      logStructuredError('auth.login_lookup_failed', dbErr, {}, 'warning');
+      console.error('PostgreSQL error during login:', dbErr.message);
+      return res.status(500).json({ error: 'Internal server error' });
     }
 
     // Issue tokens
@@ -131,14 +130,15 @@ router.post('/login', async (req, res) => {
       user: { id: user.id, email: user.email, name: user.name || email.split('@')[0], role: user.role },
     });
   } catch (err) {
-    return sendError(res, err, 'auth.login_failed');
+    console.error('Login error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // ─── POST /auth/refresh ───────────────────────────────────────────────────────
 // Refresh-token rotation: issues a new access + refresh pair.
 // Reuse of an already-rotated refresh token triggers full session revocation.
-router.post('/refresh', csrfCheck, async (req, res) => {
+router.post('/refresh', async (req, res) => {
   const rawRefreshToken = req.cookies?.cs_refresh;
 
   if (!rawRefreshToken) {
@@ -242,7 +242,7 @@ router.post('/refresh', csrfCheck, async (req, res) => {
 
 // ─── POST /auth/logout ────────────────────────────────────────────────────────
 // Invalidates the access token JTI in Redis and revokes the refresh session.
-router.post('/logout', csrfCheck, async (req, res) => {
+router.post('/logout', async (req, res) => {
   // Denylist the access token JTI if provided
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {

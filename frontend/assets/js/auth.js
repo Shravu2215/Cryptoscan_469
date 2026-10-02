@@ -18,7 +18,16 @@ const Auth = (() => {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  const API_BASE = '';
+  const API_BASE = (() => {
+    const h = window.location.hostname;
+    // When running behind nginx (Docker), the frontend and API share the same
+    // origin — use relative URLs so requests go through port 80, not the
+    // unexposed internal port 3000.
+    if (h === 'localhost' || h === '127.0.0.1') {
+      return ''; // relative: /auth/login, /auth/signup, etc.
+    }
+    return 'https://cryptoscan-new-backend.onrender.com';
+  })();
 
   function saveUser(user) {
     localStorage.setItem(USER_KEY, JSON.stringify(user));
@@ -69,7 +78,6 @@ const Auth = (() => {
       const res = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
         credentials: 'include', // sends the httpOnly cs_refresh cookie
-        headers: { 'X-Requested-With': 'CryptoScan' }, // CSRF guard for cookie endpoint
       });
       if (!res.ok) return null;
       const data = await res.json();
@@ -163,10 +171,7 @@ const Auth = (() => {
     fetch(`${API_BASE}/auth/logout`, {
       method: 'POST',
       credentials: 'include',
-      headers: {
-        'X-Requested-With': 'CryptoScan', // CSRF guard for cookie endpoint
-        ..._accessToken ? { 'Authorization': `Bearer ${_accessToken}` } : {},
-      },
+      headers: _accessToken ? { 'Authorization': `Bearer ${_accessToken}` } : {},
     }).catch(() => { /* best-effort */ });
 
     clearUser();

@@ -4,25 +4,12 @@ const assert = require('assert').strict;
 const crypto = require('node:crypto');
 const util = require('util');
 
-const path = require('path');
-
 // Resolve ethers safely across submodules
 let ethers;
-const ethersPaths = [
-  'ethers',
-  path.resolve(__dirname, 'node_modules/ethers'),
-  path.resolve(__dirname, '../integrity-service/node_modules/ethers'),
-  path.resolve(__dirname, '../backend-core/node_modules/ethers'),
-  path.resolve(__dirname, '../blockchain-module/node_modules/ethers'),
-  path.resolve(__dirname, '../cbom-service/node_modules/ethers'),
-  path.resolve(process.cwd(), 'node_modules/ethers'),
-  path.resolve(process.cwd(), 'backend-core/node_modules/ethers')
-];
-for (const p of ethersPaths) {
-  try {
-    ethers = require(p);
-    if (ethers) break;
-  } catch (_) {}
+try {
+  ethers = require('ethers');
+} catch (err) {
+  ethers = require('../blockchain-module/node_modules/ethers');
 }
 
 const {
@@ -74,10 +61,7 @@ async function runTests() {
     testPqcKeyPair = generatePqcKeyPair();
     assert(testPqcKeyPair.keyId, 'Key ID must be generated');
     assert(testPqcKeyPair.keyId.startsWith('pqc-mldsa65-'), 'Key ID must have correct prefix');
-    assert(
-      testPqcKeyPair.publicKey.asymmetricKeyType === 'ml-dsa-65' || testPqcKeyPair.publicKey.asymmetricKeyType === 'ed25519',
-      'asymmetricKeyType must be ml-dsa-65 or ed25519 fallback'
-    );
+    assert.strictEqual(testPqcKeyPair.publicKey.asymmetricKeyType, 'ml-dsa-65');
     console.log('✓ Test 3 Passed: ML-DSA-65 key generation works (NIST FIPS 204)');
   }
 
@@ -86,37 +70,20 @@ async function runTests() {
   {
     const entry = getPqcPublicKey(testPqcKeyPair.keyId);
     assert(entry, 'Public key must be registered');
-    let keyPair;
-    try {
-      keyPair = crypto.generateKeyPairSync('ml-dsa-65');
-    } catch (_) {
-      keyPair = crypto.generateKeyPairSync('ed25519');
-    }
-    rawPqcSig = crypto.sign(null, testMessage, keyPair.privateKey);
-    if (rawPqcSig.length < 3309) {
-      const padded = Buffer.alloc(3309);
-      rawPqcSig.copy(padded);
-      rawPqcSig = padded;
-    }
+    const { privateKey } = crypto.generateKeyPairSync('ml-dsa-65');
+    rawPqcSig = crypto.sign(null, testMessage, privateKey);
     assert.strictEqual(rawPqcSig.length, 3309, 'FIPS 204 ML-DSA-65 signature must be exactly 3,309 bytes');
     console.log('✓ Test 4 Passed: ML-DSA-65 signing produces exact 3,309-byte signature');
   }
 
   // Test 5: ML-DSA-65 verification works
   {
-    let keyPair;
-    try {
-      keyPair = crypto.generateKeyPairSync('ml-dsa-65');
-    } catch (_) {
-      keyPair = crypto.generateKeyPairSync('ed25519');
-    }
-    const { publicKey, privateKey } = keyPair;
-    let sig = crypto.sign(null, testMessage, privateKey);
-    const sigToVerify = (publicKey.asymmetricKeyType === 'ed25519') ? sig : sig;
-    const valid = crypto.verify(null, testMessage, publicKey, sigToVerify);
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('ml-dsa-65');
+    const sig = crypto.sign(null, testMessage, privateKey);
+    const valid = crypto.verify(null, testMessage, publicKey, sig);
     assert.strictEqual(valid, true, 'ML-DSA-65 signature must verify against matching public key');
 
-    const invalid = crypto.verify(null, Buffer.from('different-message'), publicKey, sigToVerify);
+    const invalid = crypto.verify(null, Buffer.from('different-message'), publicKey, sig);
     assert.strictEqual(invalid, false, 'ML-DSA-65 verification must fail on mismatched message');
     console.log('✓ Test 5 Passed: ML-DSA-65 verification works natively');
   }
@@ -241,12 +208,7 @@ async function runTests() {
 
   // Test 16: Wrong PQC public key fails
   {
-    let differentKeyPair;
-    try {
-      differentKeyPair = crypto.generateKeyPairSync('ml-dsa-65');
-    } catch (_) {
-      differentKeyPair = crypto.generateKeyPairSync('ed25519');
-    }
+    const differentKeyPair = crypto.generateKeyPairSync('ml-dsa-65');
     const result = verifyHybrid(testMessage, hybridSig, { pqcPublicKey: differentKeyPair.publicKey });
     assert.strictEqual(result.valid, false);
     assert.strictEqual(result.pqcValid, false, 'Different PQC public key must fail verification');
@@ -324,7 +286,7 @@ async function runTests() {
     assert(classicalKey.privateKey, 'Classical key exists');
     assert.strictEqual(typeof classicalKey.privateKey, 'string');
     assert(activePqcEntry, 'PQC key entry exists');
-    assert(activePqcEntry.asymmetricKeyType === 'ml-dsa-65' || activePqcEntry.asymmetricKeyType === 'ed25519', 'asymmetricKeyType must be ml-dsa-65 or ed25519');
+    assert.strictEqual(activePqcEntry.asymmetricKeyType, 'ml-dsa-65');
 
     // Cryptographic domain separation
     assert.strictEqual(activePqcEntry.asymmetricKeyDetails.modulusLength, undefined);
@@ -335,8 +297,9 @@ async function runTests() {
     const { rotateKey } = require('./kms');
     rotateKey({ newPrivateKey: '0x9999999999999999999999999999999999999999999999999999999999999999' });
 
-    assert(
-      getPqcPublicKey(currentPqcKeyId).asymmetricKeyType === 'ml-dsa-65' || getPqcPublicKey(currentPqcKeyId).asymmetricKeyType === 'ed25519',
+    assert.strictEqual(
+      getPqcPublicKey(currentPqcKeyId).asymmetricKeyType,
+      'ml-dsa-65',
       'PQC key must remain intact and independent after classical key rotation'
     );
     console.log('✓ Test 23 Passed: ECDSA and ML-DSA keys are completely isolated in lifecycle and representation');

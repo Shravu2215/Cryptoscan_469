@@ -26,6 +26,7 @@ function enrichFinding(raw, businessImportance) {
     mode: raw.mode ?? null,
     exposure: raw.exposure || (raw.exposure_label === 'External' ? 'external-facing' : 'internal'),
     exposure_label: raw.exposure_label || ((raw.exposure === 'external-facing' || raw.exposure === 'external') ? 'External' : 'Internal'),
+    language: raw.language_name || raw.language || 'Unknown',
     purpose: { value: purpose, confidence, source },
     vulnerability,
     pqcMigration: migration,
@@ -101,6 +102,7 @@ function buildCbom(scan) {
     const usage = f.usage || (f.purpose && f.purpose.value) || null;
     const quantumStatus = f.quantumStatus || (f.pqcMigration && f.pqcMigration.quantumExposure) || null;
     const recommendation = f.recommendation || (f.pqcMigration && f.pqcMigration.recommendation) || null;
+    const language = f.language_name || f.language || 'Unknown';
 
     component.occurrences.push({
       file: f.file,
@@ -110,6 +112,7 @@ function buildCbom(scan) {
       severity: severity,
       quantumStatus: quantumStatus,
       recommendation: recommendation,
+      language: language,
     });
     const weight = SEVERITY_WEIGHT[severity.toUpperCase()] ?? 0;
     if (weight > component.maxVulnerabilityScore) {
@@ -130,26 +133,35 @@ function buildCbom(scan) {
   const { assessMigration } = require('./migrationAssessment');
   const migrationPlan = assessMigration(scan, findings);
 
+  const crypto = require('crypto');
+  const deterministicUuid = crypto.createHash('md5')
+    .update((scan.commitHash || scan.repoId || scan.scanId || '') + '-cbom')
+    .digest('hex').replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5');
+
   return {
     bomFormat: 'CycloneDX',
     specVersion: '1.6',
-    serialNumber: `urn:uuid:cbom-${scan.scanId}`,
+    serialNumber: `urn:uuid:${deterministicUuid}`,
     version: resolveCbomVersion(scan),
     businessImportance: getRepoBusinessImportance(scan.repoId),
     cbomVersion: `CBOM-v${resolveCbomVersion(scan)}`,
-    provenance: { scanTimestamp: resolveScanTimestamp(scan), scannerVersion: resolveScannerVersion(scan), cbomVersion: `CBOM-v${resolveCbomVersion(scan)}`, version: resolveCbomVersion(scan) },
-    metadata: {
+    provenance: { scanTimestamp: new Date(0).toISOString(), scannerVersion: resolveScannerVersion(scan), cbomVersion: `CBOM-v${resolveCbomVersion(scan)}`, version: resolveCbomVersion(scan) },
+    unhashedMetadata: {
+      scanId: scan.scanId,
       timestamp: resolveScanTimestamp(scan),
+    },
+    metadata: {
+      timestamp: new Date(0).toISOString(),
       tools: { components: [{ type: 'application', name: 'CryptoScan Scanner', version: resolveScannerVersion(scan) }] },
-      provenance: { scanTimestamp: resolveScanTimestamp(scan), scannerVersion: resolveScannerVersion(scan), cbomVersion: `CBOM-v${resolveCbomVersion(scan)}`,
+      provenance: { scanTimestamp: new Date(0).toISOString(), scannerVersion: resolveScannerVersion(scan), cbomVersion: `CBOM-v${resolveCbomVersion(scan)}`,
         version: resolveCbomVersion(scan) },
       component: {
         type: 'application',
         name: scan.repoId || scan.scanId,
-        'bom-ref': `urn:uuid:cbom-${scan.scanId}`
+        'bom-ref': `urn:uuid:${deterministicUuid}`
       },
       properties: [
-        { name: 'scanId', value: scan.scanId },
+        { name: 'inputHash', value: resolveCommitHash(scan) || 'unknown' },
         { name: 'findingCount', value: String(findings.length) },
         { name: 'commitHash', value: resolveCommitHash(scan) },
         { name: 'cbomVersion', value: `CBOM-v${resolveCbomVersion(scan)}` },

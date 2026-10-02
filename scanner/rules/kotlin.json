@@ -1,0 +1,28 @@
+[
+  {
+    "id": "kotlin-md5-digest",
+    "name": "MD5 in Kotlin",
+    "category": "hash",
+    "algorithm": "MD5",
+    "severity": "High",
+    "quantum_risk": "Classical Risk",
+    "message": "MD5 is cryptographically broken.",
+    "recommendation": "Use SHA-256 or SHA-3.",
+    "pattern": "MessageDigest\\.getInstance\\s*\\(\\s*[\"']MD5[\"']",
+    "library": "java.security.MessageDigest",
+    "specificity": 3
+  },
+  {
+    "id": "kotlin-des-cipher",
+    "name": "DES in Kotlin",
+    "category": "symmetric-cipher",
+    "algorithm": "DES",
+    "severity": "Critical",
+    "quantum_risk": "Classical Risk",
+    "message": "DES has an insufficient 56-bit key length.",
+    "recommendation": "Use AES-256-GCM.",
+    "pattern": "Cipher\\.getInstance\\s*\\(\\s*[\"']DES(?:/|[\"'])",
+    "library": "javax.crypto.Cipher",
+    "specificity": 4
+  }
+]

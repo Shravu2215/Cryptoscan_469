@@ -318,10 +318,7 @@ const CryptoEngine = {
     let suggested = 5;
     let rationale = 'Standard application cryptographic asset (5y baseline retention)';
 
-    if (file.includes('.env') || cat.includes('hardcoded-secret') || cat.includes('secret')) {
-      suggested = 10;
-      rationale = 'Environment secret configuration / persistent credential (10y protection window)';
-    } else if (text.includes('session') || text.includes('token') || text.includes('ephemeral') || text.includes('jwt') || text.includes('nonce') || file.includes('session') || file.includes('cookie') || text.includes('otp')) {
+    if (text.includes('session') || text.includes('token') || text.includes('ephemeral') || text.includes('jwt') || text.includes('nonce') || file.includes('session') || file.includes('cookie') || text.includes('otp')) {
       suggested = 1;
       rationale = 'Ephemeral token / session material (1y short-term lifetime)';
     } else if (type === 'certificate' || file.endsWith('.crt') || file.endsWith('.pem') || text.includes('tls') || text.includes('ssl') || text.includes('cert')) {
@@ -333,7 +330,7 @@ const CryptoEngine = {
     } else if (text.includes('archive') || text.includes('at-rest') || text.includes('database') || text.includes('backup') || text.includes('s3') || type === 'cloud_service') {
       suggested = 20;
       rationale = 'Long-term storage / Database data at-rest (20y retention)';
-    } else if (type === 'key' || algoIsAsymmetric(finding) || text.includes('private key') || text.includes('credential')) {
+    } else if (type === 'key' || algoIsAsymmetric(finding) || file.includes('.env') || text.includes('private key') || text.includes('credential')) {
       suggested = 10;
       rationale = 'Asymmetric key / Persistent secret credential (10y protection window)';
     }
@@ -643,55 +640,48 @@ const CryptoEngine = {
     return Number(entry[complexityKey] || 1.0);
   },
 
-  _cachedZ: 12,
-
   getGlobalZ: function() {
-    return this._cachedZ !== undefined ? Number(this._cachedZ) : 12;
+    const saved = localStorage.getItem('cs_global_z');
+    return saved ? Number(saved) : 12;
   },
 
-  setGlobalZ: async function(val) {
-    const num = Math.round(Number(val));
-    if (isNaN(num) || num < 1 || num > 50) return;
-    this._cachedZ = num;
-    try {
-      const apiBase = (window.Auth && window.Auth.API_BASE) ? window.Auth.API_BASE : '';
-      const token = window.Auth ? window.Auth.getToken() : null;
-      if (token && apiBase) {
-        await fetch(`${apiBase}/scan/settings/z`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ z: num })
-        });
-      }
-    } catch (e) {
-      console.warn('Could not sync Z to server:', e);
-    }
+  setGlobalZ: function(val) {
+    localStorage.setItem('cs_global_z', String(val));
     window.dispatchEvent(new Event('cryptoscan_data_updated'));
   },
 
-  fetchGlobalZ: async function() {
-    try {
-      const apiBase = (window.Auth && window.Auth.API_BASE) ? window.Auth.API_BASE : '';
-      const token = window.Auth ? window.Auth.getToken() : null;
-      if (token && apiBase) {
-        const res = await fetch(`${apiBase}/scan/settings/z`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data && typeof data.z === 'number') {
-            this._cachedZ = data.z;
-            return data.z;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Could not fetch Z from server:', e);
+  computeMoscaRisk: function(finding, globalZ) {
+    const Z = globalZ !== undefined ? Number(globalZ) : this.getGlobalZ();
+    const X = (finding.user_confirmed_lifetime !== undefined && finding.user_confirmed_lifetime !== null && finding.user_confirmed_lifetime !== '')
+      ? Number(finding.user_confirmed_lifetime)
+      : Number(finding.suggested_lifetime || this.estimateLifetime(finding).suggested_lifetime);
+
+    const Y = this.estimateMigrationTime(finding);
+    const urgency_margin = Math.round((Z - (X + Y)) * 10) / 10;
+    const mosca_at_risk = (X + Y) > Z;
+
+    let urgency_tier = 'Low';
+    if (urgency_margin < 0) {
+      urgency_tier = 'Critical';
+    } else if (urgency_margin <= 2) {
+      urgency_tier = 'High';
+    } else if (urgency_margin <= 5) {
+      urgency_tier = 'Medium';
     }
-    return this.getGlobalZ();
+
+    const tierWeights = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+    const critScore = finding.criticality_score !== undefined ? Number(finding.criticality_score) : 3.0;
+    const priority_score = Math.round((tierWeights[urgency_tier] * critScore) * 10) / 10;
+
+    return {
+      X,
+      Y,
+      Z,
+      urgency_margin,
+      mosca_at_risk,
+      urgency_tier,
+      priority_score
+    };
   },
 
   extractMode: function(finding) {
@@ -752,28 +742,15 @@ const CryptoEngine = {
     f.modification_reason = f.modification_reason || crit.modification_reason;
     f.modified_at = f.modified_at || crit.modified_at;
 
-    // Pass through server-computed quantum_class and Mosca risk.
-    // Frontend only renders values returned by the API (single engine).
-    f.quantum_class = f.quantum_class || (f.quantum === 'yes' ? 'broken' : 'resilient');
-    const mosca = f.risk || f.mosca || null;
+    const mosca = this.computeMoscaRisk(f, globalZ);
     f.risk = mosca;
-    if (mosca && mosca.mosca_applicable) {
-      f.X = mosca.X;
-      f.Y = mosca.Y;
-      f.Z = mosca.Z;
-      f.urgency_margin = mosca.urgency_margin;
-      f.mosca_at_risk = Boolean(mosca.mosca_at_risk);
-      f.urgency_tier = mosca.urgency_tier;
-      f.priority_score = mosca.priority_score;
-    } else {
-      f.X = null;
-      f.Y = null;
-      f.Z = mosca ? mosca.Z : this.getGlobalZ();
-      f.urgency_margin = null;
-      f.mosca_at_risk = false;
-      f.urgency_tier = null;
-      f.priority_score = null;
-    }
+    f.X = mosca.X;
+    f.Y = mosca.Y;
+    f.Z = mosca.Z;
+    f.urgency_margin = mosca.urgency_margin;
+    f.mosca_at_risk = mosca.mosca_at_risk;
+    f.urgency_tier = mosca.urgency_tier;
+    f.priority_score = mosca.priority_score;
 
     if (f.latencyImpactMs === undefined || f.latencyImpactMs === null) {
       const algo = (f.algorithm || f.title || '').toUpperCase();
@@ -835,7 +812,7 @@ const CryptoEngine = {
     };
   },
 
-  processRealBackendFindings: function(repo, scanId, dbFindings, apiSummary) {
+  processRealBackendFindings: function(repo, scanId, dbFindings) {
     const globalZ = this.getGlobalZ();
 
     const allMappedFindings = dbFindings.map(f => {
@@ -858,17 +835,11 @@ const CryptoEngine = {
         keySize: f.keySize ? `${f.keySize}-bit` : 'N/A',
         quantumStatus: f.quantumStatus,
         confidence: (f.confidence || 'Likely|ast').split('|')[0],
-        detection_method: (f.confidence || 'Likely|ast').split('|')[1] || 'ast',
+        detection_method: f.detection_method || (f.confidence || 'Likely|ast').split('|')[1] || 'ast',
+        detection: f.detection || (f.detection_method ? f.detection_method.toUpperCase() : ((f.confidence || '').split('|')[1] ? (f.confidence || '').split('|')[1].toUpperCase() : 'AST')),
         suppressed: Boolean(f.suppressed),
         suppressionReason: f.suppressionReason || null,
         status: f.status || 'ACTIVE',
-        quantum_class: f.quantum_class,
-        mosca: f.mosca,
-        urgency_margin: f.urgency_margin,
-        urgency_tier: f.urgency_tier,
-        mosca_at_risk: f.mosca_at_risk,
-        priority_score: f.priority_score,
-        risk: f.risk || f.mosca || null,
         user_confirmed_lifetime: f.user_confirmed_lifetime !== undefined ? f.user_confirmed_lifetime : null,
         criticality_score: f.criticality_score,
         criticality_label: f.criticality_label,
@@ -944,13 +915,6 @@ const CryptoEngine = {
     const uniqueFilesCount = new Set(activeFindings.map(f => f.file)).size || activeFindings.length;
     const riskObj = this.calculateDynamicRiskScore(activeFindings, uniqueFilesCount);
 
-    // Prefer server-authoritative summary counts; fall back to client-computed values
-    const summary = apiSummary || {
-      findings_total: activeFindings.length,
-      components_total: cbomAssets.length,
-      algorithms_total: new Set(activeFindings.map(f => f.algorithm).filter(Boolean)).size
-    };
-
     const scanResult = {
       scanId: scanId,
       repoId: repo.id || 'repo-1',
@@ -962,7 +926,7 @@ const CryptoEngine = {
       durationSeconds: 1,
       filesDiscovered: uniqueFilesCount,
       filesScanned: uniqueFilesCount,
-      assetsFound: summary.components_total,
+      assetsFound: cbomAssets.length,
       criticalCount: criticalCount,
       quantumCount: quantumCount,
       riskScore: riskObj.score,
@@ -976,7 +940,6 @@ const CryptoEngine = {
       resolvedCount: resolvedFindings.length,
       cbom: cbomAssets,
       cbomMetrics: cbomMetrics,
-      summary: summary,
       status: 'complete'
     };
 
