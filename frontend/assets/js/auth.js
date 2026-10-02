@@ -18,16 +18,7 @@ const Auth = (() => {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  const API_BASE = (() => {
-    const h = window.location.hostname;
-    // When running behind nginx (Docker), the frontend and API share the same
-    // origin — use relative URLs so requests go through port 80, not the
-    // unexposed internal port 3000.
-    if (h === 'localhost' || h === '127.0.0.1') {
-      return ''; // relative: /auth/login, /auth/signup, etc.
-    }
-    return 'https://cryptoscan-new-backend.onrender.com';
-  })();
+  const API_BASE = '';
 
   function saveUser(user) {
     localStorage.setItem(USER_KEY, JSON.stringify(user));

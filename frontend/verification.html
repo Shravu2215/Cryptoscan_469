@@ -1243,11 +1243,7 @@
 
   <script src="assets/js/engine.js"></script>
   <script>
-    const API_BASE = (window.location.port === '3000')
-      ? window.location.origin
-      : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? 'http://' + window.location.hostname + ':3000'
-        : 'https://cryptoscan-new-backend.onrender.com');
+    const API_BASE = window.Auth ? window.Auth.API_BASE : '';
 
     function getToken() {
       const token = (window.Auth && window.Auth.getToken && window.Auth.getToken()) || '';
@@ -2313,7 +2309,7 @@
       // Live join repository criticality
       const repoCritMap = {};
       try {
-        const res = await fetch('http://localhost:3000/repos');
+        const res = await fetch('/repos');
         if (res.ok) {
           const repos = await res.json();
           repos.forEach(r => {

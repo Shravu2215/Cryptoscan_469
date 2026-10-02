@@ -1,6 +1,6 @@
 # Build context MUST be the repository root (not backend-core/)
 # Build with: docker build -f backend-core/Dockerfile.worker -t cryptoscan-scan-worker .
-FROM node:20-bookworm-slim
+FROM node:24-bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 \

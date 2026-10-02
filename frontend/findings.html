@@ -1684,7 +1684,7 @@
           const token = (window.Auth && window.Auth.getToken && window.Auth.getToken()) || '';
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 1000);
-          const res = await fetch('http://localhost:3000/repos', {
+          const res = await fetch('/repos', {
             headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             signal: controller.signal
           });

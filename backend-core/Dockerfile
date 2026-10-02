@@ -7,7 +7,7 @@
 #   - ../../../cbom-service       (cbomGenerator, signedCbomExport, migrationAssessment)
 #   - ../../shared                (preflight, utilities)
 # Build with:  docker build -f backend-core/Dockerfile -t cryptoscan-backend-core .
-FROM node:20-bookworm-slim
+FROM node:24-bookworm-slim
 
 # python3 is required at runtime — backend-core spawns scanner/pipeline.py
 # via execFile for every scan.

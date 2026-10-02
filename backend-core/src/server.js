@@ -27,7 +27,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:"],
-      connectSrc: ["'self'", "http://localhost:3000", "https://cryptoscan-new-backend.onrender.com"],
+      connectSrc: ["'self'", "http://localhost:3000"],
       reportUri: ['/api/csp-report'],
     },
   },

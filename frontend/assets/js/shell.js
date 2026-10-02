@@ -296,9 +296,7 @@ class AppShell {
     if (!dot || !text) return;
 
     // Resolve the API base the same way the auth module does
-    const apiBase = (window.Auth && window.Auth.API_BASE)
-      ? window.Auth.API_BASE
-      : 'http://localhost:3000';
+    const apiBase = window.Auth ? window.Auth.API_BASE : '';
 
     const applyStatus = (ok) => {
       if (ok) {
