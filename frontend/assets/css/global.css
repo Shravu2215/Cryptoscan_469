@@ -806,16 +806,17 @@ html.light-mode .sb-user-name,
   gap: 8px;
   font-size: 12px;
   font-weight: 500;
-  color: #ef4444 !important;
+  color: var(--text-muted);
   padding: 0 4px;
 }
 
 .sb-system-status .indicator {
   width: 8px;
   height: 8px;
-  background-color: #ef4444;
+  background-color: #64748b;
   border-radius: 50%;
-  box-shadow: 0 0 8px #ef4444;
+  box-shadow: 0 0 8px #64748b;
+  transition: background-color 0.4s, box-shadow 0.4s;
 }
 
 .sb-user {

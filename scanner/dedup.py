@@ -55,40 +55,37 @@ def dedup(findings: List[Finding]) -> List[Finding]:
     deduped = list(seen.values())
 
     # Pass 1b: collapse duplicate findings from the SAME detection layer on the same line
-    # with same algorithm and category. Keep the highest-specificity finding.
+    # with same algorithm family and category. Keep the highest-specificity / most specific name.
     seen_algo = {}
     for f in deduped:
-        key = (f.file, f.line, f.detection_method, f.algorithm, f.category)
+        algo_norm = _normalize_algo(f.algorithm)
+        key = (f.file, f.line, f.detection_method, algo_norm, f.category)
         if key not in seen_algo:
             seen_algo[key] = f
         else:
             existing = seen_algo[key]
-            if f.specificity > existing.specificity:
-                if not getattr(f, "mode", None) and getattr(existing, "mode", None):
-                    f.mode = existing.mode
-                if not getattr(f, "exposure_signals", None) and getattr(existing, "exposure_signals", None):
-                    f.exposure_signals = existing.exposure_signals
-                if not getattr(f, "exposure_rationale", None) and getattr(existing, "exposure_rationale", None):
-                    f.exposure_rationale = existing.exposure_rationale
-                seen_algo[key] = f
-            else:
-                if not getattr(existing, "mode", None) and getattr(f, "mode", None):
-                    existing.mode = f.mode
-                if not getattr(existing, "exposure_signals", None) and getattr(f, "exposure_signals", None):
-                    existing.exposure_signals = f.exposure_signals
-                if not getattr(existing, "exposure_rationale", None) and getattr(f, "exposure_rationale", None):
-                    existing.exposure_rationale = f.exposure_rationale
+            # Prefer higher specificity, or longer/more specific algorithm name if specificity tied
+            is_better = (f.specificity > existing.specificity) or (
+                f.specificity == existing.specificity and len(f.algorithm) > len(existing.algorithm)
+            )
+            winner = f if is_better else existing
+            loser = existing if is_better else f
+
+            if not getattr(winner, "mode", None) and getattr(loser, "mode", None):
+                winner.mode = loser.mode
+            if not getattr(winner, "exposure_signals", None) and getattr(loser, "exposure_signals", None):
+                winner.exposure_signals = loser.exposure_signals
+            if not getattr(winner, "exposure_rationale", None) and getattr(loser, "exposure_rationale", None):
+                winner.exposure_rationale = loser.exposure_rationale
+            seen_algo[key] = winner
     deduped = list(seen_algo.values())
 
     # Pass 1c: Cross-layer dedup — collapse findings where AST, regex, and entropy
     # independently detected the SAME algorithm family at the SAME (file, line).
-    # Keep the highest-specificity finding and promote confidence to CONFIRMED when
-    # 2+ independent layers agreed.
+    # Keep the highest-specificity / most specific finding name and promote confidence.
     cross_layer: dict = {}
     for f in deduped:
         algo_norm = _normalize_algo(f.algorithm)
-        # Treat generic catch-all findings in their own bucket so they are not
-        # promoted over specific findings from a different category.
         if f.generic:
             continue  # handled in Pass 2
         key = (f.file, f.line, algo_norm)
@@ -97,22 +94,19 @@ def dedup(findings: List[Finding]) -> List[Finding]:
         else:
             existing = cross_layer[key]["winner"]
             cross_layer[key]["layer_count"] += 1
-            # Take the more specific finding
-            if f.specificity > existing.specificity:
-                if not getattr(f, "mode", None) and getattr(existing, "mode", None):
-                    f.mode = existing.mode
-                if not getattr(f, "exposure_signals", None) and getattr(existing, "exposure_signals", None):
-                    f.exposure_signals = existing.exposure_signals
-                if not getattr(f, "exposure_rationale", None) and getattr(existing, "exposure_rationale", None):
-                    f.exposure_rationale = existing.exposure_rationale
-                cross_layer[key]["winner"] = f
-            else:
-                if not getattr(existing, "mode", None) and getattr(f, "mode", None):
-                    existing.mode = f.mode
-                if not getattr(existing, "exposure_signals", None) and getattr(f, "exposure_signals", None):
-                    existing.exposure_signals = f.exposure_signals
-                if not getattr(existing, "exposure_rationale", None) and getattr(f, "exposure_rationale", None):
-                    existing.exposure_rationale = f.exposure_rationale
+            is_better = (f.specificity > existing.specificity) or (
+                f.specificity == existing.specificity and len(f.algorithm) > len(existing.algorithm)
+            )
+            winner = f if is_better else existing
+            loser = existing if is_better else f
+
+            if not getattr(winner, "mode", None) and getattr(loser, "mode", None):
+                winner.mode = loser.mode
+            if not getattr(winner, "exposure_signals", None) and getattr(loser, "exposure_signals", None):
+                winner.exposure_signals = loser.exposure_signals
+            if not getattr(winner, "exposure_rationale", None) and getattr(loser, "exposure_rationale", None):
+                winner.exposure_rationale = loser.exposure_rationale
+            cross_layer[key]["winner"] = winner
 
     # Re-assemble: keep all generic findings and non-cross-layer-conflicting findings,
     # then add the winners (with promoted confidence where warranted).

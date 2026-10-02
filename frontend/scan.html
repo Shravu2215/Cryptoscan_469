@@ -18,6 +18,7 @@
     initTheme();
   </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="assets/js/security.js"></script>
   <script src="assets/js/auth.js"></script>
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
@@ -1156,8 +1157,8 @@
               ? 'http://localhost:3000'
               : 'https://cryptoscan-new-backend.onrender.com');
 
-        // Use stored token, fall back to a demo token so the request is never rejected by auth middleware
-        const rawToken = localStorage.getItem('cs_token') || localStorage.getItem('cs_auth_token');
+        // Use Auth module token (in-memory, never localStorage)
+        const rawToken = (window.Auth && window.Auth.getToken && window.Auth.getToken()) || null;
         const token = rawToken || (() => {
           const hdr = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
           const pay = btoa(JSON.stringify({ id: 'usr_demo', email: 'demo@cryptoscan.io', role: 'Developer', exp: Math.floor(Date.now() / 1000) + 86400 }));
@@ -1302,9 +1303,18 @@
 
       function addLog(msg) {
         const box = document.getElementById('scan-log');
-        const now = new Date();
         const time = `[00:00:0${++logCount}]`;
-        box.innerHTML += `<div class="log-row"><span class="log-time">${time}</span><span class="log-msg">${msg}</span></div>`;
+        const row = document.createElement('div');
+        row.className = 'log-row';
+        const tSpan = document.createElement('span');
+        tSpan.className = 'log-time';
+        tSpan.textContent = time;
+        const mSpan = document.createElement('span');
+        mSpan.className = 'log-msg';
+        mSpan.textContent = msg;   // textContent — never parsed as HTML
+        row.appendChild(tSpan);
+        row.appendChild(mSpan);
+        box.appendChild(row);
         box.scrollTop = box.scrollHeight;
       }
 
@@ -1473,7 +1483,7 @@
       }
 
       function getToken() {
-        return localStorage.getItem('cs_token') || localStorage.getItem('cs_auth_token') || '';
+        return (window.Auth && window.Auth.getToken && window.Auth.getToken()) || '';
       }
 
       async function startRealScan() {
@@ -1485,7 +1495,7 @@
         addLog('Initializing upload pipeline...');
         setPipe(1);
 
-        const token = (window.Auth && window.Auth.getToken && window.Auth.getToken()) || localStorage.getItem('cs_token') || 'demo-token';
+        const token = (window.Auth && window.Auth.getToken && window.Auth.getToken()) || 'demo-token';
         const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
         const API_BASE = (window.Auth && window.Auth.API_BASE) ? window.Auth.API_BASE : (isLocalHost ? 'http://localhost:3000' : 'https://cryptoscan-new-backend.onrender.com');
 
@@ -1568,7 +1578,7 @@
             id: repo.id || selectedRepoId || 'repo-1',
             name: repo.name || currentRepoName || 'Scanned Repository'
           };
-          CryptoEngine.processRealBackendFindings(repoInfo, scanData.scanId, allFindings);
+          CryptoEngine.processRealBackendFindings(repoInfo, scanData.scanId, allFindings, finalData.summary);
           saveAndDisplayScanDuration(scanRealStart, scanRealEnd, scanData.scanId);
 
           populateCompletionState(finalData, allFindings);
@@ -1584,7 +1594,9 @@
 
       function populateCompletionState(finalData, rawFindings) {
         const findings = rawFindings || [];
-        document.getElementById('res-total').textContent = findings.length;
+        // Use backend summary for canonical counts when available
+        const sum = (finalData && finalData.summary) || {};
+        document.getElementById('res-total').textContent = sum.findings_total !== undefined ? sum.findings_total : findings.length;
 
         const filesEl = document.getElementById('res-files');
         const compsEl = document.getElementById('res-components');
@@ -1593,7 +1605,7 @@
             ? finalData.filesScanned.toLocaleString()
             : (findings.length > 0 ? new Set(findings.map(f => f.file || f.filePath)).size : 0);
         }
-        if (compsEl) compsEl.textContent = (finalData && finalData.components) ? finalData.components : (new Set(findings.map(f => f.algorithm)).size || findings.length);
+        if (compsEl) compsEl.textContent = sum.components_total !== undefined ? sum.components_total : (new Set(findings.map(f => f.algorithm)).size || findings.length);
 
         let c = 0, h = 0, m = 0, l = 0, info = 0, q = 0;
         findings.forEach(f => {

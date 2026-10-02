@@ -1250,7 +1250,7 @@
         : 'https://cryptoscan-new-backend.onrender.com');
 
     function getToken() {
-      const token = localStorage.getItem('cs_token') || localStorage.getItem('cs_auth_token') || '';
+      const token = (window.Auth && window.Auth.getToken && window.Auth.getToken()) || '';
       if (token) return token;
       const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
       const payload = btoa(JSON.stringify({
@@ -2240,18 +2240,23 @@
         const iconBg = isSuccess ? 'rgba(16,185,129,0.1)' : 'var(--amber-bg)';
         const itemBorder = isSuccess ? '1px solid var(--border-color)' : '1px solid var(--border-color); border-left: 3px solid var(--amber)';
         const statusBadge = isSuccess
-          ? '<span class="status-badge sb-valid">✅ Verified & Anchored</span>'
+          ? '<span class="status-badge sb-valid">✅ Verified &amp; Anchored</span>'
           : '<span class="status-badge sb-amber">⚠️ Local Only</span>';
 
         const txDisplay = (item.txHash && item.txHash !== 'N/A')
           ? (item.network && item.network.toLowerCase().includes('sepolia')
-            ? `<a href="https://sepolia.etherscan.io/tx/${item.txHash}" target="_blank" style="color:var(--purple); text-decoration:underline;">${item.txHash.substring(0, 18)}…</a>`
-            : `${item.txHash.substring(0, 18)}…`)
+            ? `<a href="https://sepolia.etherscan.io/tx/${escapeHtml(item.txHash)}" target="_blank" rel="noopener" style="color:var(--purple); text-decoration:underline;">${escapeHtml(item.txHash.substring(0, 18))}&hellip;</a>`
+            : `${escapeHtml(item.txHash.substring(0, 18))}&hellip;`)
           : 'N/A';
 
         const timeStr = item.timestamp || item.anchoredAt
           ? new Date(item.timestamp || item.anchoredAt).toLocaleString()
           : new Date().toLocaleString();
+
+        const safeRepoName = escapeHtml(item.repoName || activeScan.repoName || 'Scanned Repository');
+        const safeScanId = escapeHtml((item.scanId || activeScan.scanId || 'scan_1').substring(0, 8));
+        const safeNetwork = escapeHtml(item.network || 'Sepolia / Local');
+        const safeMerkleRoot = item.merkleRoot ? escapeHtml(item.merkleRoot.substring(0, 24)) : '';
 
         return `
       <div class="bh-item" style="${itemBorder}; margin-bottom:10px;">
@@ -2259,13 +2264,13 @@
           ${iconSvg}
         </div>
         <div style="flex:1;">
-          <div class="bh-algo">${item.repoName || activeScan.repoName || 'Scanned Repository'} — Scan ${(item.scanId || activeScan.scanId || 'scan_1').substring(0, 8)}</div>
+          <div class="bh-algo">${safeRepoName} &mdash; Scan ${safeScanId}</div>
           <div class="bh-meta">
-            Network: ${item.network || 'Sepolia / Local'} &nbsp;|&nbsp;
+            Network: ${safeNetwork} &nbsp;|&nbsp;
             Tx: ${txDisplay} &nbsp;|&nbsp;
             ${timeStr}
           </div>
-          ${item.merkleRoot ? `<div class="bh-meta" style="margin-top:4px; font-family:'JetBrains Mono',monospace;">Merkle Root: ${item.merkleRoot.substring(0, 24)}…</div>` : ''}
+          ${safeMerkleRoot ? `<div class="bh-meta" style="margin-top:4px; font-family:'JetBrains Mono',monospace;">Merkle Root: ${safeMerkleRoot}&hellip;</div>` : ''}
         </div>
         <div class="bh-status">${statusBadge}</div>
       </div>
@@ -2630,15 +2635,24 @@
 </body>
 </html>`;
 
-      printWin.document.open();
-      printWin.document.write(reportHTML);
-      printWin.document.close();
-      setTimeout(() => {
-        printWin.focus();
-        printWin.print();
-      }, 400);
+      // Use Blob URL instead of document.write to avoid XSS via attacker-controlled finding content
+      const blob = new Blob([reportHTML], { type: 'text/html; charset=utf-8' });
+      const blobUrl = URL.createObjectURL(blob);
+      const printWin = window.open(blobUrl, '_blank');
+      if (printWin) {
+        printWin.addEventListener('load', () => {
+          printWin.focus();
+          setTimeout(() => {
+            printWin.print();
+            URL.revokeObjectURL(blobUrl);
+          }, 400);
+        });
+      } else {
+        URL.revokeObjectURL(blobUrl);
+      }
     }
   </script>
+  <script src="assets/js/security.js"></script>
   <script src="assets/js/auth.js"></script>
   <script src="assets/js/shell.js"></script>
 </body>

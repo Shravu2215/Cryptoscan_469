@@ -7,6 +7,7 @@ const prisma = require('../utils/prismaClient');
 const { isDev, logStructuredError, sendError, serviceUnavailable } = require('../utils/failClosed');
 const { issueAccessToken, issueRefreshToken, verifyRefreshToken, REFRESH_TTL_SECONDS } = require('../utils/tokenService');
 const { denylistJti, isJtiDenylisted } = require('../utils/redisClient');
+const csrfCheck = require('../utils/csrf');
 
 const router = express.Router();
 const isProd = process.env.NODE_ENV === 'production';
@@ -137,7 +138,7 @@ router.post('/login', async (req, res) => {
 // ─── POST /auth/refresh ───────────────────────────────────────────────────────
 // Refresh-token rotation: issues a new access + refresh pair.
 // Reuse of an already-rotated refresh token triggers full session revocation.
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', csrfCheck, async (req, res) => {
   const rawRefreshToken = req.cookies?.cs_refresh;
 
   if (!rawRefreshToken) {
@@ -241,7 +242,7 @@ router.post('/refresh', async (req, res) => {
 
 // ─── POST /auth/logout ────────────────────────────────────────────────────────
 // Invalidates the access token JTI in Redis and revokes the refresh session.
-router.post('/logout', async (req, res) => {
+router.post('/logout', csrfCheck, async (req, res) => {
   // Denylist the access token JTI if provided
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {

@@ -78,6 +78,7 @@ const Auth = (() => {
       const res = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
         credentials: 'include', // sends the httpOnly cs_refresh cookie
+        headers: { 'X-Requested-With': 'CryptoScan' }, // CSRF guard for cookie endpoint
       });
       if (!res.ok) return null;
       const data = await res.json();
@@ -171,7 +172,10 @@ const Auth = (() => {
     fetch(`${API_BASE}/auth/logout`, {
       method: 'POST',
       credentials: 'include',
-      headers: _accessToken ? { 'Authorization': `Bearer ${_accessToken}` } : {},
+      headers: {
+        'X-Requested-With': 'CryptoScan', // CSRF guard for cookie endpoint
+        ..._accessToken ? { 'Authorization': `Bearer ${_accessToken}` } : {},
+      },
     }).catch(() => { /* best-effort */ });
 
     clearUser();

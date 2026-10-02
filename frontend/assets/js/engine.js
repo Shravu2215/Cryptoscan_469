@@ -318,7 +318,10 @@ const CryptoEngine = {
     let suggested = 5;
     let rationale = 'Standard application cryptographic asset (5y baseline retention)';
 
-    if (text.includes('session') || text.includes('token') || text.includes('ephemeral') || text.includes('jwt') || text.includes('nonce') || file.includes('session') || file.includes('cookie') || text.includes('otp')) {
+    if (file.includes('.env') || cat.includes('hardcoded-secret') || cat.includes('secret')) {
+      suggested = 10;
+      rationale = 'Environment secret configuration / persistent credential (10y protection window)';
+    } else if (text.includes('session') || text.includes('token') || text.includes('ephemeral') || text.includes('jwt') || text.includes('nonce') || file.includes('session') || file.includes('cookie') || text.includes('otp')) {
       suggested = 1;
       rationale = 'Ephemeral token / session material (1y short-term lifetime)';
     } else if (type === 'certificate' || file.endsWith('.crt') || file.endsWith('.pem') || text.includes('tls') || text.includes('ssl') || text.includes('cert')) {
@@ -330,7 +333,7 @@ const CryptoEngine = {
     } else if (text.includes('archive') || text.includes('at-rest') || text.includes('database') || text.includes('backup') || text.includes('s3') || type === 'cloud_service') {
       suggested = 20;
       rationale = 'Long-term storage / Database data at-rest (20y retention)';
-    } else if (type === 'key' || algoIsAsymmetric(finding) || file.includes('.env') || text.includes('private key') || text.includes('credential')) {
+    } else if (type === 'key' || algoIsAsymmetric(finding) || text.includes('private key') || text.includes('credential')) {
       suggested = 10;
       rationale = 'Asymmetric key / Persistent secret credential (10y protection window)';
     }
@@ -832,7 +835,7 @@ const CryptoEngine = {
     };
   },
 
-  processRealBackendFindings: function(repo, scanId, dbFindings) {
+  processRealBackendFindings: function(repo, scanId, dbFindings, apiSummary) {
     const globalZ = this.getGlobalZ();
 
     const allMappedFindings = dbFindings.map(f => {
@@ -941,6 +944,13 @@ const CryptoEngine = {
     const uniqueFilesCount = new Set(activeFindings.map(f => f.file)).size || activeFindings.length;
     const riskObj = this.calculateDynamicRiskScore(activeFindings, uniqueFilesCount);
 
+    // Prefer server-authoritative summary counts; fall back to client-computed values
+    const summary = apiSummary || {
+      findings_total: activeFindings.length,
+      components_total: cbomAssets.length,
+      algorithms_total: new Set(activeFindings.map(f => f.algorithm).filter(Boolean)).size
+    };
+
     const scanResult = {
       scanId: scanId,
       repoId: repo.id || 'repo-1',
@@ -952,7 +962,7 @@ const CryptoEngine = {
       durationSeconds: 1,
       filesDiscovered: uniqueFilesCount,
       filesScanned: uniqueFilesCount,
-      assetsFound: cbomAssets.length,
+      assetsFound: summary.components_total,
       criticalCount: criticalCount,
       quantumCount: quantumCount,
       riskScore: riskObj.score,
@@ -966,6 +976,7 @@ const CryptoEngine = {
       resolvedCount: resolvedFindings.length,
       cbom: cbomAssets,
       cbomMetrics: cbomMetrics,
+      summary: summary,
       status: 'complete'
     };
 

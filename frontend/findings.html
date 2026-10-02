@@ -1681,7 +1681,7 @@
         };
 
         try {
-          const token = localStorage.getItem('cs_token');
+          const token = (window.Auth && window.Auth.getToken && window.Auth.getToken()) || '';
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 1000);
           const res = await fetch('http://localhost:3000/repos', {
@@ -2015,15 +2015,18 @@
         const sorted = Object.keys(map).sort((a, b) => map[b].count - map[a].count).slice(0, 5);
 
         const list = document.getElementById('top-risks-list');
-        list.innerHTML = sorted.map(algo => `
-    <div class="risk-item" style="cursor:pointer;" onclick="setAlgoFilter('${algo}')">
+        list.innerHTML = sorted.map(algo => {
+          const safeAlgo = escapeHtml(algo);
+          return `
+    <div class="risk-item" style="cursor:pointer;" data-algo="${safeAlgo}" onclick="setAlgoFilter(this.dataset.algo)">
       <div>
-        <div class="risk-algo">${algo}</div>
+        <div class="risk-algo">${safeAlgo}</div>
         <div class="risk-count">${map[algo].count} affected files</div>
       </div>
       <span class="badge ${getBadgeClass(map[algo].sev)}">${map[algo].sev}</span>
     </div>
-  `).join('');
+  `;
+        }).join('');
       }
 
       function setAlgoFilter(algo) {
@@ -2105,31 +2108,45 @@
 
         if (risk && risk !== 'ALL') {
           active = true;
-          container.innerHTML += `<div class="filter-chip"><span>Risk:</span> ${risk} <button onclick="document.getElementById('filter-risk').value='ALL';handleFilterChange()">×</button></div>`;
+          const chip = document.createElement('div'); chip.className = 'filter-chip';
+          chip.innerHTML = `<span>Risk:</span> ${escapeHtml(risk)} <button onclick="document.getElementById('filter-risk').value='ALL';handleFilterChange()">×</button>`;
+          container.appendChild(chip);
         }
         if (type && type !== 'ALL') {
           active = true;
-          container.innerHTML += `<div class="filter-chip"><span>Type:</span> ${type.replace(/_/g, ' ')} <button onclick="document.getElementById('filter-type').value='ALL';handleFilterChange()">×</button></div>`;
+          const chip = document.createElement('div'); chip.className = 'filter-chip';
+          chip.innerHTML = `<span>Type:</span> ${escapeHtml(type.replace(/_/g, ' '))} <button onclick="document.getElementById('filter-type').value='ALL';handleFilterChange()">×</button>`;
+          container.appendChild(chip);
         }
         if (lifetime && lifetime !== 'ALL') {
           active = true;
-          container.innerHTML += `<div class="filter-chip"><span>Lifetime:</span> ${lifetime} ${lifetime === '1' ? 'Year' : 'Years'} <button onclick="document.getElementById('filter-lifetime').value='ALL';handleFilterChange()">×</button></div>`;
+          const chip = document.createElement('div'); chip.className = 'filter-chip';
+          chip.innerHTML = `<span>Lifetime:</span> ${escapeHtml(lifetime)} ${lifetime === '1' ? 'Year' : 'Years'} <button onclick="document.getElementById('filter-lifetime').value='ALL';handleFilterChange()">×</button>`;
+          container.appendChild(chip);
         }
         if (criticality && criticality !== 'ALL') {
           active = true;
-          container.innerHTML += `<div class="filter-chip"><span>Criticality:</span> ${criticality} <button onclick="document.getElementById('filter-criticality').value='ALL';handleFilterChange()">×</button></div>`;
+          const chip = document.createElement('div'); chip.className = 'filter-chip';
+          chip.innerHTML = `<span>Criticality:</span> ${escapeHtml(criticality)} <button onclick="document.getElementById('filter-criticality').value='ALL';handleFilterChange()">×</button>`;
+          container.appendChild(chip);
         }
         if (exposure && exposure !== 'ALL') {
           active = true;
-          container.innerHTML += `<div class="filter-chip"><span>Exposure:</span> ${exposure} <button onclick="document.getElementById('filter-exposure').value='ALL';handleFilterChange()">×</button></div>`;
+          const chip = document.createElement('div'); chip.className = 'filter-chip';
+          chip.innerHTML = `<span>Exposure:</span> ${escapeHtml(exposure)} <button onclick="document.getElementById('filter-exposure').value='ALL';handleFilterChange()">×</button>`;
+          container.appendChild(chip);
         }
         if (algo && algo !== 'ALL') {
           active = true;
-          container.innerHTML += `<div class="filter-chip"><span>Algo:</span> ${algo} <button onclick="document.getElementById('filter-algo').value='ALL';handleFilterChange()">×</button></div>`;
+          const chip = document.createElement('div'); chip.className = 'filter-chip';
+          chip.innerHTML = `<span>Algo:</span> ${escapeHtml(algo)} <button onclick="document.getElementById('filter-algo').value='ALL';handleFilterChange()">×</button>`;
+          container.appendChild(chip);
         }
         if (search) {
           active = true;
-          container.innerHTML += `<div class="filter-chip"><span>Search:</span> "${search}" <button onclick="document.getElementById('filter-search').value='';handleFilterChange()">×</button></div>`;
+          const chip = document.createElement('div'); chip.className = 'filter-chip';
+          chip.innerHTML = `<span>Search:</span> &ldquo;${escapeHtml(search)}&rdquo; <button onclick="document.getElementById('filter-search').value='';handleFilterChange()">×</button>`;
+          container.appendChild(chip);
         }
 
         if (active) {
@@ -2212,31 +2229,43 @@
           const bizCrit = getBusinessCriticality(f);
           const critBadgeClass = bizCrit === 'Critical' ? 'badge-crit' : bizCrit === 'High' ? 'badge-high' : bizCrit === 'Medium' ? 'badge-med' : 'badge-low';
 
+          // Escape all attacker-controlled display values
+          const safeAlgo = escapeHtml(algo);
+          const safeType = escapeHtml(type.replace(/_/g, ' '));
+          const safeMode = escapeHtml(mode);
+          const safeConf = escapeHtml(conf);
+          const safeQuant = escapeHtml(quant);
+          const safePurpose = escapeHtml(purpose);
+          const safeFile = escapeHtml(f.file || 'unknown');
+          const safeLine = escapeHtml(String(f.line || '?'));
+          const safeBizCrit = escapeHtml(bizCrit);
+          const safeExpSignals = escapeHtml(expSignals);
+
           return `
       <tr class="finding-row" style="cursor:pointer;" data-index="${i}">
         <td><span class="badge ${getBadgeClass(sev)}">${sev}</span></td>
-        <td><span style="font-weight:600;color:var(--text-h)" class="code-font">${algo}</span></td>
-        <td><span class="badge badge-ast" style="font-size:11px; text-transform:uppercase;">${type.replace(/_/g, ' ')}</span></td>
-        <td><span class="badge ${expClass}" title="Triggered Exposure Signals: ${expSignals}">${expDisplayText}</span></td>
+        <td><span style="font-weight:600;color:var(--text-h)" class="code-font">${safeAlgo}</span></td>
+        <td><span class="badge badge-ast" style="font-size:11px; text-transform:uppercase;">${safeType}</span></td>
+        <td><span class="badge ${expClass}" title="Triggered Exposure Signals: ${safeExpSignals}">${expDisplayText}</span></td>
         <td><span class="badge ${detClass}">${detLabel}</span></td>
-        <td>${mode}</td>
-        <td><span class="badge ${confClass}">${conf}</span></td>
-        <td><span class="badge ${qClass}">${quant}</span></td>
-        <td>${purpose}</td>
+        <td>${safeMode}</td>
+        <td><span class="badge ${confClass}">${safeConf}</span></td>
+        <td><span class="badge ${qClass}">${safeQuant}</span></td>
+        <td>${safePurpose}</td>
         <td>
-          <span class="badge ${lifetimeBadgeClass}" style="font-family:'JetBrains Mono',monospace; font-weight:700; cursor:help;" title="${lifetimeObj.rationale || 'System-Calculated Protection Lifetime'}">
+          <span class="badge ${lifetimeBadgeClass}" style="font-family:'JetBrains Mono',monospace; font-weight:700; cursor:help;" title="${escapeHtml(lifetimeObj.rationale || 'System-Calculated Protection Lifetime')}">
             ${lifetime} ${lifetime === 1 ? 'yr' : 'yrs'}
           </span>
         </td>
         <td>
-          <span class="badge ${critBadgeClass}" style="cursor:pointer;" title="Click to view & override sub-factors" onclick="event.stopPropagation(); openCriticalityPanelForIndex(${start + i})">
-            ${bizCrit} (${critScore}) ⚙️
+          <span class="badge ${critBadgeClass}" style="cursor:pointer;" title="Click to view &amp; override sub-factors" onclick="event.stopPropagation(); openCriticalityPanelForIndex(${start + i})">
+            ${safeBizCrit} (${critScore}) ⚙️
           </span>
         </td>
-        <td><span class="code-font" style="color:var(--text-m);">${f.file || 'unknown'}</span></td>
-        <td><span class="code-font" style="color:var(--text-m);">${f.line || '?'}</span></td>
+        <td><span class="code-font" style="color:var(--text-m);">${safeFile}</span></td>
+        <td><span class="code-font" style="color:var(--text-m);">${safeLine}</span></td>
         <td>
-          <button class="btn-sec" style="padding:4px 8px;font-size:11px;" onclick="event.stopPropagation(); window.location.href='risk-migration.html?algo=${encodeURIComponent(algo)}'">Migrate</button>
+          <button class="btn-sec" style="padding:4px 8px;font-size:11px;" onclick="event.stopPropagation(); window.location.href='risk-migration.html?algo=${encodeURIComponent(algo)}'">&gt; Migrate</button>
         </td>
       </tr>
     `;
@@ -2502,7 +2531,7 @@
 
         const sigEl = document.getElementById('drw-exposure-signals');
         if (sigEl) {
-          sigEl.innerHTML = (expSignals || []).map(s => `<div>• ${s}</div>`).join('');
+          sigEl.innerHTML = (expSignals || []).map(s => `<div>&#x2022; ${escapeHtml(s)}</div>`).join('');
         }
 
         const auditSpan = document.getElementById('drw-audit-trail');
@@ -2625,6 +2654,7 @@
       window.addEventListener('load', init);
       window.addEventListener('cryptoscan_data_updated', init);
     </script>
+    <script src="assets/js/security.js"></script>
     <script src="assets/js/auth.js"></script>
     <script src="assets/js/shell.js"></script>
 </body>

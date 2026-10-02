@@ -50,6 +50,7 @@ class AppShell {
     this.renderTopbar(page);
     this.bindEvents();
     this.loadUserData();
+    this.startHealthPoll();
   }
 
   renderSidebar(currentPage) {
@@ -108,9 +109,19 @@ class AppShell {
       </nav>
       <div class="sb-footer">
         <div class="sb-system-status">
-          <div class="indicator"></div>
-          <span class="status-text">System Operational</span>
+          <div class="indicator" id="health-indicator"></div>
+          <span class="status-text" id="health-status-text">Connecting...</span>
         </div>
+        <button
+          id="reset-demo-btn"
+          title="Clear all stored scan data and reload to a clean state"
+          style="display:flex;align-items:center;gap:6px;width:100%;margin-top:6px;padding:7px 10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;color:#ef4444;font-size:11px;font-weight:600;cursor:pointer;letter-spacing:0.4px;transition:background 0.2s;"
+          onmouseover="this.style.background='rgba(239,68,68,0.16)'"
+          onmouseout="this.style.background='rgba(239,68,68,0.08)'"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Reset Demo
+        </button>
         <div class="sb-user">
           <div class="sb-user-avatar" id="sb-user-avatar">S</div>
           <div class="sb-user-info">
@@ -273,6 +284,68 @@ class AppShell {
       }
     } catch (e) {
       console.warn('Failed to load user data for shell', e);
+    }
+  }
+
+  // ── Health polling ──────────────────────────────────────────────────────────
+  // Calls GET /health every 30 s. Green = ok; red = any failure.
+  // The CSS default is grey ("connecting") so there is no false-red flash.
+  startHealthPoll() {
+    const dot  = document.getElementById('health-indicator');
+    const text = document.getElementById('health-status-text');
+    if (!dot || !text) return;
+
+    // Resolve the API base the same way the auth module does
+    const apiBase = (window.Auth && window.Auth.API_BASE)
+      ? window.Auth.API_BASE
+      : 'http://localhost:3000';
+
+    const applyStatus = (ok) => {
+      if (ok) {
+        dot.style.backgroundColor  = '#10b981';
+        dot.style.boxShadow        = '0 0 8px #10b981';
+        text.textContent           = 'System Operational';
+        text.style.color           = '';
+      } else {
+        dot.style.backgroundColor  = '#ef4444';
+        dot.style.boxShadow        = '0 0 8px #ef4444';
+        text.textContent           = 'Service Degraded';
+        text.style.color           = '#ef4444';
+      }
+    };
+
+    const checkHealth = async () => {
+      try {
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 4000);
+        const res = await fetch(`${apiBase}/health`, { signal: controller.signal });
+        clearTimeout(tid);
+        applyStatus(res.ok);
+      } catch (_) {
+        applyStatus(false);
+      }
+    };
+
+    checkHealth();
+    setInterval(checkHealth, 30_000);
+
+    // Reset Demo button
+    const resetBtn = document.getElementById('reset-demo-btn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (!confirm('Reset demo? This will clear all stored scan data and reload the page.')) return;
+        // Clear all cs_* keys except UI prefs (theme / compact)
+        const keep = new Set(['cs_theme', 'cs_compact']);
+        const toRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!keep.has(k) && (k.startsWith('cs_') || k.startsWith('CRYPTOSCAN_PLATFORM_DATA'))) {
+            toRemove.push(k);
+          }
+        }
+        toRemove.forEach(k => localStorage.removeItem(k));
+        window.location.href = 'dashboard.html';
+      });
     }
   }
 }

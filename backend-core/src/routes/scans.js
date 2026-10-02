@@ -185,7 +185,28 @@ router.get('/:scanId/findings', requireAuth, async (req, res) => {
 
     const allFindings = findings || [];
     const uniqueFiles = new Set(allFindings.map(f => f.filePath || f.file)).size;
-    const uniqueAlgos = new Set(allFindings.map(f => f.algorithm).filter(a => a && a !== 'UNKNOWN')).size;
+
+    function _normalizeAlgoFamily(alg) {
+      if (!alg || alg === 'UNKNOWN') return 'UNKNOWN';
+      let base = String(alg).trim().split(' ')[0].split('(')[0].replace(/[-_]?\d{2,4}([-_].*)?$/, '').toUpperCase();
+      if (base.includes('ECDSA') || base.includes('ECDH') || base.includes('EC_KEY') || base === 'EC') base = 'ECDSA';
+      return base || 'UNKNOWN';
+    }
+
+    const uniqueCompSet = new Set(allFindings.map(f => {
+      const file = f.filePath || f.file || 'unknown';
+      const algo = _normalizeAlgoFamily(f.algorithm || f.title);
+      const mode = f.mode || '';
+      return `${algo}:${mode}:${file}`;
+    }));
+
+    const uniqueAlgoSet = new Set(allFindings.map(f => _normalizeAlgoFamily(f.algorithm || f.title)).filter(a => a && a !== 'UNKNOWN'));
+
+    const summary = {
+      findings_total: allFindings.length,
+      components_total: uniqueCompSet.size || (allFindings.length > 0 ? 1 : 0),
+      algorithms_total: uniqueAlgoSet.size
+    };
 
     const userZ = await getUserQuantumZ(req.user.id);
 
@@ -214,6 +235,8 @@ router.get('/:scanId/findings', requireAuth, async (req, res) => {
 
     const overallPosture = computeOverallPosture(enrichedFindings, userZ);
 
+    const filesScannedVal = (scan.filesScanned !== undefined && scan.filesScanned !== null) ? scan.filesScanned : uniqueFiles;
+
     return res.json({
       scanId,
       status: scan.status,
@@ -224,8 +247,13 @@ router.get('/:scanId/findings', requireAuth, async (req, res) => {
       overallPosture,
       postureVerdict: overallPosture.verdict,
       quantumZ: userZ,
-      filesScanned: (scan.filesScanned !== undefined && scan.filesScanned !== null) ? scan.filesScanned : uniqueFiles,
-      components: uniqueAlgos || null
+      filesScanned: filesScannedVal,
+      components: summary.components_total,
+      assetsFound: summary.components_total,
+      findings_total: summary.findings_total,
+      components_total: summary.components_total,
+      algorithms_total: summary.algorithms_total,
+      summary
     });
   } catch (err) {
     return sendError(res, err, 'scan.findings_read_failed');

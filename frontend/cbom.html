@@ -884,7 +884,9 @@ function updateSummaryStats() {
   const targetScans = currentScan.findings ? [currentScan] : (data.scans || []);
   const allFindings = targetScans.flatMap(s => s.findings || []);
 
-  const totalComps = currentScan.assetsFound || (currentScan.cbom ? currentScan.cbom.length : 0) || (new Set(allFindings.map(f => f.algorithm)).size) || inventory.length;
+  const totalComps = (currentScan.summary && currentScan.summary.components_total !== undefined)
+    ? currentScan.summary.components_total
+    : (currentScan.assetsFound || (currentScan.cbom ? currentScan.cbom.length : 0) || (new Set(allFindings.map(f => f.algorithm)).size) || inventory.length);
   const critCount = allFindings.filter(f => (f.severity || '').toUpperCase() === 'CRITICAL').length;
   const highCount = allFindings.filter(f => (f.severity || '').toUpperCase() === 'HIGH').length;
   const quantCount = allFindings.filter(f => f.quantum === 'yes' || (f.quantumStatus || '').toLowerCase().includes('vuln') || Boolean(f.isQuantumVulnerable)).length;
@@ -924,15 +926,18 @@ function updateCharts() {
 
   // Types Chart (Usage)
   const maxType = Math.max(...Object.values(types), 1);
-  document.getElementById('chart-types').innerHTML = Object.keys(types).sort((a,b)=>types[b]-types[a]).map(t => `
+  document.getElementById('chart-types').innerHTML = Object.keys(types).sort((a,b)=>types[b]-types[a]).map(t => {
+    const safeT = escapeHtml(t);
+    return `
     <div class="mini-bar-row">
-      <div class="mini-bar-lbl">${t}</div>
+      <div class="mini-bar-lbl">${safeT}</div>
       <div class="mini-bar-track">
         <div class="mini-bar-fill" style="width:${(types[t]/maxType)*100}%; background:var(--green)"></div>
       </div>
       <div class="mini-bar-val">${types[t]}</div>
     </div>
-  `).join('');
+  `;
+  }).join('');
   
   // Also replicate to Cryptographic Usage list on sidebar
   document.getElementById('usage-list').innerHTML = document.getElementById('chart-types').innerHTML;
@@ -947,12 +952,15 @@ function updateCharts() {
   
   // Libraries
   const sortedLibs = Object.keys(libs).sort((a,b)=>libs[b]-libs[a]).slice(0, 5);
-  document.getElementById('lib-list').innerHTML = sortedLibs.map(l => `
+  document.getElementById('lib-list').innerHTML = sortedLibs.map(l => {
+    const safeL = escapeHtml(l);
+    return `
     <div class="lib-item">
-      <div class="lib-name">${l}</div>
+      <div class="lib-name">${safeL}</div>
       <div class="lib-count">${libs[l]} components</div>
     </div>
-  `).join('') || '<div class="empty-msg" style="padding:16px;">No libraries detected</div>';
+  `;
+  }).join('') || '<div class="empty-msg" style="padding:16px;">No libraries detected</div>';
   
   // Quantum Readiness
   document.getElementById('quantum-readiness').innerHTML = `
@@ -1055,18 +1063,18 @@ function renderTable() {
     const critClass = getCriticalityBadgeClass(c.criticality);
     return `
       <tr class="cbom-row" style="cursor:pointer;" data-index="${i}">
-        <td><span style="font-weight:600;color:var(--text-h)">${c.algorithm}</span></td>
-        <td><span class="badge badge-quant" style="text-transform:uppercase;">${c.type}</span></td>
-        <td>${c.mode}</td>
-        <td>${c.purpose}</td>
+        <td><span style="font-weight:600;color:var(--text-h)">${escapeHtml(c.algorithm)}</span></td>
+        <td><span class="badge badge-quant" style="text-transform:uppercase;">${escapeHtml(c.type)}</span></td>
+        <td>${escapeHtml(c.mode)}</td>
+        <td>${escapeHtml(c.purpose)}</td>
         <td><span class="badge ${expClass}">${expLabel}</span></td>
-        <td><span class="badge ${critClass}">${c.criticality || 'Not tagged'}</span></td>
-        <td><span class="code-font" style="color:var(--text-m);">${c.file}</span></td>
-        <td>${c.library}</td>
-        <td><span class="code-font">${c.version}</span></td>
-        <td><span class="code-font">${c.keySize}</span></td>
-        <td><span class="code-font">${c.latencyImpactMs} ms</span></td>
-        <td><span class="badge ${getBadgeClass(c.risk)}">${c.risk}</span></td>
+        <td><span class="badge ${critClass}">${escapeHtml(c.criticality || 'Not tagged')}</span></td>
+        <td><span class="code-font" style="color:var(--text-m);">${escapeHtml(c.file)}</span></td>
+        <td>${escapeHtml(c.library)}</td>
+        <td><span class="code-font">${escapeHtml(c.version)}</span></td>
+        <td><span class="code-font">${escapeHtml(c.keySize)}</span></td>
+        <td><span class="code-font">${escapeHtml(String(c.latencyImpactMs))} ms</span></td>
+        <td><span class="badge ${getBadgeClass(c.risk)}">${escapeHtml(c.risk)}</span></td>
       </tr>
     `;
   }).join('');
@@ -1208,6 +1216,7 @@ window.addEventListener('load', init);
 window.addEventListener('cryptoscan_data_updated', init);
 </script>
 </div>
+<script src="assets/js/security.js"></script>
 <script src="assets/js/auth.js"></script>
 <script src="assets/js/shell.js"></script>
 </body>

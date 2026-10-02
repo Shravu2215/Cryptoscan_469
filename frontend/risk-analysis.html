@@ -1797,6 +1797,7 @@
       }
     </style>
 
+    <script src="assets/js/security.js"></script>
     <script src="assets/js/engine.js"></script>
     <script>
       let allFindings = [];
@@ -1861,14 +1862,16 @@
         if (!tbody) return;
         tbody.innerHTML = Object.keys(table).map(type => {
           const item = table[type];
+          const safeType = escapeHtml(type.replace('_', ' '));
+          const safeKey = escapeHtml(type);
           return `
       <tr style="border-bottom: 1px solid var(--border-color);">
-        <td style="padding: 8px 12px; font-weight: 600; color: var(--text-h); text-transform: capitalize;">${type.replace('_', ' ')}</td>
+        <td style="padding: 8px 12px; font-weight: 600; color: var(--text-h); text-transform: capitalize;">${safeType}</td>
         <td style="padding: 8px 12px; text-align: center;">
-          <input type="number" step="0.05" min="0.01" value="${item.simple}" onchange="updateYLookupVal('${type}', 'simple', this.value)" style="width: 80px; padding: 4px 8px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-h); text-align: center; font-family: 'JetBrains Mono', monospace;">
+          <input type="number" step="0.05" min="0.01" value="${item.simple}" onchange="updateYLookupVal('${safeKey}', 'simple', this.value)" style="width: 80px; padding: 4px 8px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-h); text-align: center; font-family: 'JetBrains Mono', monospace;">
         </td>
         <td style="padding: 8px 12px; text-align: center;">
-          <input type="number" step="0.05" min="0.01" value="${item.complex}" onchange="updateYLookupVal('${type}', 'complex', this.value)" style="width: 80px; padding: 4px 8px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-h); text-align: center; font-family: 'JetBrains Mono', monospace;">
+          <input type="number" step="0.05" min="0.01" value="${item.complex}" onchange="updateYLookupVal('${safeKey}', 'complex', this.value)" style="width: 80px; padding: 4px 8px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-h); text-align: center; font-family: 'JetBrains Mono', monospace;">
         </td>
       </tr>
     `;
@@ -2060,17 +2063,21 @@
           const risk = f.risk || { X: 5, Y: 1, Z: 12, urgency_margin: 6, urgency_tier: 'Low', priority_score: 2 };
           const marginColor = risk.urgency_margin < 0 ? 'var(--red)' : (risk.urgency_margin <= 2 ? 'var(--amber)' : 'var(--green)');
           const marginPrefix = risk.urgency_margin >= 0 ? '+' : '';
-          const name = f.title || f.algorithm || 'Cryptographic Finding';
-          const loc = f.file ? `${f.file}${f.line ? ':' + f.line : ''}` : (f.repoName || '');
+          const rawName = f.title || f.algorithm || 'Cryptographic Finding';
+          const rawLoc = f.file ? `${f.file}${f.line ? ':' + f.line : ''}` : (f.repoName || '');
+          const name = escapeHtml(rawName);
+          const loc = escapeHtml(rawLoc);
+          const typeLabel = escapeHtml(f.type || 'algorithm');
+          const safeAlgoKey = escapeHtml(f.algorithm || rawName);
 
           return `
-      <tr onclick="onPriorityRowClick('${f.algorithm || name}')" style="transition: background 0.15s ease; cursor: pointer;">
+      <tr onclick="onPriorityRowClick('${safeAlgoKey}')" style="transition: background 0.15s ease; cursor: pointer;">
         <td style="padding: 12px 16px;">
           <div style="font-weight: 600; color: var(--text-h); font-size: 13px;">${name}</div>
           <div style="font-size: 11px; color: var(--text-m); font-family: 'JetBrains Mono', monospace; margin-top: 2px;">${loc}</div>
         </td>
         <td style="padding: 12px 16px; text-align: center;">
-          <span class="badge badge-quant" style="text-transform: uppercase; font-size: 10px;">${f.type || 'algorithm'}</span>
+          <span class="badge badge-quant" style="text-transform: uppercase; font-size: 10px;">${typeLabel}</span>
         </td>
         <td style="padding: 12px 16px; text-align: center; font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text-h);">
           ${risk.X}y
@@ -2455,7 +2462,9 @@
 
         const data = typeof CryptoEngine !== 'undefined' ? CryptoEngine.getData() : {};
         const currentScan = (data.scans && data.scans.length > 0) ? data.scans[0] : (data.activeScan || {});
-        const componentsAtRisk = currentScan.assetsFound || (currentScan.cbom ? currentScan.cbom.length : 0) || migrationCandidates.length;
+        const componentsAtRisk = (currentScan.summary && currentScan.summary.components_total !== undefined)
+          ? currentScan.summary.components_total
+          : (currentScan.assetsFound || (currentScan.cbom ? currentScan.cbom.length : 0) || migrationCandidates.length);
 
         const critCount = allFindings.filter(f => getSeverity(f) === 'CRITICAL').length;
         const highCount = allFindings.filter(f => getSeverity(f) === 'HIGH').length;
@@ -2602,15 +2611,19 @@
           const m = c.mosca || computeFindingMosca(c.rawFinding, c.fileCount);
           const mBadgeClass = m.category === 'VULNERABLE_NOW' ? 'badge-crit' : (m.category === 'WITHIN_HORIZON' ? 'badge-high' : 'badge-safe');
 
+          const safeAlgo = escapeHtml(c.algorithm);
+          const safePurpose = escapeHtml(c.purpose);
+          const safeReplacement = escapeHtml(c.replacement || 'None specified');
+
           return `
       <div class="rec-card p${c.priority}">
         <div class="rec-hd">
           <div>
-            <div class="rec-algo">${c.algorithm}</div>
+            <div class="rec-algo">${safeAlgo}</div>
             <div class="rec-purpose">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--text-s);"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              ${c.purpose}
-              <span class="badge ${mBadgeClass}" style="margin-left:8px; font-size:10px;">${m.categoryLabel}</span>
+              ${safePurpose}
+              <span class="badge ${mBadgeClass}" style="margin-left:8px; font-size:10px;">${escapeHtml(m.categoryLabel)}</span>
             </div>
           </div>
           <div class="rec-priority-badge p${c.priority}">${priorityLabel}</div>
@@ -2619,7 +2632,7 @@
         <div class="rec-grid">
           <div class="rg-card">
             <div class="rg-lbl">Current Risk</div>
-            <div class="rg-val"><span class="badge ${getBadgeClass(c.severity)}" style="padding:3px 8px;">${c.severity}</span></div>
+            <div class="rg-val"><span class="badge ${getBadgeClass(c.severity)}" style="padding:3px 8px;">${escapeHtml(c.severity)}</span></div>
           </div>
           <div class="rg-card">
             <div class="rg-lbl">Quantum Exposure</div>
@@ -2649,7 +2662,7 @@
           </div>
           <div>
             <div class="replace-lbl">Recommended NIST PQC Replacement</div>
-            <div class="replace-val">${c.replacement || 'None specified'}</div>
+            <div class="replace-val">${safeReplacement}</div>
           </div>
         </div>
 
@@ -2701,10 +2714,10 @@
         <div class="tl-num">0${i + 1}</div>
         <div class="tl-content">
           <div class="tl-hd">
-            <span class="tl-algo">${c.algorithm}</span>
-            <span class="badge ${getBadgeClass(c.severity)}">${c.severity}</span>
+            <span class="tl-algo">${escapeHtml(c.algorithm)}</span>
+            <span class="badge ${getBadgeClass(c.severity)}">${escapeHtml(c.severity)}</span>
           </div>
-          <div style="font-size:12px; color:var(--text-m); margin-bottom:4px;">→ Replace with <span style="color:var(--text-h); font-weight:600;">${c.replacement}</span></div>
+          <div style="font-size:12px; color:var(--text-m); margin-bottom:4px;">→ Replace with <span style="color:var(--text-h); font-weight:600;">${escapeHtml(c.replacement)}</span></div>
           <div style="font-size:11px; color:var(--text-s);">${c.fileCount} affected files</div>
           ${depStr}
         </div>
@@ -2801,7 +2814,7 @@
           filelist.textContent = 'No files identified';
         } else {
           const shown = files.slice(0, maxShow);
-          let html = shown.map(f => `<div style="font-family:'JetBrains Mono',monospace; padding:2px 0; color:var(--text-h);">${f}</div>`).join('');
+          let html = shown.map(f => `<div style="font-family:'JetBrains Mono',monospace; padding:2px 0; color:var(--text-h);">${escapeHtml(f)}</div>`).join('');
           if (files.length > maxShow) {
             html += `<div style="color:var(--text-s); font-style:italic; padding-top:4px;">+${files.length - maxShow} more files</div>`;
           }

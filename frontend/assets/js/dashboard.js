@@ -344,11 +344,11 @@ class CryptoDashboard {
       const pct = (val / max) * 100;
       // Alternate colors
       const color = i % 2 === 0 ? 'var(--accent-cyan)' : 'var(--accent-violet)';
-      
+      const safeKey = escapeHtml(key);
       html += `
         <div style="display:flex; flex-direction:column; gap:6px;">
           <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:600; color:var(--text-secondary)">
-            <span>${key}</span>
+            <span>${safeKey}</span>
             <span>${val} usages</span>
           </div>
           <div style="width:100%; height:8px; background:var(--border-subtle); border-radius:4px; overflow:hidden;">
@@ -380,13 +380,14 @@ class CryptoDashboard {
       let badge = `<span class="badge badge-info">Secure</span>`;
       if (critCount > 0) badge = `<span class="badge badge-danger">Critical</span>`;
       else if (findingsCount > 0) badge = `<span class="badge badge-warning">Issues Found</span>`;
+      const safeRepo = escapeHtml(s.repoName);
 
       return `
         <tr>
           <td>
             <div class="repo-name-cell">
               <div class="repo-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg></div>
-              ${s.repoName}
+              ${safeRepo}
             </div>
           </td>
           <td style="color:var(--text-muted)">${s.timestamp.split(',')[0]}</td>
@@ -412,11 +413,12 @@ class CryptoDashboard {
 
     container.innerHTML = events.slice(0, 5).map((ev, i) => {
       const dotClass = ev.findings > 0 ? 'pink' : 'cyan';
+      const safeRepo = escapeHtml(ev.repo);
       return `
         <div class="tl-item">
           <div class="tl-dot ${dotClass}"></div>
           <div class="tl-time">${ev.time}</div>
-          <div class="tl-desc">Scan Completed: ${ev.repo}</div>
+          <div class="tl-desc">Scan Completed: ${safeRepo}</div>
           <div class="tl-sub">${ev.findings} cryptographic assets mapped.</div>
         </div>
       `;
