@@ -12,8 +12,10 @@
 const USER_KEY = 'cs_user';
 
 const Auth = (() => {
-  // Access token lives only in memory — never written to localStorage.
-  let _accessToken = null;
+  // Access token lives in sessionStorage so it survives page navigations
+  // within the same tab (sessionStorage is cleared when the tab closes).
+  const SESSION_TOKEN_KEY = 'cs_access_token';
+  let _accessToken = sessionStorage.getItem(SESSION_TOKEN_KEY) || null;
   let _refreshPromise = null; // deduplicates concurrent refresh calls
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -83,6 +85,7 @@ const Auth = (() => {
       const data = await res.json();
       if (data.token) {
         _accessToken = data.token;
+        sessionStorage.setItem(SESSION_TOKEN_KEY, data.token);
         if (data.user) saveUser(data.user);
       }
       return data.token || null;
@@ -146,12 +149,14 @@ const Auth = (() => {
   function _redirectToLogin() {
     clearUser();
     _accessToken = null;
+    sessionStorage.removeItem(SESSION_TOKEN_KEY);
     window.location.href = 'login.html';
   }
 
   /** Save token + user after login (called by the login flow). */
   function saveSession(token, user) {
     _accessToken = token;
+    sessionStorage.setItem(SESSION_TOKEN_KEY, token);
     saveUser(user);
   }
 
@@ -183,6 +188,7 @@ const Auth = (() => {
   function clearSession() {
     clearUser();
     _accessToken = null;
+    sessionStorage.removeItem(SESSION_TOKEN_KEY);
   }
 
   /**
