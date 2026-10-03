@@ -21,7 +21,9 @@ function setRefreshCookie(res, token) {
   res.cookie('cs_refresh', token, {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? 'strict' : 'lax',
+    // 'none' required for cross-site requests (Vercel frontend -> Render backend)
+    // 'lax' in dev is fine since frontend and backend share localhost
+    sameSite: isProd ? 'none' : 'lax',
     maxAge: REFRESH_TTL_SECONDS * 1000,
     path: '/auth/refresh',
   });
@@ -29,7 +31,7 @@ function setRefreshCookie(res, token) {
 
 /** Clear the refresh cookie. */
 function clearRefreshCookie(res) {
-  res.clearCookie('cs_refresh', { httpOnly: true, secure: isProd, sameSite: isProd ? 'strict' : 'lax', path: '/auth/refresh' });
+  res.clearCookie('cs_refresh', { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', path: '/auth/refresh' });
 }
 
 /** Persist a new Session row and return it. */
