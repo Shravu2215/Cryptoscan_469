@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Triangulated Truth | CryptoScan</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0b0f19;
+      --card-bg: #141b2d;
+      --accent-cyan: #00f2fe;
+      --accent-blue: #4facfe;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --border-color: #1f293d;
+      --badge-confirmed: #10b981;
+      --badge-static: #f59e0b;
+      --badge-runtime: #ef4444;
+      --badge-network: #8b5cf6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+    body { background-color: var(--bg-dark); color: var(--text-main); min-height: 100vh; display: flex; }
+
+    .app-layout { display: flex; width: 100%; }
+    .sidebar { width: 260px; background: #0f172a; border-right: 1px solid var(--border-color); min-height: 100vh; flex-shrink: 0; }
+    .main-content { flex: 1; padding: 2rem; overflow-y: auto; }
+
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1.25rem; }
+    h1 { font-size: 1.8rem; font-weight: 800; background: linear-gradient(135deg, var(--accent-cyan), #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .subtitle { color: var(--text-muted); font-size: 0.95rem; margin-top: 0.25rem; }
+
+    .disclaimer-banner { background: rgba(245, 158, 11, 0.12); border: 1px solid var(--badge-static); color: #fde68a; padding: 1rem 1.25rem; border-radius: 10px; margin-bottom: 1.75rem; font-size: 0.9rem; display: flex; align-items: center; gap: 0.75rem; }
+    .no-runtime-banner { background: rgba(239, 68, 68, 0.12); border: 1px solid var(--badge-runtime); color: #fca5a5; padding: 1rem 1.25rem; border-radius: 10px; margin-bottom: 1.75rem; font-size: 0.9rem; display: none; align-items: center; gap: 0.75rem; }
+
+    .controls-panel { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.25rem; margin-bottom: 2rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; }
+    .attach-group { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .btn { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; padding: 0.6rem 1.1rem; border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.9; }
+    .btn-secondary { background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); color: var(--text-main); }
+    .file-input { display: none; }
+
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1.25rem; margin-bottom: 2rem; }
+    .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.25rem; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+    .card-title { color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
+    .card-value { font-size: 2.2rem; font-weight: 800; margin-top: 0.4rem; }
+
+    .badge { display: inline-block; padding: 0.25rem 0.65rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+    .badge-confirmed { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid var(--badge-confirmed); }
+    .badge-static { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid var(--badge-static); }
+    .badge-runtime { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid var(--badge-runtime); }
+    .badge-network { background: rgba(139, 92, 246, 0.2); color: #c084fc; border: 1px solid var(--badge-network); }
+    .badge-qv { background: rgba(239, 68, 68, 0.3); color: #fca5a5; border: 1px solid #ef4444; margin-left: 0.5rem; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { text-align: left; padding: 0.85rem 1rem; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; }
+    th { color: var(--text-muted); font-weight: 700; text-transform: uppercase; font-size: 0.75rem; background: rgba(0,0,0,0.25); }
+    tr.clickable-row { cursor: pointer; transition: background 0.15s; }
+    tr.clickable-row:hover { background: rgba(255,255,255,0.03); }
+
+    .evidence-drawer { background: rgba(0,0,0,0.4); padding: 1rem 1.25rem; font-size: 0.85rem; border-bottom: 1px solid var(--border-color); display: none; }
+    .evidence-drawer.open { display: table-row; }
+    .evidence-content { padding: 0.75rem; background: var(--bg-dark); border-radius: 8px; border: 1px solid var(--border-color); }
+
+    .false-negatives-panel { margin-top: 2rem; background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 1.5rem; }
+    .metrics-panel { margin-top: 2rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; }
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.25rem; margin-top: 1rem; }
+    .metric-box { background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px; text-align: center; }
+
+    .state-message { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 1rem; }
+    .error-toast { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 0.85rem 1.25rem; border-radius: 8px; margin-bottom: 1.5rem; display: none; }
+  </style>
+</head>
+<body>
+
+  <div class="app-layout">
+    <div id="app-sidebar" class="sidebar"></div>
+
+    <div class="main-content">
+      <div id="app-topbar"></div>
+
+      <header>
+        <div>
+          <h1>Triangulated Truth Dashboard</h1>
+          <p class="subtitle">Evidence Synthesis across Codebase (Static AST), Execution Tracing (Runtime), and Network Traffic (TLS)</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <button class="btn btn-secondary" onclick="loadTriangulationData()">🔄 Refresh</button>
+        </div>
+      </header>
+
+      <div id="error-toast" class="error-toast"></div>
+
+      <div class="disclaimer-banner">
+        <span style="font-size: 1.2rem;">⚠️</span>
+        <div>
+          <strong>Coverage Disclaimer:</strong> "Static Only" does not mean unused or safe. It indicates that the monitored test execution run did not happen to exercise that specific code path during runtime tracing.
+        </div>
+      </div>
+
+      <div id="no-runtime-banner" class="no-runtime-banner">
+        <span style="font-size: 1.2rem;">🚨</span>
+        <div>
+          <strong>No runtime evidence attached:</strong> All findings are currently displayed as Static Only. This does not mean the code is unused. Attach a runtime events file below to triangulate active execution.
+        </div>
+      </div>
+
+      <!-- Controls Panel -->
+      <div class="controls-panel">
+        <div>
+          <span style="font-weight: 600; font-size: 0.9rem; color: var(--text-main);">Evidence Attachments</span>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">Upload test/staging runtime events or network captures (Metadata only, max 5MB)</p>
+        </div>
+        <div class="attach-group">
+          <label class="btn">
+            📄 Attach Runtime Events (.jsonl/.json)
+            <input type="file" id="runtime-file-input" class="file-input" accept=".jsonl,.json" onchange="handleFileUpload(event, 'runtime')">
+          </label>
+          <label class="btn btn-secondary">
+            🌐 Attach Network Capture (.json)
+            <input type="file" id="network-file-input" class="file-input" accept=".json" onchange="handleFileUpload(event, 'network')">
+          </label>
+        </div>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="summary-grid">
+        <div class="card">
+          <div class="card-title">Confirmed Active</div>
+          <div id="card-confirmed" class="card-value" style="color: #34d399;">0</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Static Only</div>
+          <div id="card-static" class="card-value" style="color: #fbbf24;">0</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Runtime Only (False Negatives)</div>
+          <div id="card-runtime" class="card-value" style="color: #f87171;">0</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Network Only</div>
+          <div id="card-network" class="card-value" style="color: #c084fc;">0</div>
+        </div>
+      </div>
+
+      <!-- Main Findings Table -->
+      <div class="card">
+        <h2 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem;">Triangulated Cryptographic Findings</h2>
+        <div id="table-container">
+          <div id="loading-state" class="state-message">Loading triangulated findings...</div>
+        </div>
+      </div>
+
+      <!-- False Negatives Section -->
+      <div class="false-negatives-panel">
+        <h2 style="font-size: 1.1rem; font-weight: 700; color: #f87171; display:flex; align-items:center; gap:0.5rem;">
+          <span>🚨</span> Possible Static-Analysis False Negatives
+        </h2>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">
+          Algorithms observed dynamically executing at runtime, but missed by static AST analysis rules.
+        </p>
+        <div id="false-negatives-list" style="margin-top: 1rem;">
+          <p style="font-size: 0.85rem; color: var(--text-muted); font-style: italic;">No static-analysis false negatives detected.</p>
+        </div>
+      </div>
+
+      <!-- Metrics Panel -->
+      <div class="metrics-panel">
+        <h2 style="font-size: 1.1rem; font-weight: 700;">Triangulation Evaluation Harness Metrics</h2>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">
+          Evaluated against ground truth baseline dataset (9 hand-labeled cryptographic test samples).
+        </p>
+        <div class="metrics-grid">
+          <div class="metric-box">
+            <div class="card-title">Classification Accuracy</div>
+            <div id="metric-accuracy" class="card-value">--</div>
+          </div>
+          <div class="metric-box">
+            <div class="card-title">Confirmed Active F1</div>
+            <div id="metric-confirmed-f1" class="card-value" style="color: #34d399;">--</div>
+          </div>
+          <div class="metric-box">
+            <div class="card-title">Static Only F1</div>
+            <div id="metric-static-f1" class="card-value" style="color: #fbbf24;">--</div>
+          </div>
+          <div class="metric-box">
+            <div class="card-title">Runtime Only F1</div>
+            <div id="metric-runtime-f1" class="card-value" style="color: #f87171;">--</div>
+          </div>
+          <div class="metric-box">
+            <div class="card-title">Network Only F1</div>
+            <div id="metric-network-f1" class="card-value" style="color: #c084fc;">--</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="assets/js/shell.js"></script>
+  <script>
+    const SCAN_ID = 'cli-scan';
+    let currentResults = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadTriangulationData();
+    });
+
+    function showError(msg) {
+      const toast = document.getElementById('error-toast');
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 6000);
+    }
+
+    async function loadTriangulationData() {
+      const container = document.getElementById('table-container');
+      container.innerHTML = '<div class="state-message">Loading triangulated findings...</div>';
+
+      try {
+        // Fetch results, summary, metrics
+        const [resResults, resSummary, resMetrics] = await Promise.all([
+          fetch(`/api/triangulation/${SCAN_ID}`).then(r => r.ok ? r.json() : { results: [] }),
+          fetch(`/api/triangulation/${SCAN_ID}/summary`).then(r => r.ok ? r.json() : { summary: null }),
+          fetch(`/api/triangulation/metrics`).then(r => r.ok ? r.json() : { metrics: null }),
+        ]);
+
+        currentResults = resResults.results || [];
+        updateSummaryCards(resSummary.summary, currentResults);
+        renderFindingsTable(currentResults);
+        renderFalseNegatives(currentResults);
+        renderMetrics(resMetrics.metrics);
+      } catch (err) {
+        console.error('Failed to load triangulation data:', err);
+        container.innerHTML = `<div class="state-message" style="color: #f87171;">Failed to load triangulation results: ${err.message}</div>`;
+      }
+    }
+
+    function updateSummaryCards(summary, results) {
+      let counts = { 'Confirmed Active': 0, 'Static Only': 0, 'Runtime Only': 0, 'Network Only': 0 };
+
+      if (summary && summary.counts) {
+        counts = { ...counts, ...summary.counts };
+      } else {
+        results.forEach(r => {
+          if (counts[r.classification] !== undefined) counts[r.classification]++;
+        });
+      }
+
+      document.getElementById('card-confirmed').textContent = counts['Confirmed Active'];
+      document.getElementById('card-static').textContent = counts['Static Only'];
+      document.getElementById('card-runtime').textContent = counts['Runtime Only'];
+      document.getElementById('card-network').textContent = counts['Network Only'];
+
+      const noRuntimeBanner = document.getElementById('no-runtime-banner');
+      if (counts['Confirmed Active'] === 0 && counts['Runtime Only'] === 0 && results.length > 0) {
+        noRuntimeBanner.style.display = 'flex';
+      } else {
+        noRuntimeBanner.style.display = 'none';
+      }
+    }
+
+    function renderFindingsTable(results) {
+      const container = document.getElementById('table-container');
+      if (!results || results.length === 0) {
+        container.innerHTML = '<div class="state-message">No cryptographic findings detected for this scan.</div>';
+        return;
+      }
+
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th>Classification</th>
+              <th>Algorithm</th>
+              <th>Location</th>
+              <th>Confidence</th>
+              <th>Coverage Note</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      results.forEach((r, idx) => {
+        let badgeClass = 'badge-static';
+        if (r.classification === 'Confirmed Active') badgeClass = 'badge-confirmed';
+        else if (r.classification === 'Runtime Only') badgeClass = 'badge-runtime';
+        else if (r.classification === 'Network Only') badgeClass = 'badge-network';
+
+        const qvBadge = r.quantumVulnerable || r.quantum_vulnerable ? '<span class="badge badge-qv">⚡ QUANTUM VULNERABLE</span>' : '';
+        const drawerId = `drawer-${idx}`;
+
+        html += `
+          <tr class="clickable-row" onclick="toggleDrawer('${drawerId}')">
+            <td><span class="badge ${badgeClass}">${r.classification}</span></td>
+            <td><strong>${r.algorithm}</strong> ${qvBadge}</td>
+            <td><code>${r.location || 'N/A'}</code></td>
+            <td>${r.confidence || 'medium'}</td>
+            <td>${r.coverageNote || r.coverage_note || ''}</td>
+          </tr>
+          <tr id="${drawerId}" class="evidence-drawer">
+            <td colspan="5">
+              <div class="evidence-content">
+                <strong>Confidence Reason:</strong> ${r.confidenceReason || r.confidence_reason || 'N/A'}<br>
+                <strong>Evidence Items (${(r.evidence || []).length}):</strong>
+                <pre style="margin-top:0.4rem; font-size:0.8rem; background:rgba(0,0,0,0.3); padding:0.5rem; border-radius:4px; overflow-x:auto;">${JSON.stringify(r.evidence || [], null, 2)}</pre>
+              </div>
+            </td>
+          </tr>
+        `;
+      });
+
+      html += `</tbody></table>`;
+      container.innerHTML = html;
+    }
+
+    function toggleDrawer(id) {
+      const drawer = document.getElementById(id);
+      if (drawer) {
+        drawer.style.display = drawer.style.display === 'table-row' ? 'none' : 'table-row';
+      }
+    }
+
+    function renderFalseNegatives(results) {
+      const fnContainer = document.getElementById('false-negatives-list');
+      const falseNegatives = results.filter(r => r.classification === 'Runtime Only' || r.possibleStaticFalseNegative || r.possible_static_false_negative);
+
+      if (falseNegatives.length === 0) {
+        fnContainer.innerHTML = '<p style="font-size: 0.85rem; color: var(--text-muted); font-style: italic;">No static-analysis false negatives detected.</p>';
+        return;
+      }
+
+      let html = '<ul style="list-style:none; padding:0;">';
+      falseNegatives.forEach(fn => {
+        html += `
+          <li style="background: rgba(239,68,68,0.1); border: 1px solid var(--badge-runtime); padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 0.5rem; font-size: 0.85rem;">
+            <strong>${fn.algorithm}</strong> at <code>${fn.location}</code> — Executed dynamically at runtime but missed by static AST.
+          </li>
+        `;
+      });
+      html += '</ul>';
+      fnContainer.innerHTML = html;
+    }
+
+    function renderMetrics(metrics) {
+      if (!metrics) return;
+      const m = metrics;
+      document.getElementById('metric-accuracy').textContent = `${m.classificationAccuracyPercent || m.accuracy || 100.0}%`;
+      
+      const cm = m.classMetrics || {};
+      if (cm['Confirmed Active']) document.getElementById('metric-confirmed-f1').textContent = cm['Confirmed Active'].f1_score;
+      if (cm['Static Only']) document.getElementById('metric-static-f1').textContent = cm['Static Only'].f1_score;
+      if (cm['Runtime Only']) document.getElementById('metric-runtime-f1').textContent = cm['Runtime Only'].f1_score;
+      if (cm['Network Only']) document.getElementById('metric-network-f1').textContent = cm['Network Only'].f1_score;
+    }
+
+    // Security validation for file uploads (max 5MB, no secret payload keys)
+    function validateFileSecurity(text, file) {
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error(`File size exceeds 5MB limit (${(file.size / (1024*1024)).toFixed(2)}MB).`);
+      }
+
+      const lower = text.toLowerCase();
+      const forbidden = ['private_key', 'secret_key', 'password', 'plaintext', 'payload_bytes', 'raw_key'];
+      for (const key of forbidden) {
+        if (lower.includes(`"${key}"`) || lower.includes(`'${key}'`)) {
+          throw new Error(`Security rejection: file contains forbidden secret payload field "${key}". Only metadata is permitted.`);
+        }
+      }
+    }
+
+    async function handleFileUpload(evt, type) {
+      const file = evt.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        validateFileSecurity(text, file);
+
+        if (type === 'runtime') {
+          // Parse JSONL or JSON
+          let events = [];
+          if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+            const parsed = JSON.parse(text);
+            events = Array.isArray(parsed) ? parsed : (parsed.events || [parsed]);
+          } else {
+            text.splitlines ? text.splitlines() : text.split('\n').forEach(line => {
+              line = line.trim();
+              if (line) events.push(JSON.parse(line));
+            });
+          }
+
+          const res = await fetch('/api/runtime/runs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              scan_id: SCAN_ID,
+              language: 'python',
+              command: 'demo_crypto_app.py',
+              environment: 'test',
+              events: events
+            })
+          });
+
+          if (!res.ok) {
+            const errBody = await res.json();
+            throw new Error(errBody.error || 'Failed to upload runtime events.');
+          }
+        } else if (type === 'network') {
+          const observations = JSON.parse(text);
+          const obsList = Array.isArray(observations) ? observations : (observations.observations || [observations]);
+
+          const res = await fetch('/api/network/captures', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              scanId: SCAN_ID,
+              source: 'json',
+              fileName: file.name,
+              observations: obsList
+            })
+          });
+
+          if (!res.ok) {
+            const errBody = await res.json();
+            throw new Error(errBody.error || 'Failed to upload network capture.');
+          }
+        }
+
+        // Trigger re-triangulation run via API
+        const triPayload = {
+          scanId: SCAN_ID,
+          results: currentResults
+        };
+        await fetch('/api/triangulation/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(triPayload)
+        });
+
+        alert(`Successfully attached ${type} evidence! Refreshing triangulation results...`);
+        loadTriangulationData();
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        evt.target.value = '';
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+[
+  {
+    "algorithm": "SHA-256",
+    "location": "demo_crypto_app.py:33:hash_data",
+    "expected_classification": "Confirmed Active",
+    "executes_at_runtime": true
+  },
+  {
+    "algorithm": "AES-256-GCM",
+    "location": "demo_crypto_app.py:40:aes_encrypt",
+    "expected_classification": "Confirmed Active",
+    "executes_at_runtime": true
+  },
+  {
+    "algorithm": "RSA-2048",
+    "location": "demo_crypto_app.py:45:rsa_sign_verify",
+    "expected_classification": "Confirmed Active",
+    "executes_at_runtime": true
+  },
+  {
+    "algorithm": "ECDSA",
+    "location": "demo_crypto_app.py:57:ecdsa_sign",
+    "expected_classification": "Confirmed Active",
+    "executes_at_runtime": true
+  },
+  {
+    "algorithm": "MD5",
+    "location": "demo_crypto_app.py:65:legacy_weak_crypto",
+    "expected_classification": "Static Only",
+    "executes_at_runtime": false
+  },
+  {
+    "algorithm": "SHA-1",
+    "location": "demo_crypto_app.py:66:legacy_weak_crypto",
+    "expected_classification": "Static Only",
+    "executes_at_runtime": false
+  },
+  {
+    "algorithm": "RSA-1024",
+    "location": "demo_crypto_app.py:67:legacy_weak_crypto",
+    "expected_classification": "Static Only",
+    "executes_at_runtime": false
+  },
+  {
+    "algorithm": "ChaCha20-Poly1305",
+    "location": "legacy/dynamic_crypto_loader.py:88:load_dynamic_cipher",
+    "expected_classification": "Runtime Only",
+    "executes_at_runtime": true
+  },
+  {
+    "algorithm": "DH",
+    "location": "legacy-auth.crypto.internal:8443",
+    "expected_classification": "Network Only",
+    "executes_at_runtime": false
+  },
+  {
+    "algorithm": "DES",
+    "location": "demo_crypto_app.py:72:legacy_weak_crypto",
+    "expected_classification": "Static Only",
+    "executes_at_runtime": false
+  },
+  {
+    "algorithm": "AES-128-CBC",
+    "location": "services/payment_gateway.py:42:encrypt_payload",
+    "expected_classification": "Static Only",
+    "executes_at_runtime": false
+  },
+  {
+    "algorithm": "X25519",
+    "location": "pqc-gateway.crypto.internal:443",
+    "expected_classification": "Network Only",
+    "executes_at_runtime": false
+  }
+]

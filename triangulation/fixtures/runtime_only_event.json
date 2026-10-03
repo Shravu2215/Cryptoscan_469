@@ -1,0 +1,19 @@
+{
+  "run_id": "fixture-run-runtime-only-001",
+  "events": [
+    {
+      "event_id": "evt-runtime-only-chacha20",
+      "timestamp": "2026-10-03T10:00:00Z",
+      "language": "python",
+      "library": "cryptography",
+      "operation": "encrypt",
+      "algorithm": "ChaCha20-Poly1305",
+      "key_size": 256,
+      "mode": "Poly1305",
+      "call_file": "legacy/dynamic_crypto_loader.py",
+      "call_line": 88,
+      "call_function": "load_dynamic_cipher",
+      "matched_finding_id": null
+    }
+  ]
+}

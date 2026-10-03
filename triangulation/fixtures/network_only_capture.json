@@ -1,0 +1,18 @@
+{
+  "capture_id": "fixture-cap-network-only-001",
+  "source": "json",
+  "observations": [
+    {
+      "observation_id": "obs-net-dh-anon",
+      "host": "legacy-auth.crypto.internal",
+      "port": 8443,
+      "protocol": "TLS",
+      "protocol_version": "TLSv1.0",
+      "cipher_suite": "TLS_DH_anon_WITH_AES_128_CBC_SHA",
+      "key_exchange": "DH",
+      "signature_algorithm": "none",
+      "certificate_key_type": "DH",
+      "certificate_key_size": 1024
+    }
+  ]
+}
