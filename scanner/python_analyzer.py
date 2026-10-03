@@ -289,8 +289,54 @@ class PythonAnalyzer:
             out.append(self._mk_finding(file_path, line, col, "python", "constant-time-compare-safe",
                                           "Constant-Time Comparison (hmac.compare_digest)", "comparison", profile, snippet, specificity=1, generic=False, library="hmac"))
 
+        # -- Cryptography AEAD ciphers: AESGCM, AESCCM, ChaCha20Poly1305 ------
+        fname_upper = fname.upper()
+        is_aesgcm = (
+            fname in ("AESGCM", "AESGCM.generate_key", "aead.AESGCM")
+            or fname.endswith(".AESGCM")
+            or fname.endswith(".AESGCM.generate_key")
+            or "AESGCM" in fname_upper
+        )
+        is_aesccm = (
+            fname in ("AESCCM", "AESCCM.generate_key", "aead.AESCCM")
+            or fname.endswith(".AESCCM")
+            or "AESCCM" in fname_upper
+        )
+        if is_aesgcm or is_aesccm:
+            mode = "GCM" if is_aesgcm else "CCM"
+            # Try to extract bit_length from AESGCM.generate_key(bit_length=256)
+            bits = None
+            for kw in node.keywords:
+                if kw.arg in ("bit_length", "key_size", "bits"):
+                    lit = _resolve(kw.value, table)
+                    if isinstance(lit, ast.Constant) and isinstance(lit.value, int):
+                        bits = lit.value
+                        break
+            if bits is None and node.args:
+                lit = _resolve(node.args[0], table)
+                if isinstance(lit, ast.Constant) and isinstance(lit.value, int):
+                    bits = lit.value
+            key_size_str = f"-{bits}" if bits else ""
+            profile = {
+                "algorithm": f"AES{key_size_str}-{mode}",
+                "severity": Severity.INFO,
+                "quantum_risk": QuantumRisk.SAFE,
+                "recommendation": (
+                    f"AES-{mode} is an AEAD cipher providing authenticated encryption. "
+                    "AES is quantum-safe against Grover's algorithm when key length >= 256 bits."
+                ),
+                "tags": ["aes", "aead", mode.lower()],
+            }
+            out.append(self._mk_finding(
+                file_path, line, col, "python", f"aes-{mode.lower()}-aead",
+                f"AES-{mode} AEAD encryption", "symmetric-cipher",
+                profile, snippet, specificity=2, generic=False,
+                library="cryptography", mode=mode,
+            ))
+
         # -- ChaCha20-Poly1305 -------------------------------------------------
         if "chacha20" in fname.lower():
+
             profile = dict(rules.CHACHA20_POLY1305_PROFILE)
             lib = "cryptography" if ("cryptography" in fname or "hazmat" in fname) else "pycryptodome"
             out.append(self._mk_finding(file_path, line, col, "python", "chacha20-poly1305-aead",

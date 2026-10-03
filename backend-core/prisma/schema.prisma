@@ -5,7 +5,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -69,6 +69,45 @@ model Scan {
   cbom        Cbom?
   anchor      Anchor?
   cbomVersion CbomVersion?
+  runtimeRuns RuntimeRun[]
+}
+
+model RuntimeRun {
+  id          String   @id @default(uuid())
+  scanId      String?
+  scan        Scan?    @relation(fields: [scanId], references: [id])
+  language    String   // "python" | "node"
+  command     String?
+  environment String   @default("test") // "test" | "staging"
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+  eventCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  events RuntimeEvent[]
+}
+
+model RuntimeEvent {
+  id               String      @id @default(uuid())
+  eventId          String      @unique // UUID from tracer
+  runId            String
+  run              RuntimeRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  timestamp        DateTime    @default(now())
+  language         String      // "python" | "node"
+  library          String
+  operation        String      // hash, encrypt, decrypt, sign, verify, keygen, kdf, hmac, tls, other
+  algorithm        String      // normalized canonical name
+  keySize          Int?
+  mode             String?
+  padding          String?
+  curve            String?
+  callFile         String
+  callLine         Int
+  callFunction     String
+  matchedFindingId String?
+  createdAt        DateTime    @default(now())
+
+  @@index([runId, algorithm])
 }
 
 model Finding {

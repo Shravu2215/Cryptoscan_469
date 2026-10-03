@@ -7,7 +7,18 @@ let _client = null;
 function getRedisClient() {
   if (_client) return _client;
 
-  const url = process.env.REDIS_URL || 'redis://localhost:6379';
+  const url = process.env.REDIS_URL;
+  if (!url) {
+    _client = {
+      set: async () => {},
+      get: async () => null,
+      call: async () => {},
+      on: () => {},
+      ping: async () => 'PONG'
+    };
+    return _client;
+  }
+
   _client = new Redis(url, {
     // Do not crash the process on connection errors — log and let callers
     // handle graceful degradation (denylist falls back to strict-reject).
