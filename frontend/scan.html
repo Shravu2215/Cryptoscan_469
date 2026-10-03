@@ -867,8 +867,8 @@
               <div class="card-hd">Repository Overview</div>
               <div class="info-grid">
                 <div class="info-item">
-                  <div class="info-lbl">Repository Name</div>
-                  <div class="info-val" id="sel-name">—</div>
+                  <div class="info-lbl">Repository Name (Editable)</div>
+                  <input type="text" class="info-val" id="sel-name" style="background: rgba(0,0,0,0.1); border: 1px dashed var(--border-color); border-radius: 4px; font-size: inherit; font-weight: inherit; font-family: inherit; color: inherit; width: 100%; padding: 4px 8px; outline: none;" onchange="window.updateRepoName(this.value)" onkeyup="window.updateRepoName(this.value)" value="—">
                 </div>
                 <div class="info-item">
                   <div class="info-lbl">Repository Size</div>
@@ -1077,6 +1077,7 @@
       let selectedFile = null;
       let selectedRepoId = null;
       let currentRepoName = '';
+      window.updateRepoName = function(val) { currentRepoName = val; };
       let scanStart = 0;
       let logInterval;
       let logCount = 0;
@@ -1134,7 +1135,7 @@
         selectedFile = file;
         selectedRepoId = null;
         currentRepoName = selectedFile.name;
-        document.getElementById('sel-name').textContent = currentRepoName;
+        document.getElementById('sel-name').value = currentRepoName;
         document.getElementById('sel-size').textContent = (selectedFile.size / 1024).toFixed(1) + ' KB';
         showState('state-selected');
       }
@@ -1189,7 +1190,7 @@
           selectedFile = null;
           selectedRepoId = data.id;
           currentRepoName = data.name;
-          document.getElementById('sel-name').textContent = currentRepoName;
+          document.getElementById('sel-name').value = currentRepoName;
           document.getElementById('sel-size').textContent = 'GitHub repository';
           showState('state-selected');
         } catch (error) {
@@ -1509,6 +1510,13 @@
 
       async function startRealScan() {
         if (!selectedFile && !selectedRepoId) return;
+
+        // Ensure we pick up any manual edits to the repository name before starting
+        const nameInput = document.getElementById('sel-name').value;
+        if (nameInput && nameInput !== '—') {
+          currentRepoName = nameInput.trim();
+        }
+
         showState('state-scanning');
         document.getElementById('scan-hdr').textContent = `Analyzing ${currentRepoName}...`;
         document.getElementById('scan-log').innerHTML = '';

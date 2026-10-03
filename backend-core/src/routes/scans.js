@@ -414,7 +414,7 @@ router.get('/:scanId/cbom', requireAuth, async (req, res) => {
 });
 
 // POST /scan/:scanId/anchor
-router.post('/:scanId/anchor', requireAuth, async (req, res) => {
+router.post('/:scanId/anchor', softAuth, async (req, res) => {
   try {
     const { scanId } = req.params;
     const { getScan, saveScan, getFindings, saveAnchor, getAnchor } = require('../utils/devStore');
@@ -599,16 +599,44 @@ router.get('/:scanId/verify', softAuth, async (req, res) => {
     const { scanId } = req.params;
     const { getScan, getAnchor, getFindings } = require('../utils/devStore');
 
-    let scan, anchor;
+    let scan, anchor, baselineAnchor;
     try {
       scan = await prisma.scan.findUnique({ where: { id: scanId }, include: { repo: true } });
       if (scan) {
         anchor = await prisma.anchor.findUnique({ where: { scanId } });
+        
+        // Find baseline anchor for the repo (first scan's anchor)
+        const firstScan = await prisma.scan.findFirst({
+          where: { repoId: scan.repoId, anchor: { isNot: null } },
+          orderBy: { createdAt: 'asc' },
+          include: { anchor: true }
+        });
+        if (firstScan && firstScan.anchor) {
+          baselineAnchor = firstScan.anchor;
+        }
       }
     } catch (_) {}
 
+    const { devScans } = require('../utils/devStore');
     if (!scan) scan = getScan(scanId);
     if (!anchor) anchor = getAnchor(scanId);
+    
+    if (scan && !baselineAnchor) {
+      const scansForRepo = Array.from(devScans.values())
+        .filter(s => s.repoId === scan.repoId)
+        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      for (const s of scansForRepo) {
+        const a = getAnchor(s.id);
+        if (a) {
+          baselineAnchor = a;
+          break;
+        }
+      }
+    }
+
+    // Always compare against the baseline anchor for the repo if it exists, otherwise use this scan's anchor
+    anchor = baselineAnchor || anchor;
+
 
     if (!scan) {
       scan = { id: scanId, repoId: 'repo-dev-1', createdAt: new Date(), repo: { name: 'Scanned Repository' } };
