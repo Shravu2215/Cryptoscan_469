@@ -1,0 +1,167 @@
+name: Crypto Attestation
+
+# Generates a signed in-toto attestation of the CBOM scan result for every
+# push to main and for every pull-request, and publishes it to the Rekor
+# transparency log via Sigstore keyless signing.
+#
+# Optional steps (controlled by repository variables/secrets):
+#   CRYPTOSCAN_WITH_PQC=true     — add experimental ML-DSA-65 hybrid envelope
+#   CRYPTOSCAN_SEPOLIA_ANCHOR=1  — anchor attestation hash to Sepolia (requires
+#                                   SEPOLIA_RPC_URL + WALLET_PRIVATE_KEY secrets)
+#
+# The attestation artefacts are:
+#   cbom.json                   — CycloneDX 1.6 CBOM of the scanned repo
+#   attestation.intoto.json     — in-toto Statement v1 (subject = cbom.json SHA-256)
+#   attestation.bundle.json     — Sigstore bundle v0.3 (certificate + Rekor entry)
+#   attestation.hybrid.json     — ML-DSA-65 outer envelope (experimental, optional)
+#   attestation-summary.json    — machine-readable summary
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      with_pqc:
+        description: 'Add ML-DSA-65 hybrid envelope'
+        type: boolean
+        default: true
+      with_sepolia:
+        description: 'Anchor hash to Sepolia blockchain'
+        type: boolean
+        default: false
+
+permissions:
+  # Required for Sigstore keyless signing (GitHub OIDC token)
+  id-token: write
+  # Required to upload attestation artefacts
+  contents: read
+  # Required for actions/attest (GitHub native attestation)
+  attestations: write
+
+jobs:
+  attest-cbom:
+    name: Attest CBOM
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── 2. Python setup ──────────────────────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            scanner/requirements.txt
+            attestation/requirements.txt
+
+      # ── 3. Install dependencies ──────────────────────────────────────────────
+      - name: Install scanner + attestation dependencies
+        run: |
+          pip install -r scanner/requirements.txt
+          pip install -r attestation/requirements.txt
+
+      # ── 4. Scan → CBOM ───────────────────────────────────────────────────────
+      - name: Scan repository → cbom.json
+        run: |
+          python cryptoscan scan . --out cbom.json
+          echo "CBOM components: $(python -c "import json; d=json.load(open('cbom.json')); print(len(d.get('components',[])))")"
+
+      # ── 5. GitHub native attestation (actions/attest) ────────────────────────
+      #   actions/attest v2 uses SLSA provenance format internally and signs
+      #   with the repo's OIDC token. This is separate from our Sigstore flow
+      #   but provides an additional GitHub-native audit trail.
+      - name: GitHub native attestation (actions/attest)
+        uses: actions/attest@v2
+        with:
+          subject-path: cbom.json
+          predicate-type: 'https://cryptoscan.dev/attestation/cbom/v1'
+          predicate: |
+            {
+              "scanner": "cryptoscan/1.0.0",
+              "repository": "${{ github.repository }}",
+              "commit": "${{ github.sha }}",
+              "branch": "${{ github.ref_name }}"
+            }
+        continue-on-error: true   # non-blocking if unavailable on forks
+
+      # ── 6. CryptoScan in-toto + Sigstore attestation ─────────────────────────
+      - name: Generate in-toto Statement + Sigstore bundle
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          # Respect SIGSTORE_NO_REKOR for PRs from forks (no id-token available)
+          SIGSTORE_NO_REKOR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && '1' || '' }}
+        run: |
+          python -m attestation.cli attest \
+            --cbom cbom.json \
+            --out-statement attestation.intoto.json \
+            --out-bundle    attestation.bundle.json \
+            --repo          "${{ github.repository }}" \
+            --commit        "${{ github.sha }}" \
+            --branch        "${{ github.ref_name }}" \
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.with_pqc || vars.CRYPTOSCAN_WITH_PQC == 'true') && '--with-pqc' || '' }} \
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.with_sepolia || false) && '--with-sepolia' || '' }} \
+            --out-hybrid attestation.hybrid.json \
+            > attestation-summary.json
+
+          echo "=== Attestation Summary ==="
+          cat attestation-summary.json
+
+      # ── 7. Verify the attestation we just produced ────────────────────────────
+      - name: Verify attestation (self-verification)
+        run: |
+          python -m attestation.cli verify \
+            --cbom      cbom.json \
+            --statement attestation.intoto.json \
+            --bundle    attestation.bundle.json \
+            --hybrid    attestation.hybrid.json \
+            --no-rekor
+        # We skip Rekor in self-verification because the Sigstore bundle may
+        # be an offline bundle if OIDC token is unavailable (fork PRs).
+        # A separate rekor-verify job can be added for stricter enforcement.
+        continue-on-error: true
+
+      # ── 8. Publish Job Summary ────────────────────────────────────────────────
+      - name: Publish attestation summary
+        if: always()
+        run: |
+          echo "## 🔏 CryptoScan CBOM Attestation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f attestation-summary.json ]; then
+            CBOM_SHA=$(python -c "import json; d=json.load(open('attestation-summary.json')); print(d.get('cbomSha256','N/A'))")
+            REKOR_ID=$(python -c "import json; d=json.load(open('attestation-summary.json')); print(d.get('rekorLogId','None'))")
+            SIGNED=$(python -c "import json; d=json.load(open('attestation-summary.json')); print('✅ Yes' if d.get('signed') else '⚠️ Offline bundle')")
+            echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| CBOM SHA-256 | \`${CBOM_SHA}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Sigstore signed | ${SIGNED} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Rekor log ID | \`${REKOR_ID}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Repository | ${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Attestation summary not available." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # ── 9. Upload attestation artefacts ──────────────────────────────────────
+      - name: Upload attestation artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cryptoscan-attestation-${{ github.sha }}
+          path: |
+            cbom.json
+            attestation.intoto.json
+            attestation.bundle.json
+            attestation.hybrid.json
+            attestation-summary.json
+          if-no-files-found: warn
+          retention-days: 90

@@ -185,6 +185,30 @@ def main():
     gate_parser.add_argument("--out-md", help="Output file path for Markdown report")
     gate_parser.add_argument("--out-json", help="Output file path for JSON report")
 
+    # 'attest' subcommand
+    attest_parser = subparsers.add_parser("attest", help="Generate a signed in-toto attestation for a CBOM file")
+    attest_parser.add_argument("--cbom", required=True, help="Path to CBOM JSON file")
+    attest_parser.add_argument("--out-statement", help="Output path for in-toto Statement (default: attestation.intoto.json)")
+    attest_parser.add_argument("--out-bundle", help="Output path for Sigstore bundle (default: attestation.bundle.json)")
+    attest_parser.add_argument("--out-hybrid", help="Output path for hybrid ML-DSA envelope (default: attestation.hybrid.json)")
+    attest_parser.add_argument("--repo", help="Repository name (e.g. my-org/my-repo)")
+    attest_parser.add_argument("--commit", help="Git commit SHA")
+    attest_parser.add_argument("--branch", help="Git branch / ref name")
+    attest_parser.add_argument("--scan-id", help="Scan UUID (auto-generated if omitted; used for Sepolia anchor)")
+    attest_parser.add_argument("--policy-threshold", default="CRITICAL", help="Policy threshold label in predicate")
+    attest_parser.add_argument("--with-pqc", action="store_true", help="Add experimental ML-DSA-65 hybrid outer signature")
+    attest_parser.add_argument("--with-sepolia", action="store_true", help="Anchor attestation hash to Sepolia (requires env vars)")
+
+    # 'verify' subcommand
+    verify_parser = subparsers.add_parser("verify", help="Independently verify an attestation bundle")
+    verify_parser.add_argument("--cbom", required=True, help="Path to CBOM JSON file")
+    verify_parser.add_argument("--statement", required=True, help="Path to in-toto Statement JSON")
+    verify_parser.add_argument("--bundle", required=True, help="Path to Sigstore bundle JSON")
+    verify_parser.add_argument("--hybrid", help="Path to hybrid ML-DSA envelope JSON (optional)")
+    verify_parser.add_argument("--identity", help="Expected OIDC identity SAN in Sigstore certificate")
+    verify_parser.add_argument("--issuer", help="Expected OIDC issuer (e.g. https://token.actions.githubusercontent.com)")
+    verify_parser.add_argument("--no-rekor", action="store_true", help="Skip Rekor inclusion check")
+
     args = parser.parse_args()
 
     if args.command == "scan":
@@ -201,6 +225,12 @@ def main():
             out_json=args.out_json,
         )
         sys.exit(code)
+    elif args.command == "attest":
+        from attestation.cli import cmd_attest
+        sys.exit(cmd_attest(args))
+    elif args.command == "verify":
+        from attestation.cli import cmd_verify
+        sys.exit(cmd_verify(args))
     else:
         parser.print_help()
         sys.exit(2)
