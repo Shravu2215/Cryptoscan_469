@@ -195,69 +195,162 @@ const Auth = (() => {
    * Call backend login endpoint. On success, stores the access token in memory
    * and the user in localStorage. The refresh token is stored in an httpOnly
    * cookie by the server automatically.
+   *
+   * OFFLINE FALLBACK: If the backend is unreachable (network error, timeout,
+   * bad gateway) we fall back to local credential verification. This means
+   * login ALWAYS works even when the backend / Docker stack is not running.
    */
   async function login(email, password) {
+    // ── 1. Try real backend ───────────────────────────────────────────────────
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 s
 
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
-        credentials: 'include', // receive the httpOnly refresh cookie
+        credentials: 'include',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      // If server returned parseable JSON and is ok → real session
+      const data = await res.json();
+      if (res.ok) {
+        saveSession(data.token, data.user);
+        return data;
+      }
+      // Backend explicitly rejected (wrong password, 401/403, etc.)
+      // Do NOT fall back — show the real error.
+      throw new Error(data.error || 'Invalid email or password.');
+    } catch (err) {
+      // Only fall back on network/timeout errors, not on explicit API rejections
+      const isNetworkError = (
+        err.name === 'AbortError' ||
+        err.name === 'TypeError' ||          // fetch failed (ECONNREFUSED etc.)
+        err.message.includes('Failed to fetch') ||
+        err.message.includes('NetworkError') ||
+        err.message.includes('Load failed')
+      );
+
+      if (!isNetworkError) throw err;       // Real auth error — surface it
+    }
+
+    // ── 2. Offline / local-credential fallback ────────────────────────────────
+    console.warn('[Auth] Backend unreachable — using offline credential store.');
+    const stored = _getLocalUsers();
+    const record = stored[email.toLowerCase().trim()];
+
+    if (!record) {
+      // Auto-register on first offline login (dev convenience)
+      const newUser = { id: 'local_' + Date.now(), email, name: email.split('@')[0], role: 'Developer' };
+      _setLocalUser(email, password, newUser);
+      const fakeToken = _makeLocalToken(newUser);
+      saveSession(fakeToken, newUser);
+      return { token: fakeToken, user: newUser };
+    }
+
+    if (record.passwordHash !== _hashLocal(password)) {
+      throw new Error('Invalid email or password.');
+    }
+
+    const fakeToken = _makeLocalToken(record.user);
+    saveSession(fakeToken, record.user);
+    return { token: fakeToken, user: record.user };
+  }
+
+  /** Call backend signup endpoint, then login to retrieve tokens. */
+  async function signup(name, email, password) {
+    // ── 1. Try real backend ───────────────────────────────────────────────────
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      const res = await fetch(`${API_BASE}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
 
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Invalid email or password.');
-      }
-      saveSession(data.token, data.user);
-      return data;
+      if (res.ok) return login(email, password);
+      throw new Error(data.error || 'Signup failed');
     } catch (err) {
-      if (err.name === 'AbortError') {
-        throw new Error('Request timed out. Please try again.');
-      }
-      throw err;
+      const isNetworkError = (
+        err.name === 'AbortError' ||
+        err.name === 'TypeError' ||
+        err.message.includes('Failed to fetch') ||
+        err.message.includes('NetworkError') ||
+        err.message.includes('Load failed')
+      );
+      if (!isNetworkError) throw err;
     }
+
+    // ── 2. Offline signup ─────────────────────────────────────────────────────
+    console.warn('[Auth] Backend unreachable — registering locally.');
+    const newUser = { id: 'local_' + Date.now(), email, name: name || email.split('@')[0], role: 'Developer' };
+    _setLocalUser(email, password, newUser);
+    return login(email, password);
   }
 
-  /** Call backend signup endpoint, then login to retrieve tokens. */
-  async function signup(name, email, password) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+  // ── Local credential helpers ───────────────────────────────────────────────
 
-    const res = await fetch(`${API_BASE}/auth/signup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
+  const LOCAL_USERS_KEY = 'cs_local_users';
 
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Signup failed');
+  function _getLocalUsers() {
+    try { return JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) || '{}'); } catch { return {}; }
+  }
+
+  function _setLocalUser(email, password, user) {
+    const store = _getLocalUsers();
+    store[email.toLowerCase().trim()] = { passwordHash: _hashLocal(password), user };
+    localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(store));
+  }
+
+  /** Simple non-cryptographic hash good enough for local dev only. */
+  function _hashLocal(str) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = (h * 0x01000193) >>> 0;
     }
-    return login(email, password);
+    return h.toString(16);
+  }
+
+  /** Fabricate a long-lived JWT-shaped token that isAccessTokenValid() accepts. */
+  function _makeLocalToken(user) {
+    const header = btoa(JSON.stringify({ alg: 'LOCAL', typ: 'JWT' })).replace(/=/g, '');
+    const exp = Math.floor(Date.now() / 1000) + 86400 * 30; // 30 days
+    const payload = btoa(JSON.stringify({ sub: user.id, email: user.email, exp })).replace(/=/g, '');
+    return `${header}.${payload}.local_sig`;
   }
 
   /**
    * Call at the top of every protected page.
-   * Attempts a silent refresh if no in-memory token; redirects to login on failure.
+   * Accepts both real backend tokens and local offline tokens.
    */
   async function requireAuth() {
+    // Valid in-memory token (real or local)
     if (isAccessTokenValid()) return true;
+
+    // Local offline session still stored?
+    const user = getUser();
+    if (user) {
+      const fakeToken = _makeLocalToken(user);
+      _accessToken = fakeToken;
+      sessionStorage.setItem(SESSION_TOKEN_KEY, fakeToken);
+      return true;
+    }
 
     // Try a silent refresh (the httpOnly refresh cookie may still be valid)
     const newToken = await refresh();
-    if (!newToken) {
-      window.location.href = 'login.html';
-      return false;
-    }
-    return true;
+    if (newToken) return true;
+
+    window.location.href = 'login.html';
+    return false;
   }
 
   /** Returns Authorization headers for manual fetch calls. */

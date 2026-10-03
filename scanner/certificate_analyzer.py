@@ -50,13 +50,111 @@ class CertificateAnalyzer:
         for match in key_matches:
             line_no = source[:match.start()].count('\n') + 1
             matched_str = match.group(0)
-            key_type = "Private Key"
-            if "RSA" in matched_str:
-                key_type = "RSA Private Key"
-            elif "EC" in matched_str:
-                key_type = "Elliptic Curve Private Key"
-            elif "OPENSSH" in matched_str:
-                key_type = "OpenSSH Private Key"
+            # Parse the PEM private key block to determine actual key type and size
+            if HAS_CRYPTOGRAPHY:
+                from cryptography.hazmat.primitives import serialization
+                from cryptography.hazmat.primitives.asymmetric import rsa as crypto_rsa, ec as crypto_ec, ed25519 as crypto_ed25519, dsa as crypto_dsa
+                try:
+                    private_key = serialization.load_pem_private_key(matched_str.encode('utf-8'), password=None, backend=default_backend())
+                except Exception:
+                    private_key = None
+                if isinstance(private_key, crypto_rsa.RSAPrivateKey):
+                    key_bits = private_key.key_size
+                    key_type = f"RSA-{key_bits}"  # e.g., RSA-2048
+                elif isinstance(private_key, crypto_ec.EllipticCurvePrivateKey):
+                    curve_name = private_key.curve.name
+                    # Map known curves to normalized algorithm names used elsewhere
+                    if curve_name in ('secp256r1', 'prime256v1'):
+                        key_type = "ECDSA P-256"
+                    elif curve_name == 'secp384r1':
+                        key_type = "ECDSA P-384"
+                    else:
+                        key_type = f"EC-{curve_name}"  # fallback for other curves
+                elif isinstance(private_key, crypto_ed25519.Ed25519PrivateKey):
+                    key_type = "Ed25519"
+                elif isinstance(private_key, crypto_dsa.DSAPrivateKey):
+                    key_bits = private_key.key_size
+                    key_type = f"DSA-{key_bits}"
+                else:
+                    key_type = "Private Key"
+            else:
+                # Fallback heuristic if cryptography not available
+                key_type = "Private Key"
+                
+                # Check explicit PKCS#1 headers
+                if "-----BEGIN RSA PRIVATE KEY-----" in matched_str:
+                    key_type = "RSA Private Key"
+                elif "-----BEGIN EC PRIVATE KEY-----" in matched_str:
+                    key_type = "EC Private Key"
+                elif "-----BEGIN OPENSSH PRIVATE KEY-----" in matched_str:
+                    key_type = "OpenSSH Private Key"
+                
+                # Try to parse DER to find PKCS#8 OIDs or infer RSA bit length
+                try:
+                    import base64
+                    b64 = ''.join(line for line in matched_str.split('\n') if line and not line.startswith('-----'))
+                    der = base64.b64decode(b64)
+                    hx = der.hex()
+                    
+                    # rsaEncryption 1.2.840.113549.1.1.1 -> 06092a864886f70d010101
+                    if '06092a864886f70d010101' in hx or 'BEGIN RSA PRIVATE KEY' in matched_str:
+                        # Estimate RSA key size based on DER length
+                        if len(der) > 2000:
+                            key_type = "RSA-4096"
+                        elif len(der) > 1500:
+                            key_type = "RSA-3072"
+                        elif len(der) > 800:
+                            key_type = "RSA-2048"
+                        elif len(der) > 400:
+                            key_type = "RSA-1024"
+                        else:
+                            key_type = "RSA Private Key"
+                            
+                    # id-ecPublicKey 1.2.840.10045.2.1 -> 06072a8648ce3d0201
+                    elif '06072a8648ce3d0201' in hx or 'BEGIN EC PRIVATE KEY' in matched_str:
+                        # prime256v1: 1.2.840.10045.3.1.7 -> 06082a8648ce3d030107
+                        if '06082a8648ce3d030107' in hx:
+                            key_type = "ECDSA P-256"
+                        # secp384r1: 1.3.132.0.34 -> 06052b81040022
+                        elif '06052b81040022' in hx:
+                            key_type = "ECDSA P-384"
+                        else:
+                            key_type = "EC Private Key"
+                            
+                    # Ed25519 1.3.101.112 -> 06032b6570
+                    elif '06032b6570' in hx:
+                        key_type = "Ed25519"
+                        
+                except Exception:
+                    pass
+
+
+            # Determine severity based on key type and size:
+            # RSA/DSA < 2048 bits → CRITICAL (weak key); everything else → HIGH.
+            key_bits_for_severity = None
+            if key_type.startswith("RSA-"):
+                try:
+                    key_bits_for_severity = int(key_type.split("-")[1])
+                except (IndexError, ValueError):
+                    pass
+            elif key_type.startswith("DSA-"):
+                try:
+                    key_bits_for_severity = int(key_type.split("-")[1])
+                except (IndexError, ValueError):
+                    pass
+            if key_bits_for_severity is not None and key_bits_for_severity < 2048:
+                key_severity = Severity.CRITICAL
+                key_recommendation = (
+                    f"CRITICAL: {key_type} private key is below the NIST 2048-bit minimum. "
+                    f"This key is cryptographically weak and must be replaced immediately. "
+                    f"Remove from source control and store in AWS KMS, HashiCorp Vault, or hardware HSM."
+                )
+            else:
+                key_severity = Severity.HIGH
+                key_recommendation = (
+                    "Remove hardcoded private keys from source control. "
+                    "Store keys in AWS KMS, HashiCorp Vault, or hardware HSM."
+                )
 
             findings.append(Finding(
                 file=file_path,
@@ -67,10 +165,10 @@ class CertificateAnalyzer:
                 rule_name=f"Unencrypted {key_type}",
                 category="hardcoded-secret",
                 algorithm=key_type,
-                severity=Severity.HIGH,
+                severity=key_severity,
                 quantum_risk=QuantumRisk.QUANTUM_WEAKENED,
                 message=f"Hardcoded unencrypted {key_type} block detected in PEM file.",
-                recommendation="Remove hardcoded private keys from source control. Store keys in AWS KMS, HashiCorp Vault, or hardware HSM.",
+                recommendation=key_recommendation,
                 code_snippet=matched_str[:80] + "...",
                 confidence=Confidence.CONFIRMED,
                 library="X.509 / PEM Storage",

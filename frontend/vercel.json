@@ -22,6 +22,8 @@
     { "source": "/migration-plan.html", "destination": "/migration-plan.html" },
     { "source": "/quantum-threat-model", "destination": "/quantum-threat-model.html" },
     { "source": "/quantum-threat-model.html", "destination": "/quantum-threat-model.html" },
+    { "source": "/pqc-simulator", "destination": "/pqc-simulator.html" },
+    { "source": "/pqc-simulator.html", "destination": "/pqc-simulator.html" },
     { "source": "/migration-scheduler", "destination": "/migration-scheduler.html" },
     { "source": "/migration-scheduler.html", "destination": "/migration-scheduler.html" },
     { "source": "/verification", "destination": "/verification.html" },

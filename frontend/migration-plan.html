@@ -1279,43 +1279,33 @@
     </div>
 
     <script>
+      function getMatchingReplacement(algo, suggestedRepl) {
+        const normAlgo = (algo || '').toUpperCase();
+        const normRepl = (suggestedRepl || '').trim();
+        if (normRepl && normRepl !== 'None specified' && normRepl !== '-') {
+          if (/ML-DSA|Falcon|SLH-DSA|ML-KEM|AES-256|SHA-384|SHA3/i.test(normRepl)) {
+            return normRepl;
+          }
+        }
+        if (normAlgo.includes('ECDH') || normAlgo.includes('X25519') || normAlgo.includes('DH')) {
+          return 'ML-KEM-768';
+        }
+        if (normAlgo.includes('AES') || normAlgo.includes('DES') || normAlgo.includes('RC4')) {
+          return 'AES-256-GCM';
+        }
+        if (normAlgo.includes('MD5') || normAlgo.includes('SHA-1') || normAlgo.includes('SHA1')) {
+          return 'SHA-384';
+        }
+        return 'ML-DSA-65';
+      }
+
       function simulateMigration() {
-        const container = document.getElementById('simulation-container');
-        const target = document.getElementById('drw-replacement').textContent;
-        const files = document.getElementById('drw-files-count').textContent;
-
-        container.innerHTML = `
-      <div style="text-align:center; padding: 24px;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" style="width:32px;height:32px;margin-bottom:12px;animation: spin 1s linear infinite;"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
-        <div style="font-size:13px; color:var(--text-h); font-weight:600;">Running PQC Simulation...</div>
-        <div style="font-size:12px; color:var(--text-m); margin-top:4px;">Analyzing dependencies & test coverage</div>
-      </div>
-    `;
-
-        setTimeout(() => {
-          container.innerHTML = `
-        <div style="width:100%;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid var(--border-color);">
-            <div style="font-size:13px; font-weight:600; color:var(--green);">Simulation Complete</div>
-            <div style="font-size:12px; color:var(--text-m);">Est. Effort: <strong>Not Assessed</strong></div>
-          </div>
-          <div style="display:flex; flex-direction:column; gap:8px;">
-            <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-b);">
-              <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-              <span>Code replacements mapped to <strong>${target}</strong></span>
-            </div>
-            <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-b);">
-              <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-              <span>API signature changes required in ${files} file(s)</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-b);">
-              <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-              <span>Unit test impact: Not Assessed</span>
-            </div>
-          </div>
-        </div>
-      `;
-        }, 1500);
+        const algo = (document.getElementById('drw-algo')?.textContent || '').trim();
+        const repl = (document.getElementById('drw-replacement')?.textContent || '').trim();
+        const modeText = (document.getElementById('drw-recommended-mode')?.textContent || '').trim();
+        const mode = modeText.toLowerCase().includes('hybrid') ? 'hybrid' : 'pure';
+        const defaultRepl = getMatchingReplacement(algo, repl);
+        window.location.href = `pqc-simulator.html?algorithm=${encodeURIComponent(algo)}&replacement=${encodeURIComponent(defaultRepl)}&mode=${encodeURIComponent(mode)}&source=migration-plan`;
       }
     </script>
     <style>
@@ -2197,6 +2187,9 @@
         </div>
 
         <div class="rec-ft">
+          <button class="btn-sec simulate-impact-btn" data-idx="${idx}" style="font-size:13px; font-weight:500;">
+            Simulate Impact
+          </button>
           <button class="btn-sec view-details-btn" data-idx="${idx}">
             View Details & Remediation
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
@@ -2205,6 +2198,20 @@
       </div>
     `;
         }).join('');
+
+        container.querySelectorAll('.simulate-impact-btn').forEach(btn => {
+          btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            const rawIdx = this.getAttribute('data-idx');
+            if (rawIdx === null || rawIdx === undefined) return;
+            const idx = parseInt(rawIdx, 10);
+            if (isNaN(idx) || idx < 0 || idx >= candidatesToRender.length) return;
+            const c = candidatesToRender[idx];
+            const defaultRepl = getMatchingReplacement(c.algorithm, c.replacement);
+            const mode = (c.recommendedMode || '').toLowerCase().includes('hybrid') ? 'hybrid' : 'pure';
+            window.location.href = `pqc-simulator.html?algorithm=${encodeURIComponent(c.algorithm)}&replacement=${encodeURIComponent(defaultRepl)}&mode=${encodeURIComponent(mode)}&source=migration-plan`;
+          });
+        });
 
         container.querySelectorAll('.view-details-btn').forEach(btn => {
           btn.addEventListener('click', function (e) {

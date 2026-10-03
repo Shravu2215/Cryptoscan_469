@@ -29,6 +29,27 @@ const server = http.createServer((req, res) => {
   }
 
   let reqPath = req.url.split('?')[0].split('#')[0];
+
+  // Proxy backend API routes to backend-core (port 3000)
+  if (reqPath.startsWith('/auth') || reqPath.startsWith('/api') || reqPath.startsWith('/repos') || reqPath.startsWith('/scan') || reqPath === '/health' || reqPath === '/version') {
+    const proxyReq = http.request({
+      hostname: 'localhost',
+      port: 3000,
+      path: req.url,
+      method: req.method,
+      headers: req.headers
+    }, (proxyRes) => {
+      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      proxyRes.pipe(res, { end: true });
+    });
+    proxyReq.on('error', (err) => {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Backend API service unavailable', details: err.message }));
+    });
+    req.pipe(proxyReq, { end: true });
+    return;
+  }
+
   if (reqPath === '/') {
     reqPath = '/index.html';
   }

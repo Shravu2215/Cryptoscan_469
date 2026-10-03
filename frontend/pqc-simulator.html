@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PQC Impact Simulator — CryptoScan</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script>
+    function initTheme() {
+      if (localStorage.getItem('cs_theme') === 'dark') {
+        document.documentElement.classList.add('dark', 'dark-mode');
+        document.documentElement.classList.remove('light-mode');
+      } else {
+        document.documentElement.classList.add('light-mode');
+        document.documentElement.classList.remove('dark', 'dark-mode');
+      }
+    }
+    initTheme();
+  </script>
+  <link rel="stylesheet" href="assets/css/global.css">
+  <link rel="stylesheet" href="assets/css/visuals.css">
+  <link rel="stylesheet" href="assets/css/pqc-simulator.css">
+</head>
+<body>
+
+  <!-- App Shell Sidebar -->
+  <div id="app-sidebar" class="sb"></div>
+
+  <!-- Main Content Wrapper -->
+  <div class="main-wrapper" style="flex:1; display:flex; flex-direction:column; min-width:0; margin-left:264px;">
+    <!-- Topbar -->
+    <div id="app-topbar"></div>
+
+    <!-- Simulator Container -->
+    <main class="pqc-sim-container">
+
+      <!-- Page Header -->
+      <div class="pqc-sim-header">
+        <div>
+          <h1 class="pqc-sim-header-title">PQC Impact Simulator</h1>
+          <p class="pqc-sim-header-sub">Simulate replacing classical algorithms with post-quantum alternatives and preview compatibility impact</p>
+        </div>
+        <a href="migration-plan.html" class="pqc-sim-back-btn" id="pqc-back-link" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+          </svg>
+          Back to Migration Plan
+        </a>
+      </div>
+
+      <!-- Controls Card -->
+      <div class="pqc-sim-card">
+        <div class="pqc-sim-controls-row">
+          <div class="pqc-ctrl-group">
+            <label class="pqc-ctrl-label" for="pqc-sel-classical">Current Algorithm</label>
+            <select id="pqc-sel-classical" class="pqc-ctrl-select"></select>
+          </div>
+
+          <div class="pqc-ctrl-group">
+            <label class="pqc-ctrl-label" for="pqc-sel-pqc">PQC Replacement</label>
+            <select id="pqc-sel-pqc" class="pqc-ctrl-select"></select>
+          </div>
+
+          <div class="pqc-ctrl-group" style="flex: 0 0 auto;">
+            <label class="pqc-ctrl-label">Migration Mode</label>
+            <div class="pqc-segmented">
+              <button class="pqc-seg-btn active" data-mode="pure">Pure PQC</button>
+              <button class="pqc-seg-btn" data-mode="hybrid">Hybrid (Classical + PQC)</button>
+            </div>
+          </div>
+
+          <button id="btn-run-sim" class="btn-primary-sim">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Run Simulation
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Strip -->
+      <div class="pqc-kpi-grid">
+        <div class="pqc-kpi-card">
+          <span class="pqc-kpi-lbl">Public Key Size</span>
+          <div class="pqc-kpi-val" id="kpi-pk-val">
+            -
+            <span class="pqc-kpi-badge badge-safe" id="kpi-pk-badge">-</span>
+          </div>
+        </div>
+
+        <div class="pqc-kpi-card">
+          <span class="pqc-kpi-lbl">Signature / Ciphertext Size</span>
+          <div class="pqc-kpi-val" id="kpi-sig-val">
+            -
+            <span class="pqc-kpi-badge badge-crit" id="kpi-sig-badge">-</span>
+          </div>
+        </div>
+
+        <div class="pqc-kpi-card">
+          <span class="pqc-kpi-lbl">Components At Risk</span>
+          <div class="pqc-kpi-val" id="kpi-risk-count">
+            -
+            <span class="pqc-kpi-badge badge-amber" id="kpi-risk-badge">-</span>
+          </div>
+        </div>
+
+        <div class="pqc-kpi-card">
+          <span class="pqc-kpi-lbl">Overall Compatibility Verdict</span>
+          <div class="pqc-kpi-val" id="kpi-verdict-val">
+            Safe
+            <span class="pqc-kpi-badge badge-safe" id="kpi-verdict-badge">Compliant</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visual Comparison Card (Bar Chart) -->
+      <div class="pqc-sim-card">
+        <div class="pqc-chart-hd">
+          <h2 class="pqc-chart-title">Before vs After Byte Comparison</h2>
+          <label class="pqc-scale-toggle">
+            <input type="checkbox" id="pqc-scale-toggle">
+            <span>Logarithmic Scale (Log10)</span>
+          </label>
+        </div>
+
+        <div id="pqc-bars-container">
+          <!-- Dynamically rendered bar groups -->
+        </div>
+      </div>
+
+      <!-- Impact Matrix Table Card -->
+      <div class="pqc-sim-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h2 class="pqc-chart-title">Compatibility Impact Matrix</h2>
+        </div>
+
+        <!-- Legend -->
+        <div class="pqc-legend-row">
+          <div class="pqc-legend-item">
+            <span class="badge badge-crit">Confirmed issue</span>
+            <span>Concrete repo evidence or user-entered limit breached</span>
+          </div>
+          <div class="pqc-legend-item">
+            <span class="badge badge-amber">Estimated risk</span>
+            <span>Computed against default limits only (may break unconfigured endpoints)</span>
+          </div>
+          <div class="pqc-legend-item">
+            <span class="badge badge-safe">No issue</span>
+            <span>Fits within limit (shows remaining headroom)</span>
+          </div>
+        </div>
+
+        <div style="overflow-x:auto;">
+          <table class="pqc-matrix-table">
+            <thead>
+              <tr>
+                <th>Scenario / Component</th>
+                <th>Before Size</th>
+                <th>After Size</th>
+                <th>Limit Used</th>
+                <th>Headroom Bar</th>
+                <th>Label & Evidence</th>
+                <th>Suggested Mitigation</th>
+              </tr>
+            </thead>
+            <tbody id="pqc-matrix-tbody">
+              <!-- Dynamically populated table rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Collapsible Protocol Limits Panel -->
+      <div class="pqc-sim-card">
+        <div class="pqc-limits-header" id="pqc-limits-header">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;color:var(--purple);">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+            </svg>
+            <h3 style="font-size:15px; font-weight:700; color:var(--text-h);">Custom Protocol Limits (User-Editable)</h3>
+          </div>
+          <svg id="pqc-limits-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px; transition:transform 0.3s ease;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </div>
+
+        <div class="pqc-limits-grid" id="pqc-limits-body" style="display:none;">
+          <div class="pqc-ctrl-group">
+            <label class="pqc-ctrl-label" for="limit-cookie">Browser Cookie Limit (B)</label>
+            <input type="number" id="limit-cookie" class="pqc-ctrl-input" value="4096">
+          </div>
+
+          <div class="pqc-ctrl-group">
+            <label class="pqc-ctrl-label" for="limit-header">HTTP Header Line Limit (B)</label>
+            <input type="number" id="limit-header" class="pqc-ctrl-input" value="8192">
+          </div>
+
+          <div class="pqc-ctrl-group">
+            <label class="pqc-ctrl-label" for="limit-tls">TCP Initcwnd Limit (B)</label>
+            <input type="number" id="limit-tls" class="pqc-ctrl-input" value="14600">
+          </div>
+
+          <div class="pqc-ctrl-group">
+            <label class="pqc-ctrl-label" for="limit-qr-ecc">QR Code ECC Level</label>
+            <select id="limit-qr-ecc" class="pqc-ctrl-select">
+              <option value="L">Level L (2,953 B capacity)</option>
+              <option value="M">Level M (2,331 B capacity)</option>
+              <option value="Q">Level Q (1,663 B capacity)</option>
+              <option value="H">Level H (1,273 B capacity)</option>
+            </select>
+          </div>
+
+          <div class="pqc-ctrl-group">
+            <label class="pqc-ctrl-label" for="limit-iot">IoT Framing Profile</label>
+            <select id="limit-iot" class="pqc-ctrl-select">
+              <option value="BLE_ATT">BLE ATT Payload (20 B default MTU)</option>
+              <option value="LoRaWAN_SF12">LoRaWAN SF12 (51 B)</option>
+              <option value="LoRaWAN_SF7">LoRaWAN SF7 (222 B)</option>
+              <option value="IEEE_802_15_4">IEEE 802.15.4 (127 B)</option>
+              <option value="CoAP_UDP">CoAP / UDP (1,152 B)</option>
+              <option value="DTLS_UDP">DTLS MTU (1,280 B)</option>
+            </select>
+          </div>
+
+          <div class="pqc-ctrl-group">
+            <label class="pqc-ctrl-label" for="limit-jwt-claims">JWT Claims Payload (B)</label>
+            <input type="number" id="limit-jwt-claims" class="pqc-ctrl-input" value="200">
+          </div>
+
+          <div style="grid-column: 1 / -1; display:flex; justify-content:flex-end;">
+            <button id="btn-reset-limits" class="btn-sec-sim">Reset to Defaults</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Affected Codebase Files Card -->
+      <div class="pqc-sim-card">
+        <h3 style="font-size:15px; font-weight:700; color:var(--text-h); margin-bottom:12px;" id="pqc-findings-title">Scanned Codebase Findings for Selected Algorithm</h3>
+        <div id="pqc-affected-files-list">
+          <!-- List of files matching algorithm -->
+        </div>
+      </div>
+
+      <!-- Footer Actions & Note -->
+      <div class="pqc-footer-row">
+        <div style="display:flex; gap:12px;">
+          <button id="btn-export-json" class="btn-sec-sim">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Export Simulation (JSON)
+          </button>
+          <button id="btn-copy-summary" class="btn-sec-sim">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>
+            Copy Summary
+          </button>
+        </div>
+        <p class="pqc-note">Note: Results are size-based estimates, not a live interoperability test.</p>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- JavaScript Modules -->
+  <script src="assets/js/shell.js"></script>
+  <script src="assets/js/engine.js"></script>
+  <script src="assets/js/pqcSizes.js"></script>
+  <script src="assets/js/pqcSimulator.js"></script>
+
+  <script>
+    // Initialize App Shell (Sidebar & Topbar)
+    new AppShell();
+  </script>
+
+</body>
+</html>

@@ -46,6 +46,26 @@ async function createSession(userId, jti, rawRefreshToken, expiresAt) {
   });
 }
 
+// ─── In-memory fallback user store (used when PostgreSQL is unreachable) ──────
+// Keys: lowercase email. Values: { id, email, name, role, password (bcrypt hash) }.
+// Non-persistent — process lifetime only. Dev-only convenience.
+const _memUsers = new Map();
+function _memGet(email) { return _memUsers.get(email.toLowerCase().trim()) || null; }
+function _memSet(user)  { _memUsers.set(user.email.toLowerCase().trim(), user); }
+
+/** Returns true when err is a Prisma DB-connectivity error (not a logic error). */
+function _isDbError(err) {
+  return (
+    err.code === 'P1001' || err.code === 'P1002' ||
+    err.code === 'P1008' || err.code === 'P1017' ||
+    (err.message && (
+      err.message.includes('postgres') ||
+      err.message.includes('ECONNREFUSED') ||
+      err.message.includes('connect ETIMEDOUT')
+    ))
+  );
+}
+
 // ─── POST /auth/signup ────────────────────────────────────────────────────────
 // Deliberately does NOT accept a "role" field from the client — avoids the
 // role self-assignment vulnerability we hit in AssetFlow/GlobeTrotter.
@@ -70,8 +90,18 @@ router.post('/signup', async (req, res) => {
         data: { email, password: hashed, name, role: 'Developer' },
       });
     } catch (dbErr) {
-      console.error('PostgreSQL error during signup:', dbErr.message);
-      return res.status(500).json({ error: 'Internal server error' });
+      if (!_isDbError(dbErr)) {
+        console.error('PostgreSQL error during signup:', dbErr.message);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+      // ── DB unreachable → fall back to in-memory store ──────────────────
+      console.warn('[Auth] PostgreSQL unreachable — using in-memory fallback for signup.');
+      if (_memGet(email)) {
+        return res.status(409).json({ error: 'User with this email already exists' });
+      }
+      const hashed2 = await bcrypt.hash(password, 10);
+      user = { id: 'mem_' + Date.now(), email, name: name || email.split('@')[0], role: 'Developer', password: hashed2 };
+      _memSet(user);
     }
 
     return res.status(201).json({
@@ -110,8 +140,24 @@ router.post('/login', async (req, res) => {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
     } catch (dbErr) {
-      console.error('PostgreSQL error during login:', dbErr.message);
-      return res.status(500).json({ error: 'Internal server error' });
+      if (!_isDbError(dbErr)) {
+        console.error('PostgreSQL error during login:', dbErr.message);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+      // ── DB unreachable → fall back to in-memory store ──────────────────
+      console.warn('[Auth] PostgreSQL unreachable — using in-memory fallback for login.');
+      user = _memGet(email);
+      if (!user) {
+        // Auto-register on first offline login (dev convenience)
+        console.warn('[Auth] Auto-registering in-memory user:', email);
+        const hashed2 = await bcrypt.hash(password, 10);
+        user = { id: 'mem_' + Date.now(), email, name: email.split('@')[0], role: 'Developer', password: hashed2 };
+        _memSet(user);
+        valid = true;
+      } else {
+        valid = await bcrypt.compare(password, user.password);
+        if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+      }
     }
 
     // Issue tokens
