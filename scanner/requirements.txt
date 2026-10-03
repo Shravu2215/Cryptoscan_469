@@ -4,3 +4,4 @@ cryptography>=41.0.0
 requests>=2.31.0
 tree-sitter>=0.20.0
 tree-sitter-languages>=1.8.0
+pyyaml>=6.0

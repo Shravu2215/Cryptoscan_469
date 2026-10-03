@@ -1,0 +1,9 @@
+waivers:
+  - id: waiver-rsa-jwt-q4
+    match:
+      algorithm: "RSA"
+      path: "src/auth/*.py"
+    owner: "@crypto-alice"
+    reason: "Temporary waiver pending transition to ML-DSA scheduled for next milestone."
+    expires: "2026-11-30"
+    ticket: "https://github.com/org/repo/issues/456"

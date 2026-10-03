@@ -1,0 +1,19 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CryptoScan: Approved Cryptographic Waivers (.cryptoscan/waivers.yaml)
+# ─────────────────────────────────────────────────────────────────────────────
+# This file tracks temporary security waivers for cryptographic assets.
+# IMPORTANT: Protect this file with CODEOWNERS to ensure security team review.
+#
+# Schema:
+# - id: unique-string-id (required)
+#   match:
+#     fingerprint: "<sha256-asset-fingerprint>"  # Exact match
+#     # OR match by algorithm AND path glob (blanket wildcard without path is prohibited):
+#     # algorithm: "RSA-2048"
+#     # path: "src/legacy/**/*.py"
+#   owner: "@github-handle or security-team@company.com" (required)
+#   reason: "Detailed business justification (min 15 characters)" (required)
+#   expires: "YYYY-MM-DD" (required, UTC, max 90 days from today)
+#   ticket: "https://jira.company.com/browse/SEC-1234" (optional)
+
+waivers: []

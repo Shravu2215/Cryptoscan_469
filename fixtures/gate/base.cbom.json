@@ -1,0 +1,37 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:11111111-2222-3333-4444-555555555555",
+  "version": 1,
+  "metadata": {
+    "component": {
+      "type": "application",
+      "name": "sample-repo"
+    }
+  },
+  "components": [
+    {
+      "type": "cryptographic-asset",
+      "name": "AES",
+      "version": "",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "AES",
+          "keyLength": 256
+        }
+      },
+      "occurrences": [
+        {
+          "file": "src/storage/db.py",
+          "line": 15,
+          "usage": "encryption",
+          "severity": "LOW",
+          "quantumStatus": "Quantum Safe",
+          "recommendation": "Maintain AES-256",
+          "language": "Python"
+        }
+      ]
+    }
+  ]
+}
