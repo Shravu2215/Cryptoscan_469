@@ -54,6 +54,10 @@ const getVersionInfo = (req, res) => res.json({
 app.get('/version', getVersionInfo);
 app.get('/api/version', getVersionInfo);
 
+const networkRoutes = require('./routes/network');
+const triangulationRoutes = require('./routes/triangulation');
+const timemachineRoutes = require('./routes/timemachine');
+
 app.use('/auth', authLimiter, authRoutes);
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/repos', heavyLimiter, repoRoutes);
@@ -61,6 +65,9 @@ app.use('/scan', heavyLimiter, scanRoutes);
 app.use('/scan/:scanId/quantum-risk', quantumRiskRoutes);
 app.use('/runtime', heavyLimiter, runtimeRoutes);
 app.use('/api/runtime', heavyLimiter, runtimeRoutes);
+app.use('/api/network', heavyLimiter, networkRoutes);
+app.use('/api/triangulation', heavyLimiter, triangulationRoutes);
+app.use('/api/timemachine', heavyLimiter, timemachineRoutes);
 
 // 404 handler
 app.use((req, res) => {

@@ -31,6 +31,13 @@ backend-core/uploads/*
 !backend-core/uploads/.gitkeep
 scanner/out.json
 scratch/
+runtime_events.jsonl
+demo_events.jsonl
+verify_runtime_events.jsonl
+verify_node_events.jsonl
+eval_report.json
+check*.json
+triangulation_result*.json
 
 # Build outputs & caches
 dist/
