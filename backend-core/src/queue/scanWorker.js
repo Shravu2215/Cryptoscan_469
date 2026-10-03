@@ -225,6 +225,9 @@ async function processScanJob(job) {
     description: f.message || f.raw_call || '',
     recommendation: f.recommendation || null,
     confidence: `${f.confidence || 'Likely'}|${f.detection_method || 'ast'}`,
+    detection: f.detection || (f.detection_method ? f.detection_method.toUpperCase() : 'AST'),
+    detection_method: f.detection_method || 'ast',
+    language: f.language_name || f.language || 'Unknown',
     suppressed: Boolean(f.suppressed),
     suppressionReason: f.suppression_reason || null,
   }));

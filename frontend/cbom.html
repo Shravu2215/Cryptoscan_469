@@ -1146,6 +1146,7 @@ function generateCycloneDX() {
         name: c.algorithm,
         group: c.library,
         properties: [
+          { name: "cryptoscan:language", value: c.language || c.language_name || "Unknown" },
           { name: "crypto:type", value: c.type || "algorithm" },
           { name: "crypto:suggested_lifetime", value: String(c.suggested_lifetime || 5) },
           { name: "crypto:user_confirmed_lifetime", value: c.user_confirmed_lifetime ? String(c.user_confirmed_lifetime) : "null" },

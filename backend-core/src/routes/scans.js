@@ -378,7 +378,8 @@ router.get('/:scanId/cbom', requireAuth, async (req, res) => {
       quantumStatus: f.quantumStatus,
       usage: f.usage,
       recommendation: f.recommendation,
-      status: f.status
+      status: f.status,
+      language: f.language || 'Unknown',
     }));
 
     let repoScans = [];
