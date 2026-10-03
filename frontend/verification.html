@@ -1228,6 +1228,46 @@
           </div>
         </div>
 
+        <!-- FILE INTEGRITY ANALYSIS PANEL (NEW) -->
+        <div id="file-integrity-panel" style="display:none; margin-top:24px; padding-top:24px; border-top:1px solid var(--border-color);">
+          <h3 style="font-size:15px; font-weight:700; margin-bottom:12px; color:var(--text-h); display:flex; align-items:center; gap:8px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            File Integrity Analysis (Forensics)
+          </h3>
+          <p style="font-size:12px; color:var(--text-m); margin-bottom:16px;">
+            Compares current files on disk against the original file manifest hashed during the scan. 
+            Helps identify exact tampering points if the Merkle Root validation fails.
+          </p>
+          
+          <div style="display:flex; gap:12px; margin-bottom:16px;">
+            <div style="flex:1; padding:12px; border-radius:6px; background:var(--bg-body); border:1px solid var(--border-color); text-align:center;">
+              <div style="font-size:20px; font-weight:800; color:var(--text-h);" id="fi-total">0</div>
+              <div style="font-size:11px; font-weight:600; color:var(--text-m); text-transform:uppercase; margin-top:4px;">Total Scanned</div>
+            </div>
+            <div style="flex:1; padding:12px; border-radius:6px; background:rgba(16,185,129,0.05); border:1px solid rgba(16,185,129,0.2); text-align:center;">
+              <div style="font-size:20px; font-weight:800; color:#10b981;" id="fi-unchanged">0</div>
+              <div style="font-size:11px; font-weight:600; color:#10b981; text-transform:uppercase; margin-top:4px;">Unchanged</div>
+            </div>
+            <div style="flex:1; padding:12px; border-radius:6px; background:rgba(239,68,68,0.05); border:1px solid rgba(239,68,68,0.2); text-align:center;">
+              <div style="font-size:20px; font-weight:800; color:#ef4444;" id="fi-modified">0</div>
+              <div style="font-size:11px; font-weight:600; color:#ef4444; text-transform:uppercase; margin-top:4px;">Modified</div>
+            </div>
+            <div style="flex:1; padding:12px; border-radius:6px; background:rgba(245,158,11,0.05); border:1px solid rgba(245,158,11,0.2); text-align:center;">
+              <div style="font-size:20px; font-weight:800; color:#f59e0b;" id="fi-added">0</div>
+              <div style="font-size:11px; font-weight:600; color:#f59e0b; text-transform:uppercase; margin-top:4px;">Added</div>
+            </div>
+            <div style="flex:1; padding:12px; border-radius:6px; background:var(--bg-body); border:1px solid var(--border-color); text-align:center;">
+              <div style="font-size:20px; font-weight:800; color:var(--text-m);" id="fi-deleted">0</div>
+              <div style="font-size:11px; font-weight:600; color:var(--text-m); text-transform:uppercase; margin-top:4px;">Deleted</div>
+            </div>
+          </div>
+
+          <div id="fi-changes-list" style="max-height:400px; overflow-y:auto; border:1px solid var(--border-color); border-radius:6px; background:var(--bg-body);">
+            <!-- Changes populated here -->
+          </div>
+        </div>
+        <!-- END FILE INTEGRITY PANEL -->
+
         <!-- Blockchain Verification History -->
         <div class="gcard" id="bh-panel" style="display:none;">
           <div class="gc-hd">
@@ -1847,8 +1887,8 @@
       document.getElementById('comp-chain').textContent = chainRootFormatted;
       document.getElementById('comp-chain').style.color = 'var(--text-m)';
 
-      document.getElementById('anch-status').className = 'status-badge sb-valid';
-      document.getElementById('anch-status').textContent = '✅ Verified & Anchored';
+      document.getElementById('anch-status').className = isVerified ? 'status-badge sb-valid' : 'status-badge sb-amber';
+      document.getElementById('anch-status').textContent = isVerified ? '✅ Verified & Anchored' : '⚠️ Unverified (Tampered)';
       document.getElementById('anch-network').textContent = onChainNetwork;
       document.getElementById('anch-tx').textContent = onChainTx.substring(0, 18) + '…';
       document.getElementById('anch-block').textContent = onChainBlock.toString();
@@ -1856,11 +1896,26 @@
         ? new Date(verifyResult.anchoredAt).toLocaleString()
         : new Date().toLocaleString();
 
-      document.getElementById('hash-box').className = 'hash-box match';
-      document.getElementById('comp-result').innerHTML = '✅ MATCH — VERIFIED ON-CHAIN';
-      document.getElementById('comp-result').className = 'comp-res match';
-      setHero('verified', '✅ VERIFIED & ANCHORED ON-CHAIN',
-        'CBOM Merkle Tree Root confirmed against public blockchain ledger. Cryptographic integrity 100% intact.');
+      if (isVerified) {
+        document.getElementById('hash-box').className = 'hash-box match';
+        document.getElementById('comp-result').innerHTML = '✅ MATCH — VERIFIED ON-CHAIN';
+        document.getElementById('comp-result').className = 'comp-res match';
+        setHero('verified', '✅ VERIFIED & ANCHORED ON-CHAIN',
+          'CBOM Merkle Tree Root confirmed against public blockchain ledger. Cryptographic integrity 100% intact.');
+      } else {
+        document.getElementById('hash-box').className = 'hash-box mismatch';
+        document.getElementById('comp-result').innerHTML = '⚠️ MISMATCH — TAMPERING DETECTED';
+        document.getElementById('comp-result').className = 'comp-res mismatch';
+        setHero('failed', '⚠️ INTEGRITY VERIFICATION FAILED',
+          'The recomputed CBOM Merkle Root does NOT match the public blockchain ledger. The codebase has been tampered with or modified since the last anchored scan.');
+      }
+
+      // Render File Integrity Analysis if available
+      if (verifyResult && verifyResult.fileIntegrity && verifyResult.fileIntegrity.fileLevelAvailable) {
+        renderFileIntegrityAnalysis(verifyResult.fileIntegrity);
+      } else {
+        document.getElementById('file-integrity-panel').style.display = 'none';
+      }
 
       record = {
         id: 'vh_' + Date.now(),
@@ -2279,6 +2334,65 @@
     window.addEventListener('cryptoscan_data_updated', () => {
       init();
     });
+
+    function renderFileIntegrityAnalysis(integrity) {
+      const panel = document.getElementById('file-integrity-panel');
+      if (!panel) return;
+      
+      const sum = integrity.summary;
+      document.getElementById('fi-total').textContent = sum.totalOriginalFiles;
+      document.getElementById('fi-unchanged').textContent = sum.unchanged;
+      document.getElementById('fi-modified').textContent = sum.modified;
+      document.getElementById('fi-added').textContent = sum.added;
+      document.getElementById('fi-deleted').textContent = sum.deleted;
+
+      const listEl = document.getElementById('fi-changes-list');
+      
+      if (sum.modified === 0 && sum.added === 0 && sum.deleted === 0) {
+        listEl.innerHTML = `
+          <div style="padding:24px; text-align:center; color:var(--text-m);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" style="width:32px;height:32px;margin-bottom:12px;opacity:0.8;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <div style="font-weight:600; color:var(--text-h); font-size:14px;">100% File Integrity Verified</div>
+            <div style="font-size:12px; margin-top:4px;">No files have been modified, added, or deleted since the original scan.</div>
+          </div>
+        `;
+        panel.style.display = 'block';
+        return;
+      }
+
+      let html = '';
+      
+      const renderChange = (file, color, icon, label) => {
+        return `
+          <div style="padding:12px 16px; border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:12px;">
+            <div style="background:${color}22; color:${color}; padding:6px; border-radius:4px;">${icon}</div>
+            <div style="flex:1; overflow:hidden;">
+              <div style="font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; color:var(--text-h); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">
+                ${file.path}
+              </div>
+              <div style="font-size:11px; color:var(--text-m); margin-top:4px; display:flex; gap:16px;">
+                <span><strong style="color:${color}; text-transform:uppercase;">${label}</strong></span>
+                ${file.originalHash ? `<span style="font-family:'JetBrains Mono',monospace;" title="Original Hash">Orig: ${file.originalHash.substring(0, 16)}…</span>` : ''}
+                ${file.currentHash && file.currentHash !== file.originalHash ? `<span style="font-family:'JetBrains Mono',monospace;" title="Current Hash">Cur: ${file.currentHash.substring(0, 16)}…</span>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      };
+
+      integrity.changes.modified.forEach(f => {
+        html += renderChange(f, '#ef4444', '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>', 'MODIFIED');
+      });
+      integrity.changes.added.forEach(f => {
+        html += renderChange(f, '#f59e0b', '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M12 4v16m8-8H4"/></svg>', 'ADDED');
+      });
+      integrity.changes.deleted.forEach(f => {
+        html += renderChange(f, '#64748b', '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M6 18L18 6M6 6l12 12"/></svg>', 'DELETED');
+      });
+
+      listEl.innerHTML = html;
+      panel.style.display = 'block';
+    }
 
     async function generateFullReport() {
       if (!activeScan) {

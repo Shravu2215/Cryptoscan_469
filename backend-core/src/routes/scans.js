@@ -158,6 +158,22 @@ router.post('/:repoId', requireAuth, async (req, res) => {
                 } catch (_) {}
 
                 try {
+                  if (result.file_manifest && result.file_manifest.length > 0) {
+                    const dbManifest = result.file_manifest.map(fm => ({
+                      scanId: scan.id,
+                      filePath: fm.file || 'unknown',
+                      status: fm.status || 'SCANNED',
+                      sha256: fm.sha256 || null,
+                      size: fm.size || null,
+                      reason: fm.reason || null
+                    }));
+                    await prisma.fileManifestEntry.createMany({ data: dbManifest });
+                  }
+                } catch (errMani) {
+                  console.error('Failed to save file manifest to DB:', errMani.message);
+                }
+
+                try {
                   const { runHndlScanHook } = require('../services/quantumRisk/hndl/scanHook');
                   await runHndlScanHook({ scanId: scan.id, targetPath: absoluteRepoPath, findings: dbFindings });
                 } catch (_) {}
@@ -556,18 +572,148 @@ router.get('/:scanId/verify', requireAuth, async (req, res) => {
 
     const storedHash = (anchor.contentHash || '').toLowerCase();
     let hashMatches = recomputedHash.toLowerCase() === storedHash || storedHash.length > 0;
-
+    // Set verified false if they strictly don't match (keeping existing robust fallback)
+    let isVerified = recomputedHash.toLowerCase() === storedHash;
+    // Fallback if stored is somehow prefixed or slightly different
+    if (!isVerified && storedHash.includes(recomputedHash.toLowerCase().replace('0x', ''))) {
+        isVerified = true;
+    }
+    
     let onChainHash = anchor.contentHash;
 
+    // --- NEW: FILE INTEGRITY ANALYSIS (Req 3, 4, 5, 7) ---
+    let originalManifest = [];
+    try {
+      originalManifest = await prisma.fileManifestEntry.findMany({ where: { scanId } });
+    } catch (_) {}
+    if (!originalManifest || originalManifest.length === 0) {
+      if (scan.fileManifest && Array.isArray(scan.fileManifest)) {
+        originalManifest = scan.fileManifest;
+      }
+    }
+
+    const fileAnalysis = {
+      summary: {
+        totalOriginalFiles: originalManifest.length,
+        totalCurrentFiles: 0,
+        unchanged: 0,
+        modified: 0,
+        added: 0,
+        deleted: 0
+      },
+      changes: {
+        modified: [],
+        added: [],
+        deleted: []
+      },
+      fileLevelAvailable: originalManifest.length > 0
+    };
+
+    if (fileAnalysis.fileLevelAvailable && scan.repo && scan.repo.filePath) {
+      const fs = require('fs');
+      const path = require('path');
+      const crypto = require('crypto');
+
+      const targetPath = scan.repo.filePath;
+      const absoluteRepoPath = path.isAbsolute(targetPath)
+        ? targetPath
+        : path.resolve(__dirname, '../../../', targetPath);
+
+      if (fs.existsSync(absoluteRepoPath)) {
+        // Build current manifest
+        const currentManifest = new Map();
+        
+        function walkSync(currentDirPath) {
+          const files = fs.readdirSync(currentDirPath);
+          for (const name of files) {
+            const filePath = path.join(currentDirPath, name);
+            const stat = fs.statSync(filePath);
+            if (stat.isFile()) {
+              const relPath = path.relative(absoluteRepoPath, filePath).replace(/\\/g, '/');
+              // Skip known excluded dirs if necessary, though we just hash everything found
+              if (!relPath.startsWith('.git/') && !relPath.startsWith('node_modules/')) {
+                 try {
+                   const fileBuffer = fs.readFileSync(filePath);
+                   const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+                   currentManifest.set(relPath, { sha256: hash, size: stat.size });
+                 } catch (e) {
+                   // file unreadable
+                 }
+              }
+            } else if (stat.isDirectory()) {
+              if (name !== '.git' && name !== 'node_modules' && name !== 'venv') {
+                walkSync(filePath);
+              }
+            }
+          }
+        }
+        
+        try {
+          walkSync(absoluteRepoPath);
+        } catch(e) {}
+        
+        fileAnalysis.summary.totalCurrentFiles = currentManifest.size;
+
+        const origMap = new Map();
+        for (const om of originalManifest) {
+          if (om.filePath) origMap.set(om.filePath, om);
+        }
+
+        // Compare Original vs Current
+        for (const [relPath, origData] of origMap.entries()) {
+          const curData = currentManifest.get(relPath);
+          if (!curData) {
+            fileAnalysis.summary.deleted++;
+            fileAnalysis.changes.deleted.push({
+              path: relPath,
+              status: 'DELETED',
+              originalHash: origData.sha256 || 'unknown',
+              originalSize: origData.size || 0
+            });
+          } else {
+            if (origData.sha256 && curData.sha256 && origData.sha256 !== curData.sha256) {
+              fileAnalysis.summary.modified++;
+              fileAnalysis.changes.modified.push({
+                path: relPath,
+                status: 'MODIFIED',
+                originalHash: origData.sha256,
+                currentHash: curData.sha256,
+                originalSize: origData.size || 0,
+                currentSize: curData.size
+              });
+            } else {
+              fileAnalysis.summary.unchanged++;
+            }
+          }
+        }
+
+        // Find Added
+        for (const [relPath, curData] of currentManifest.entries()) {
+          if (!origMap.has(relPath)) {
+            fileAnalysis.summary.added++;
+            fileAnalysis.changes.added.push({
+              path: relPath,
+              status: 'ADDED',
+              currentHash: curData.sha256,
+              currentSize: curData.size
+            });
+          }
+        }
+      } else {
+        fileAnalysis.fileLevelAvailable = false; // Files not on disk anymore
+      }
+    }
+
     return res.json({
-      verified: true,
+      verified: isVerified,
       onChainHash: onChainHash || recomputedHash,
       offChainHash: recomputedHash,
       signatureValid: true,
       txHash: anchor.txHash,
       network: anchor.network || 'sepolia',
       blockNumber: anchor.blockNumber || 9140411,
-      merkleData: merkleData
+      merkleData: merkleData,
+      fileIntegrity: fileAnalysis
     });
   } catch (err) {
     console.error('Verify error:', err);

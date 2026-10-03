@@ -29,6 +29,7 @@ import zipfile
 import os
 import shutil
 import re
+import hashlib
 from typing import Dict, Any, List, Tuple, Optional
 
 # ── Path setup ────────────────────────────────────────────────────────────────
@@ -543,7 +544,17 @@ def scan_repo(repo_path: str, scan_id: Optional[str] = None) -> Dict[str, Any]:
                 try:
                     with FileTimeout(Limits.PER_FILE_TIMEOUT_SEC):
                         findings.extend(bin_analyzer.analyze(filepath))
-                    file_manifest.append({"file": rel_path, "status": "SCANNED"})
+                    _bin_size = os.path.getsize(filepath)
+                    _bin_sha256 = ""
+                    try:
+                        with open(filepath, "rb") as _bfh:
+                            _bin_sha256 = hashlib.sha256(_bfh.read()).hexdigest()
+                    except Exception:
+                        pass
+                    _bin_entry = {"file": rel_path, "status": "SCANNED", "size": _bin_size}
+                    if _bin_sha256:
+                        _bin_entry["sha256"] = _bin_sha256
+                    file_manifest.append(_bin_entry)
                     files_scanned += 1
                 except _TimeoutError:
                     file_manifest.append({
@@ -589,6 +600,10 @@ def scan_repo(repo_path: str, scan_id: Optional[str] = None) -> Dict[str, Any]:
 
             assert raw_bytes is not None
             total_bytes += len(raw_bytes)
+
+            # Compute SHA-256 for file integrity manifest (used by verification)
+            _file_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+            _file_size = len(raw_bytes)
 
             try:
                 source = raw_bytes.decode("utf-8", errors="ignore")
@@ -660,7 +675,7 @@ def scan_repo(repo_path: str, scan_id: Optional[str] = None) -> Dict[str, Any]:
                         if hasattr(f, "code_snippet") and f.code_snippet:
                             f.code_snippet = cap_snippet(f.code_snippet)
 
-                file_manifest.append({"file": rel_path, "status": "SCANNED"})
+                file_manifest.append({"file": rel_path, "status": "SCANNED", "sha256": _file_sha256, "size": _file_size})
                 files_scanned += 1
 
             except _TimeoutError:
