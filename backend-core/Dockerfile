@@ -51,7 +51,9 @@ RUN /app/scanner/.venv/bin/pip install --no-cache-dir -r src/services/quantumRis
 ENV PYTHON_BIN=/app/scanner/.venv/bin/python
 
 
-RUN npx prisma generate
+# Prisma 5.x WASM schema validator needs DATABASE_URL at build time to
+# confirm the postgresql connector (it never connects — just reads the schema).
+RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" npx prisma generate
 
 ENV NODE_ENV=production
 EXPOSE 3000
