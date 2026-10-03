@@ -232,9 +232,16 @@
     
     sorted.forEach((row, idx) => {
       const gridRow = idx + 2;
-      const label = make('div', 'ms-gantt-label', row.taskId);
+      
+      // Look up task details for human-readable label
+      const taskDef = state.tasks.find(t => t.taskId === row.taskId) || {};
+      const alg = taskDef.algorithm || 'Unknown';
+      const file = taskDef.filePath ? taskDef.filePath.split('/').pop() : row.taskId.substring(0, 8);
+      const displayText = `${alg} (${file})`;
+
+      const label = make('div', 'ms-gantt-label', displayText);
       label.style.gridRow = gridRow;
-      label.title = row.taskId;
+      label.title = taskDef.filePath ? `${alg} in ${taskDef.filePath}` : row.taskId;
       
       const bar = make('div', 'ms-gantt-bar', `${row.endMonth - row.startMonth}m`);
       if (changedSet.has(row.taskId)) bar.classList.add('changed');

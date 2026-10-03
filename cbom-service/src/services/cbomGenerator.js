@@ -113,6 +113,9 @@ function buildCbom(scan) {
       quantumStatus: quantumStatus,
       recommendation: recommendation,
       language: language,
+      properties: [
+        { name: 'cryptoscan:language', value: language }
+      ],
     });
     const weight = SEVERITY_WEIGHT[severity.toUpperCase()] ?? 0;
     if (weight > component.maxVulnerabilityScore) {

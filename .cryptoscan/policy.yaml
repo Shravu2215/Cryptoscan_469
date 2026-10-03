@@ -1,0 +1,40 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CryptoScan: Crypto Ratchet Gate Policy (.cryptoscan/policy.yaml)
+# ─────────────────────────────────────────────────────────────────────────────
+# A CI/CD policy gate that blocks pull requests that introduce new
+# quantum-vulnerable cryptography or prohibited classical algorithms.
+
+# 1. Quantum Ratchet: New quantum-vulnerable assets allowed in a PR (default: 0)
+# Any newly added quantum-vulnerable cryptographic asset will fail the build
+# unless accompanied by an active, approved waiver in .cryptoscan/waivers.yaml.
+max_new_quantum_vulnerable: 0
+
+# 2. Total Quantum-Vulnerable Cap
+# "baseline" ensures the total count in the target branch never exceeds
+# the base branch count.
+max_total_quantum_vulnerable: "baseline"
+
+# 3. Prohibited Algorithms
+# Legacy/broken algorithms that must never be added to new code under any circumstance.
+prohibited_algorithms:
+  - "MD5"
+  - "SHA-1"
+  - "DES"
+  - "3DES"
+  - "RC4"
+  - "RSA<2048"
+  - "DH<2048"
+
+# 4. Enforce failure on prohibited algorithms in new code
+fail_on_prohibited_in_new_code: true
+
+# 5. Waiver Limits
+# Maximum permitted duration for any single waiver (days from today).
+waiver_max_days: 90
+
+# Warn when a waiver is nearing its expiration date (days from today).
+waiver_warn_days: 14
+
+# 6. Celebrate Reductions
+# Removing quantum-vulnerable assets is always celebrated in PR summaries.
+allow_decrease: true

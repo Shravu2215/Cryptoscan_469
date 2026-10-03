@@ -837,6 +837,9 @@ const CryptoEngine = {
         confidence: (f.confidence || 'Likely|ast').split('|')[0],
         detection_method: f.detection_method || (f.confidence || 'Likely|ast').split('|')[1] || 'ast',
         detection: f.detection || (f.detection_method ? f.detection_method.toUpperCase() : ((f.confidence || '').split('|')[1] ? (f.confidence || '').split('|')[1].toUpperCase() : 'AST')),
+        // ── Language fields — both names forwarded so findings.html f.language || f.language_name works ──
+        language: f.language || 'Unknown',
+        language_name: f.language || f.language_name || 'Unknown',
         suppressed: Boolean(f.suppressed),
         suppressionReason: f.suppressionReason || null,
         status: f.status || 'ACTIVE',

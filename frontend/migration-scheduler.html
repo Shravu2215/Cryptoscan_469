@@ -9,7 +9,7 @@
   <style>
     .ms-page { padding: 2rem; max-width: 1200px; margin: 0 auto; }
     .ms-heading { margin-bottom: 2rem; }
-    .ms-kicker { font-size: 0.75rem; font-weight: 700; color: var(--purple); letter-spacing: 0.05em; margin-bottom: 0.5rem; text-transform: uppercase; }
+    .ms-kicker { font-size: 0.75rem; font-weight: 700; color: var(--accent-violet); letter-spacing: 0.05em; margin-bottom: 0.5rem; text-transform: uppercase; }
     .ms-lede { color: var(--text-m); margin-top: 0.5rem; }
     .ms-toolbar { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; background: var(--bg-card); padding: 1rem; border-radius: var(--r-md); border: 1px solid var(--border-color); margin-bottom: 1rem; }
     .ms-run-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
@@ -17,8 +17,8 @@
     .ms-field span { font-weight: 600; color: var(--text-h); }
     .ms-field select, .ms-field input { padding: 0.5rem; border-radius: var(--r-sm); border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-h); }
     .ms-button { padding: 0.5rem 1rem; border-radius: var(--r-sm); font-weight: 600; cursor: pointer; transition: var(--t); }
-    .ms-button-primary { background: var(--purple); color: white; border: none; }
-    .ms-button-primary:hover { background: #7c3aed; }
+    .ms-button-primary { background: var(--accent-violet); color: white; border: none; }
+    .ms-button-primary:hover { background: var(--accent-violet-dark, #6D28D9); }
     .ms-button-primary:disabled { opacity: 0.5; cursor: not-allowed; }
     .ms-button-quiet { background: transparent; color: var(--text-m); border: 1px solid transparent; }
     .ms-button-quiet:hover { background: var(--bg-card-hover); }
@@ -33,8 +33,8 @@
     .ms-strip-label { font-size: 0.75rem; color: var(--text-m); font-weight: 600; text-transform: uppercase; margin-bottom: 0.25rem; }
     .ms-strip-value { font-size: 1.5rem; font-weight: 700; color: var(--text-h); }
     .ms-strip-delta { font-size: 0.875rem; margin-top: 0.25rem; font-weight: 500; }
-    .ms-delta-pos { color: var(--green); }
-    .ms-delta-neg { color: var(--red); }
+    .ms-delta-pos { color: var(--status-success, #16A34A); }
+    .ms-delta-neg { color: var(--status-danger, #DC2626); }
     .ms-delta-neu { color: var(--text-m); }
 
     /* Gantt Chart (CSS Grid) */
@@ -44,19 +44,19 @@
     .ms-gantt-month { font-size: 0.75rem; color: var(--text-m); text-align: center; border-bottom: 1px solid var(--border-color); padding-bottom: 4px; font-weight: 600; }
     .ms-gantt-row { display: contents; }
     .ms-gantt-label { font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; color: var(--text-h); align-self: center; padding-right: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; grid-column: 1; }
-    .ms-gantt-bar { background: var(--purple-bg); border: 1px solid var(--purple); border-radius: 4px; height: 24px; display: flex; align-items: center; padding: 0 0.5rem; font-size: 0.65rem; color: var(--purple); font-weight: 600; white-space: nowrap; overflow: hidden; }
-    .ms-gantt-bar.changed { background: var(--amber-bg); border-color: var(--amber); color: var(--amber); }
+    .ms-gantt-bar { background: var(--accent-violet-bg); border: 1px solid var(--accent-violet); border-radius: 4px; height: 24px; display: flex; align-items: center; padding: 0 0.5rem; font-size: 0.65rem; color: var(--accent-violet); font-weight: 600; white-space: nowrap; overflow: hidden; }
+    .ms-gantt-bar.changed { background: rgba(245, 158, 11, 0.2); border-color: #F59E0B; color: #D97706; }
 
     /* Sensitivities */
     .ms-presets { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
     .ms-preset-btn { padding: 0.25rem 0.75rem; font-size: 0.875rem; border-radius: 99px; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-h); cursor: pointer; }
     .ms-preset-btn:hover { background: var(--bg-card-hover); }
-    .ms-preset-btn[aria-pressed="true"] { background: var(--purple); color: white; border-color: var(--purple); }
+    .ms-preset-btn[aria-pressed="true"] { background: var(--accent-violet); color: white; border-color: var(--accent-violet); }
 
     .ms-empty { color: var(--text-m); font-style: italic; }
     .ms-status { font-size: 0.875rem; color: var(--text-m); margin-bottom: 1rem; min-height: 1.25em; }
-    .ms-status[data-kind="error"] { color: var(--red); }
-    .ms-status[data-kind="success"] { color: var(--green); }
+    .ms-status[data-kind="error"] { color: var(--status-danger, #DC2626); }
+    .ms-status[data-kind="success"] { color: var(--status-success, #16A34A); }
     
     .ms-assumptions { font-size: 0.75rem; color: var(--text-m); margin-top: 2rem; border-top: 1px solid var(--border-light); padding-top: 1rem; }
   </style>

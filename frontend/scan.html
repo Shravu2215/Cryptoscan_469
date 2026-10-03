@@ -867,8 +867,8 @@
               <div class="card-hd">Repository Overview</div>
               <div class="info-grid">
                 <div class="info-item">
-                  <div class="info-lbl">Repository Name</div>
-                  <div class="info-val" id="sel-name">—</div>
+                  <div class="info-lbl">Repository Name (Editable)</div>
+                  <input type="text" class="info-val" id="sel-name" style="background: rgba(0,0,0,0.1); border: 1px dashed var(--border-color); border-radius: 4px; font-size: inherit; font-weight: inherit; font-family: inherit; color: inherit; width: 100%; padding: 4px 8px; outline: none;" onchange="window.updateRepoName(this.value)" onkeyup="window.updateRepoName(this.value)" value="—">
                 </div>
                 <div class="info-item">
                   <div class="info-lbl">Repository Size</div>
@@ -1077,6 +1077,7 @@
       let selectedFile = null;
       let selectedRepoId = null;
       let currentRepoName = '';
+      window.updateRepoName = function(val) { currentRepoName = val; };
       let scanStart = 0;
       let logInterval;
       let logCount = 0;
@@ -1134,7 +1135,7 @@
         selectedFile = file;
         selectedRepoId = null;
         currentRepoName = selectedFile.name;
-        document.getElementById('sel-name').textContent = currentRepoName;
+        document.getElementById('sel-name').value = currentRepoName;
         document.getElementById('sel-size').textContent = (selectedFile.size / 1024).toFixed(1) + ' KB';
         showState('state-selected');
       }
@@ -1189,7 +1190,7 @@
           selectedFile = null;
           selectedRepoId = data.id;
           currentRepoName = data.name;
-          document.getElementById('sel-name').textContent = currentRepoName;
+          document.getElementById('sel-name').value = currentRepoName;
           document.getElementById('sel-size').textContent = 'GitHub repository';
           showState('state-selected');
         } catch (error) {
@@ -1394,6 +1395,23 @@
                 const text = await fileObj.async('string');
                 const lines = text.split('\n');
 
+                // Simple client-side language detection from filepath
+                function clientDetectLanguage(filepath) {
+                  const bn = filepath.split('/').pop().split('\\').pop();
+                  const bnLower = bn.toLowerCase();
+                  const extMatch = bn.match(/\.([^.]+)$/);
+                  const ext = extMatch ? ('.' + extMatch[1].toLowerCase()) : '';
+                  const EXACT = { '.env': 'Dotenv', '.envrc': 'Dotenv', 'dockerfile': 'Dockerfile', 'makefile': 'Makefile', 'gemfile': 'Gemfile', 'procfile': 'Procfile', 'vagrantfile': 'Vagrantfile', 'jenkinsfile': 'Jenkinsfile', 'nginx.conf': 'Nginx config', 'openssl.cnf': 'OpenSSL config', 'go.mod': 'Go module', 'go.sum': 'Go module', 'cargo.toml': 'Cargo.toml', 'cargo.lock': 'Cargo.toml', 'composer.json': 'composer.json', 'package.json': 'Node (package.json)', 'package-lock.json': 'Node (package.json)', 'pom.xml': 'Maven POM', 'build.gradle': 'Gradle', 'requirements.txt': 'pip requirements', 'pipfile': 'Pipfile' };
+                  if (EXACT[bnLower]) return EXACT[bnLower];
+                  if (bnLower.startsWith('dockerfile.') || bnLower === 'dockerfile') return 'Dockerfile';
+                  if (bnLower.startsWith('.env.') || ext === '.env') return 'Dotenv';
+                  if (bnLower.startsWith('requirements')) return 'pip requirements';
+                  const EXT = { '.py': 'Python', '.js': 'JavaScript', '.mjs': 'JavaScript', '.cjs': 'JavaScript', '.jsx': 'JSX', '.ts': 'TypeScript', '.tsx': 'TSX', '.java': 'Java', '.kt': 'Kotlin', '.kts': 'Kotlin', '.scala': 'Scala', '.go': 'Go', '.rs': 'Rust', '.c': 'C', '.h': 'C', '.cpp': 'C++', '.cc': 'C++', '.cxx': 'C++', '.hpp': 'C++', '.cs': 'C#', '.php': 'PHP', '.rb': 'Ruby', '.pl': 'Perl', '.pm': 'Perl', '.sh': 'Bash/Shell', '.bash': 'Bash/Shell', '.ps1': 'PowerShell', '.dart': 'Dart', '.tf': 'Terraform/HCL', '.tfvars': 'Terraform/HCL', '.yaml': 'YAML', '.yml': 'YAML', '.xml': 'XML', '.json': 'JSON', '.toml': 'TOML', '.ini': 'INI', '.conf': 'Config file', '.properties': 'Properties', '.crt': 'Certificate', '.cer': 'Certificate', '.pem': 'Certificate', '.key': 'Private key', '.pfx': 'PKCS#12', '.p12': 'PKCS#12', '.sql': 'SQL', '.html': 'HTML', '.css': 'CSS' };
+                  if (ext && EXT[ext]) return EXT[ext];
+                  return 'Unknown';
+                }
+                const fileLang = clientDetectLanguage(fn);
+
                 lines.forEach((lineText, lineIdx) => {
                   rules.forEach(rule => {
                     if (rule.regex.test(lineText)) {
@@ -1414,7 +1432,9 @@
                         recommendation: rule.rec,
                         confidence: `High|${detMethod}`,
                         detection_method: detMethod,
-                        detection: detMethod.toUpperCase()
+                        detection: detMethod.toUpperCase(),
+                        language: fileLang,
+                        language_name: fileLang
                       };
                       detectedFindings.push(matchItem);
                       if (detectedFindings.length <= 15) {
@@ -1490,6 +1510,13 @@
 
       async function startRealScan() {
         if (!selectedFile && !selectedRepoId) return;
+
+        // Ensure we pick up any manual edits to the repository name before starting
+        const nameInput = document.getElementById('sel-name').value;
+        if (nameInput && nameInput !== '—') {
+          currentRepoName = nameInput.trim();
+        }
+
         showState('state-scanning');
         document.getElementById('scan-hdr').textContent = `Analyzing ${currentRepoName}...`;
         document.getElementById('scan-log').innerHTML = '';

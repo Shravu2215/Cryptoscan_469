@@ -70,6 +70,7 @@ model Scan {
   anchor      Anchor?
   cbomVersion CbomVersion?
   runtimeRuns RuntimeRun[]
+  fileManifest FileManifestEntry[]
 }
 
 model RuntimeRun {
@@ -262,4 +263,19 @@ model MigrationSchedule {
   createdAt DateTime @default(now())
 
   @@index([scanId])
+}
+
+model FileManifestEntry {
+  id        String   @id @default(uuid())
+  scanId    String
+  scan      Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  filePath  String
+  status    String   // SCANNED, SKIPPED, ERROR
+  sha256    String?
+  size      Int?
+  reason    String?  // If skipped/error
+  createdAt DateTime @default(now())
+
+  @@index([scanId])
+  @@index([scanId, filePath])
 }
