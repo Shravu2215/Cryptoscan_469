@@ -26,7 +26,7 @@ const Auth = (() => {
     if (h === 'localhost' || h === '127.0.0.1') {
       return ''; // relative: /auth/login, /auth/signup, etc.
     }
-    return 'https://cryptoscan-new-backend.onrender.com';
+    return 'https://cryptoscan-demo-api.onrender.com';
   })();
 
   function saveUser(user) {
