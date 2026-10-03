@@ -102,7 +102,7 @@ router.post('/:repoId', requireAuth, async (req, res) => {
                 const dbFindings = findings.map(f => {
                   const alg = String(f.algorithm || 'UNKNOWN');
                   const deterministicId = crypto.createHash('sha256')
-                    .update(`${inputHash || scan.repoId}:${sanitizeFilePath(f.file)}:${f.line || 0}:${alg}`)
+                    .update(`${scan.id}:${inputHash || scan.repoId}:${sanitizeFilePath(f.file)}:${f.line || 0}:${alg}`)
                     .digest('hex').substring(0, 32);
 
                   return {
@@ -140,7 +140,7 @@ router.post('/:repoId', requireAuth, async (req, res) => {
                 // Save findings separately so a createMany failure doesn't block the status update
                 try {
                   if (dbFindings.length > 0) {
-                    await prisma.finding.createMany({ data: dbFindings, skipDuplicates: true });
+                    await prisma.finding.createMany({ data: dbFindings });
                   }
                 } catch (findErr) {
                   console.error('Failed to save findings to DB:', findErr.message);
