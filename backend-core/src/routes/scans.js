@@ -414,7 +414,7 @@ router.get('/:scanId/cbom', requireAuth, async (req, res) => {
 });
 
 // POST /scan/:scanId/anchor
-router.post('/:scanId/anchor', requireAuth, async (req, res) => {
+router.post('/:scanId/anchor', softAuth, async (req, res) => {
   try {
     const { scanId } = req.params;
     const { getScan, saveScan, getFindings, saveAnchor, getAnchor } = require('../utils/devStore');
