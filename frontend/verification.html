@@ -1811,6 +1811,7 @@
       let verifyResult = null;
       let anchorResult = null;
       let apiSuccess = false;
+      let isVerified = false;
 
       try {
         const token = getToken();
@@ -1845,7 +1846,7 @@
         }
 
         const finalTxHash = (verifyResult && verifyResult.txHash) || (anchorResult && anchorResult.txHash);
-        const isVerified = (verifyResult && verifyResult.verified !== false) || (anchorResult && anchorResult.verified !== false);
+        isVerified = (verifyResult && verifyResult.verified !== false) || (anchorResult && anchorResult.verified !== false);
 
         if (finalTxHash && finalTxHash !== '0x' && isVerified) {
           verifyResult = verifyResult || anchorResult;
@@ -1922,18 +1923,20 @@
         scanId: activeScan.scanId,
         repoName: activeScan.repoName || 'Scanned Repository',
         timestamp: new Date().toISOString(),
-        verified: true,
+        verified: isVerified,
         localOnly: false,
         txHash: onChainTx,
         network: onChainNetwork,
         blockNumber: onChainBlock.toString(),
         anchoredAt: new Date().toISOString(),
         merkleRoot: merkleRootHex,
-        statusLabel: '✅ Verified & Anchored',
-        statusClass: 'sb-valid',
-        heroStatus: 'verified',
-        heroTitle: '✅ VERIFIED & ANCHORED ON-CHAIN',
-        heroDesc: 'CBOM Merkle Tree Root confirmed against public blockchain ledger. Cryptographic integrity 100% intact.'
+        statusLabel: isVerified ? '✅ Verified & Anchored' : '⚠️ Unverified (Tampered)',
+        statusClass: isVerified ? 'sb-valid' : 'sb-amber',
+        heroStatus: isVerified ? 'verified' : 'failed',
+        heroTitle: isVerified ? '✅ VERIFIED & ANCHORED ON-CHAIN' : '⚠️ INTEGRITY VERIFICATION FAILED',
+        heroDesc: isVerified 
+          ? 'CBOM Merkle Tree Root confirmed against public blockchain ledger. Cryptographic integrity 100% intact.'
+          : 'The recomputed CBOM Merkle Root does NOT match the public blockchain ledger. The codebase has been tampered with or modified since the last anchored scan.'
       };
 
       // Save to activeScan and CryptoEngine storage!
@@ -1986,7 +1989,7 @@
 
       const endTimestamp = Date.now();
       stopLiveVerifyTimer();
-      const isVerified = record && record.verified && !record.localOnly;
+      isVerified = record && record.verified && !record.localOnly;
       displayVerifyDuration(endTimestamp - startTimestamp, isVerified);
 
       if (btn) {
