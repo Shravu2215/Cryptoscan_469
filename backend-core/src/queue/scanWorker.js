@@ -241,6 +241,12 @@ async function processScanJob(job) {
     if (!isDev) throw err;
   }
 
+  try {
+    const { runHndlScanHook } = require('../services/quantumRisk/hndl/scanHook');
+    await runHndlScanHook({ scanId: scan.id, targetPath: absoluteRepoPath, findings: dbFindings });
+  } catch (_) {}
+
+
   scan.status = 'COMPLETED';
   scan.completedAt = new Date();
   scan.filesScanned =

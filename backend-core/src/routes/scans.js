@@ -153,6 +153,12 @@ router.post('/:repoId', requireAuth, async (req, res) => {
                   });
                 } catch (_) {}
 
+                try {
+                  const { runHndlScanHook } = require('../services/quantumRisk/hndl/scanHook');
+                  await runHndlScanHook({ scanId: scan.id, targetPath: absoluteRepoPath, findings: dbFindings });
+                } catch (_) {}
+
+
                 scan.status = 'COMPLETED';
                 scan.completedAt = new Date();
                 scan.commitHash = result.input_hash || scan.commitHash;

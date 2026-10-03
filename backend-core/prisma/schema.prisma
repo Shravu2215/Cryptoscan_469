@@ -146,3 +146,81 @@ model CbomVersion {
   content       String   // full CycloneDX 1.6 CBOM document JSON
   createdAt     DateTime @default(now())
 }
+
+model ThreatScenario {
+  id              String   @id @default(uuid())
+  scanId          String
+  name            String
+  familyTimelines Json
+  source          String
+  citationNote    String
+  editable        Boolean  @default(true)
+  createdBy       String
+  createdAt       DateTime @default(now())
+
+  @@index([scanId])
+}
+
+model ThreatAssessment {
+  id                     String   @id @default(uuid())
+  scanId                 String
+  assetId                String
+  scenarioId             String
+  dataLifetimeYears      Float
+  migrationTimeYears     Float
+  pBreakBeforeMigration  Float
+  pMoscaViolated         Float
+  p10                    Float
+  p50                    Float
+  p90                    Float
+  riskBand               String
+  iterations             Int
+  seed                   Int
+  createdAt              DateTime @default(now())
+
+  @@index([scanId])
+  @@index([scanId, scenarioId])
+}
+
+model SensitiveDataField {
+  id                  String   @id @default(uuid())
+  scanId              String
+  fieldId             String
+  dataClass           String
+  location            Json
+  retentionYears      Float
+  retentionSource     String
+  protectedBy         String[]
+  detectionConfidence Float
+  lineageConfidence   Float
+  evidence            String[]
+  createdAt           DateTime @default(now())
+
+  @@index([scanId])
+}
+
+model DataExposure {
+  id                   String   @id @default(uuid())
+  scanId               String
+  fieldId              String
+  assetId              String
+  scenarioId           String
+  exposureProbability  Float
+  sensitivityWeight    Float
+  retentionYears       Float
+  explanation          String
+  createdAt            DateTime @default(now())
+
+  @@index([scanId])
+  @@index([scanId, scenarioId])
+}
+
+model MigrationSchedule {
+  id        String   @id @default(uuid())
+  scanId    String
+  input     Json
+  result    Json
+  createdAt DateTime @default(now())
+
+  @@index([scanId])
+}

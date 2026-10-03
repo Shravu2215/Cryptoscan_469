@@ -47,6 +47,9 @@ WORKDIR /app/backend-core
 RUN npm install --omit=dev --ignore-scripts
 
 COPY backend-core .
+RUN /app/scanner/.venv/bin/pip install --no-cache-dir -r src/services/quantumRisk/scheduler/requirements-scheduler.txt
+ENV PYTHON_BIN=/app/scanner/.venv/bin/python
+
 
 RUN npx prisma generate
 

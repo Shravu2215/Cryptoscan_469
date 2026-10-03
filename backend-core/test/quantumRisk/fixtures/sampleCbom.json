@@ -1,0 +1,26 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:8db71d70-1c85-4eaa-b76d-f3dc02dd7649",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-10-03T00:00:00.000Z",
+    "component": { "type": "application", "name": "quantum-risk-fixture" }
+  },
+  "components": [
+    { "type": "cryptographic-asset", "name": "RSA-2048 key wrap", "service": "payments", "cryptoProperties": { "assetType": "algorithm", "algorithmProperties": { "primitive": "RSA", "parameterSetIdentifier": "2048", "variant": "key-wrap" } }, "occurrences": [{ "file": "services/payments/src/keys.ts", "line": 18, "findingId": "finding-pay-001", "usage": "key_exchange", "severity": "HIGH" }] },
+    { "type": "cryptographic-asset", "name": "AES-256-GCM", "service": "payments", "cryptoProperties": { "assetType": "algorithm", "algorithmProperties": { "primitive": "AES", "parameterSetIdentifier": "256", "mode": "GCM" } }, "occurrences": [{ "file": "services/payments/src/crypto.ts", "line": 42, "findingId": "finding-pay-002", "usage": "data_encryption", "severity": "INFO" }] },
+    { "type": "cryptographic-asset", "name": "SHA-256", "service": "payments", "cryptoProperties": { "assetType": "algorithm", "algorithmProperties": { "primitive": "SHA-256" } }, "occurrences": [{ "file": "services/payments/src/signature.ts", "line": 27, "findingId": "finding-pay-003", "usage": "integrity_hashing", "severity": "INFO" }] },
+    { "type": "cryptographic-asset", "name": "ECDSA P-256 JWT", "service": "payments", "cryptoProperties": { "assetType": "algorithm", "algorithmProperties": { "primitive": "ECDSA", "parameterSetIdentifier": "P-256", "variant": "JWT signature" } }, "occurrences": [{ "file": "services/payments/src/tokens.ts", "line": 63, "findingId": "finding-pay-004", "usage": "digital_signature", "severity": "HIGH" }] },
+    { "type": "cryptographic-asset", "name": "ECDSA P-256 JWT", "service": "identity", "cryptoProperties": { "assetType": "algorithm", "algorithmProperties": { "primitive": "ECDSA", "parameterSetIdentifier": "P-256", "variant": "JWT signature" } }, "occurrences": [{ "file": "services/identity/src/jwt.ts", "line": 51, "findingId": "finding-id-001", "usage": "digital_signature", "severity": "HIGH" }] },
+    { "type": "cryptographic-asset", "name": "ML-KEM-768", "service": "identity", "cryptoProperties": { "assetType": "algorithm", "algorithmProperties": { "primitive": "ML-KEM", "parameterSetIdentifier": "768" } }, "occurrences": [{ "file": "services/identity/src/keyExchange.ts", "line": 34, "findingId": "finding-id-002", "usage": "key_exchange", "severity": "INFO" }] },
+    { "type": "cryptographic-asset", "name": "AES-256-GCM", "service": "identity", "cryptoProperties": { "assetType": "algorithm", "algorithmProperties": { "primitive": "AES", "parameterSetIdentifier": "256", "mode": "GCM" } }, "occurrences": [{ "file": "services/identity/src/storage.ts", "line": 88, "findingId": "finding-id-003", "usage": "data_encryption", "severity": "INFO" }] },
+    { "type": "cryptographic-asset", "name": "SHA-256", "service": "identity", "cryptoProperties": { "assetType": "algorithm", "algorithmProperties": { "primitive": "SHA-256" } }, "occurrences": [{ "file": "services/identity/src/hash.ts", "line": 15, "findingId": "finding-id-004", "usage": "integrity_hashing", "severity": "INFO" }] },
+    { "type": "cryptographic-asset", "name": "DH-2048", "service": "records", "cryptoProperties": { "assetType": "algorithm", "algorithmProperties": { "primitive": "DH", "parameterSetIdentifier": "2048" } }, "occurrences": [{ "file": "services/records/src/transport.ts", "line": 106, "findingId": "finding-rec-001", "usage": "key_exchange", "severity": "HIGH" }] },
+    { "type": "cryptographic-asset", "name": "AES-256-GCM", "service": "records", "cryptoProperties": { "assetType": "algorithm", "algorithmProperties": { "primitive": "AES", "parameterSetIdentifier": "256", "mode": "GCM" } }, "occurrences": [{ "file": "services/records/src/atRest.ts", "line": 22, "findingId": "finding-rec-002", "usage": "data_encryption", "severity": "INFO" }] },
+    { "type": "cryptographic-asset", "name": "SHA-256", "service": "records", "cryptoProperties": { "assetType": "algorithm", "algorithmProperties": { "primitive": "SHA-256" } }, "occurrences": [{ "file": "services/records/src/audit.ts", "line": 73, "findingId": "finding-rec-003", "usage": "integrity_hashing", "severity": "INFO" }] },
+    { "type": "cryptographic-asset", "name": "RSA-2048 key wrap", "service": "records", "cryptoProperties": { "assetType": "algorithm", "algorithmProperties": { "primitive": "RSA", "parameterSetIdentifier": "2048", "variant": "key-wrap" } }, "occurrences": [{ "file": "services/records/src/keys.ts", "line": 39, "findingId": "finding-rec-004", "usage": "key_exchange", "severity": "HIGH" }] }
+  ],
+  "dependencies": [],
+  "summary": { "totalCryptoAssets": 12, "totalFindings": 12, "serviceCount": 3 }
+}
