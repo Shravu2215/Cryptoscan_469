@@ -1,12 +1,58 @@
 'use strict';
 
-const devRepos = new Map();
-const devScans = new Map();
-const devFindings = new Map();
-const devAnchors = new Map();
+const fs = require('fs');
+const path = require('path');
+
+const STORE_FILE = path.join(__dirname, '../../uploads/devStore.json');
+
+let storeData = {
+  devRepos: [],
+  devScans: [],
+  devFindings: [],
+  devAnchors: []
+};
+
+function loadStore() {
+  try {
+    if (fs.existsSync(STORE_FILE)) {
+      const data = fs.readFileSync(STORE_FILE, 'utf8');
+      storeData = JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('Failed to load devStore:', err.message);
+  }
+}
+
+function saveStore() {
+  try {
+    const dir = path.dirname(STORE_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(STORE_FILE, JSON.stringify(storeData, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Failed to save devStore:', err.message);
+  }
+}
+
+loadStore();
+
+const devRepos = new Map(storeData.devRepos);
+const devScans = new Map(storeData.devScans);
+const devFindings = new Map(storeData.devFindings);
+const devAnchors = new Map(storeData.devAnchors);
+
+function syncStore() {
+  storeData.devRepos = Array.from(devRepos.entries());
+  storeData.devScans = Array.from(devScans.entries());
+  storeData.devFindings = Array.from(devFindings.entries());
+  storeData.devAnchors = Array.from(devAnchors.entries());
+  saveStore();
+}
 
 function saveRepo(repo) {
   devRepos.set(repo.id, repo);
+  syncStore();
   return repo;
 }
 
@@ -38,6 +84,7 @@ function updateRepoCriticality(idOrName, tier) {
         scan.criticality_tier = tier;
       }
     }
+    syncStore();
   } else {
     repo = {
       id: idOrName,
@@ -46,12 +93,14 @@ function updateRepoCriticality(idOrName, tier) {
       criticality_tier: tier,
     };
     devRepos.set(repo.id, repo);
+    syncStore();
   }
   return repo;
 }
 
 function saveScan(scan) {
   devScans.set(scan.id, scan);
+  syncStore();
   return scan;
 }
 
@@ -61,6 +110,7 @@ function getScan(id) {
 
 function saveFindings(scanId, findings) {
   devFindings.set(scanId, findings);
+  syncStore();
   return findings;
 }
 
@@ -70,6 +120,7 @@ function getFindings(scanId) {
 
 function saveAnchor(scanId, anchor) {
   devAnchors.set(scanId, anchor);
+  syncStore();
   return anchor;
 }
 

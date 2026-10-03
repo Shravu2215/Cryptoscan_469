@@ -56,11 +56,17 @@ router.use(requireAuth, async (req, res, next) => {
     } catch (error) {
       if (!(req.params.scanId === DEV_SAMPLE_SCAN_ID && isDevelopment(req))) throw error;
     }
+    
+    if (!scan) {
+      const { getScan } = require('../utils/devStore');
+      scan = getScan(req.params.scanId);
+    }
+
     if (!scan && req.params.scanId === DEV_SAMPLE_SCAN_ID && isDevelopment(req)) {
       scan = { id: DEV_SAMPLE_SCAN_ID, repo: { uploadedBy: req.user.id }, isDevelopmentSample: true };
     }
     if (!scan) return res.status(404).json({ error: 'Scan not found' });
-    if (!canAccessRepo(req.user, scan.repo)) {
+    if (scan.repo && !canAccessRepo(req.user, scan.repo)) {
       return res.status(403).json({ error: 'You do not have access to this scan' });
     }
     req.quantumRiskScan = scan;
