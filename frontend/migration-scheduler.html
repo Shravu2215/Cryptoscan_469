@@ -11,7 +11,8 @@
     .ms-heading { margin-bottom: 2rem; }
     .ms-kicker { font-size: 0.75rem; font-weight: 700; color: var(--purple); letter-spacing: 0.05em; margin-bottom: 0.5rem; text-transform: uppercase; }
     .ms-lede { color: var(--text-m); margin-top: 0.5rem; }
-    .ms-toolbar { display: flex; gap: 1rem; align-items: center; background: var(--bg-card); padding: 1rem; border-radius: var(--r-md); border: 1px solid var(--border-color); margin-bottom: 2rem; }
+    .ms-toolbar { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; background: var(--bg-card); padding: 1rem; border-radius: var(--r-md); border: 1px solid var(--border-color); margin-bottom: 1rem; }
+    .ms-run-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
     .ms-field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.875rem; }
     .ms-field span { font-weight: 600; color: var(--text-h); }
     .ms-field select, .ms-field input { padding: 0.5rem; border-radius: var(--r-sm); border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-h); }
@@ -91,8 +92,11 @@
             <span>Horizon (months)</span>
             <input id="horizon-input" type="number" min="1" max="120" value="36">
           </label>
-          <button id="run-sensitivity" class="ms-button ms-button-primary" type="button">Run analysis</button>
         </section>
+        <div class="ms-run-row">
+          <button id="run-sensitivity" class="ms-button ms-button-primary" type="button" style="padding: 0.6rem 1.5rem; font-size: 1rem;">▶ Run Analysis</button>
+          <span style="font-size:0.875rem; color: var(--text-m);">Click to compute sensitivity schedule with CP-SAT solver</span>
+        </div>
 
         <p id="page-status" class="ms-status" role="status" aria-live="polite"></p>
 
