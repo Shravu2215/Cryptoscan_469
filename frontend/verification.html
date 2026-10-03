@@ -1803,13 +1803,15 @@
       await delay(300);
       updateStep(3, 'done');
 
-      // ─── Step 4 & 5: Backend API Blockchain Anchor Call ───
+      // ─── Step 4 & 5: Backend API Blockchain Verify (READ-ONLY — never re-anchors) ───
+      // NOTE: The anchor was written ONCE when the scan was first completed.
+      // Verification ONLY reads that stored anchor and compares. If we re-anchored here,
+      // tampering could never be detected (new anchor would always match new root).
       updateStep(4, 'active');
       updateStep(5, 'active');
       document.getElementById('pl-progress').style.width = '80%';
 
       let verifyResult = null;
-      let anchorResult = null;
       let apiSuccess = false;
       let isVerified = false;
 
@@ -1818,24 +1820,7 @@
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = 'Bearer ' + token;
 
-        // Call /scan/:scanId/anchor with payload
-        const anchorRes = await fetch(`${API_BASE}/scan/${activeScan.scanId}/anchor`, {
-          method: 'POST',
-          headers: headers,
-          body: JSON.stringify({
-            repoId: activeScan.repoId,
-            repoName: activeScan.repoName,
-            findings: activeScan.findings || activeScan.cbom || [],
-            cbom: activeScan.cbom || activeScan.findings || []
-          })
-        }).catch(() => null);
-
-        if (anchorRes && anchorRes.ok) {
-          anchorResult = await anchorRes.json().catch(() => null);
-          if (anchorResult && anchorResult.verified) apiSuccess = true;
-        }
-
-        // Call /scan/:scanId/verify
+        // ONLY call verify — never re-anchor during verification
         const verifyRes = await fetch(`${API_BASE}/scan/${activeScan.scanId}/verify`, {
           method: 'GET',
           headers: headers
@@ -1845,18 +1830,16 @@
           verifyResult = await verifyRes.json().catch(() => null);
         }
 
-        const finalTxHash = (verifyResult && verifyResult.txHash) || (anchorResult && anchorResult.txHash);
-        isVerified = (verifyResult && verifyResult.verified !== false) || (anchorResult && anchorResult.verified !== false);
-
-        if (finalTxHash && finalTxHash !== '0x' && isVerified) {
-          verifyResult = verifyResult || anchorResult;
-          verifyResult.txHash = finalTxHash;
+        // Strict check: verified must be explicitly true (not just "not false")
+        if (verifyResult && verifyResult.verified === true) {
+          isVerified = true;
           apiSuccess = true;
-        } else if (verifyResult && verifyResult.verified !== false) {
-          apiSuccess = true;
+        } else {
+          isVerified = false;
         }
       } catch (e) {
-        console.warn('API Verification error, continuing with verified cryptographic anchor proof:', e);
+        console.warn('API Verification error:', e);
+        isVerified = false;
       }
 
       updateStep(4, 'done');
@@ -1870,19 +1853,19 @@
 
       const onChainTx = (verifyResult && verifyResult.txHash && verifyResult.txHash !== '0x')
         ? verifyResult.txHash
-        : ((anchorResult && anchorResult.txHash && anchorResult.txHash !== '0x') ? anchorResult.txHash : fallbackTx);
+        : fallbackTx;
 
       const onChainNetwork = (verifyResult && verifyResult.network)
         ? verifyResult.network
-        : ((anchorResult && anchorResult.network) ? anchorResult.network : 'Ethereum Sepolia (0x1cA9...359a)');
+        : 'Ethereum Sepolia (0x1cA9...359a)';
 
       const onChainBlock = (verifyResult && verifyResult.blockNumber)
         ? verifyResult.blockNumber
-        : ((anchorResult && anchorResult.blockNumber) ? anchorResult.blockNumber : fallbackBlock);
+        : fallbackBlock;
 
       const chainRoot = (verifyResult && verifyResult.onChainHash)
         ? verifyResult.onChainHash
-        : ((anchorResult && anchorResult.merkleRoot) ? anchorResult.merkleRoot : merkleRootHex);
+        : merkleRootHex;
 
       const chainRootFormatted = chainRoot.startsWith('0x') ? chainRoot : ('0x' + chainRoot);
       document.getElementById('comp-chain').textContent = chainRootFormatted;
