@@ -34,6 +34,8 @@ and URL-encode special characters in the password.
 - **CBOM Service:** integrated via `buildCbom()` in `src/services/cbomGenerator.js`.
 - **Blockchain Module:** integrated via `anchorScan()` and `verifyScan()` in `src/routes/scans.js`.
 - **Integrity Service:** provides Merkle trees, RFC 3161 timestamping, and KMS signing.
+- **Environment Variables:** `HNDL_SCAN_HOOK` (controls HNDL scan hook execution during scan, default true in dev/test) and `PYTHON_BIN` (path/name of Python binary for scheduler sub-process, defaults to `/app/scanner/.venv/bin/python` or `python3`).
+
 
 
 ## Production Integrity Standard

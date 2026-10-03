@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Quantum Threat Model - CryptoScan</title>
+  <link rel="stylesheet" href="assets/css/global.css">
+  <link rel="stylesheet" href="assets/css/quantum-threat-model.css">
+  <script src="assets/js/auth.js" defer></script>
+  <script src="assets/js/engine.js" defer></script>
+  <script src="assets/js/quantumThreatModel.js" defer></script>
+  <script src="assets/js/shell.js" defer></script>
+</head>
+<body class="qtm-shell">
+  <div class="app-layout">
+    <aside class="app-sidebar" id="app-sidebar"></aside>
+    <div class="app-main">
+      <header class="app-topbar" id="app-topbar"></header>
+      <main class="app-page-container qtm-page">
+        <div class="qtm-content">
+          <header class="qtm-heading">
+            <div>
+              <p class="qtm-kicker">QUANTUM RISK / FEATURE 01</p>
+              <h1>Living threat model</h1>
+              <p class="qtm-lede">Compare family arrival scenarios against this scan's secrecy and migration windows.</p>
+            </div>
+            <span class="qtm-engine-tag">Monte Carlo · seeded</span>
+          </header>
+
+          <section class="qtm-toolbar" aria-label="Assessment controls">
+            <label class="qtm-field qtm-scan-field" for="scan-select">
+              <span>Repository scan</span>
+              <select id="scan-select" name="scanId"></select>
+            </label>
+            <button id="run-assessment" class="qtm-button qtm-button-primary" type="button">Run assessment</button>
+            <button id="load-sample" class="qtm-button qtm-button-quiet" type="button" hidden>Load sample data</button>
+            <details class="qtm-advanced">
+              <summary>Advanced</summary>
+              <div class="qtm-advanced-fields">
+                <label class="qtm-field" for="iterations-input"><span>Iterations</span><input id="iterations-input" type="number" min="1" max="100000" step="1000" value="10000"></label>
+                <label class="qtm-field" for="seed-input"><span>Seed</span><input id="seed-input" type="number" min="-2147483648" max="2147483647" step="1" value="42"></label>
+              </div>
+            </details>
+          </section>
+
+          <p id="page-status" class="qtm-status" role="status" aria-live="polite"></p>
+
+          <section class="qtm-section" aria-labelledby="scenario-heading">
+            <div class="qtm-section-heading">
+              <div><p class="qtm-kicker">THREAT DISTRIBUTIONS</p><h2 id="scenario-heading">Scenarios</h2></div>
+              <p class="qtm-hint">Select up to 10 scenarios to compare.</p>
+            </div>
+            <div id="scenario-cards" class="qtm-scenario-grid"></div>
+            <div id="scenario-editor" class="qtm-editor" hidden></div>
+          </section>
+
+          <section class="qtm-section" aria-labelledby="summary-heading">
+            <div class="qtm-section-heading">
+              <div><p class="qtm-kicker">PORTFOLIO SNAPSHOT</p><h2 id="summary-heading">Assessment summary</h2></div>
+            </div>
+            <div id="summary-strip" class="qtm-summary-grid"></div>
+            <p id="no-run-state" class="qtm-empty" hidden>No assessment has been run for this scan yet.</p>
+            <p id="empty-state" class="qtm-empty" hidden>This scan has no non-suppressed findings to assess.</p>
+          </section>
+
+          <section class="qtm-section" aria-labelledby="heatmap-heading">
+            <div class="qtm-section-heading qtm-heat-heading">
+              <div><p class="qtm-kicker">SCENARIO COMPARISON</p><h2 id="heatmap-heading">Threat heatmap</h2></div>
+              <div class="qtm-segments">
+                <label for="row-mode">Rows</label>
+                <select id="row-mode"><option value="service">Service</option><option value="family">Family</option><option value="asset">Asset</option></select>
+                <label for="metric-mode">Metric</label>
+                <select id="metric-mode"><option value="pMoscaViolated">Mosca violated</option><option value="pBreakBeforeMigration">Break before migration</option></select>
+              </div>
+            </div>
+            <div class="qtm-legend" aria-label="Probability color legend">
+              <span>0.000</span><span class="qtm-legend-ramp"></span><span>1.000</span><span>Probability</span>
+            </div>
+            <div id="heatmap-container" class="qtm-heatmap-scroll"></div>
+          </section>
+
+          <section class="qtm-section qtm-shift-section" aria-labelledby="shift-heading">
+            <div class="qtm-section-heading">
+              <div><p class="qtm-kicker">SENSITIVITY</p><h2 id="shift-heading">Arrival shift</h2></div>
+              <output id="shift-label" for="arrival-shift">Scenario baseline</output>
+            </div>
+            <label class="qtm-slider-field" for="arrival-shift">
+              <span>Shift all family arrival distributions</span>
+              <input id="arrival-shift" type="range" min="-5" max="5" step="1" value="0">
+              <span class="qtm-slider-endpoints"><span>5 years earlier</span><span>5 years later</span></span>
+            </label>
+          </section>
+
+          <section class="qtm-section" aria-labelledby="assets-heading">
+            <div class="qtm-section-heading qtm-assets-heading">
+              <div><p class="qtm-kicker">PER-ASSET DETAIL</p><h2 id="assets-heading">Crypto assets</h2></div>
+              <label class="qtm-field qtm-table-scenario" for="table-scenario"><span>Scenario</span><select id="table-scenario"></select></label>
+            </div>
+            <div class="qtm-table-scroll">
+              <table class="qtm-assets-table">
+                <thead><tr>
+                  <th><button type="button" data-sort="algorithm">Algorithm</button></th>
+                  <th><button type="button" data-sort="family">Family</button></th>
+                  <th><button type="button" data-sort="usage">Usage</button></th>
+                  <th><button type="button" data-sort="x">X · years</button></th>
+                  <th><button type="button" data-sort="y">Y · years</button></th>
+                  <th><button type="button" data-sort="pMoscaViolated">p(Mosca)</button></th>
+                  <th><button type="button" data-sort="pBreakBeforeMigration">p(break)</button></th>
+                  <th><button type="button" data-sort="riskBand">Risk band</button></th>
+                </tr></thead>
+                <tbody id="asset-rows"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,47 @@
+[
+  {
+    "id": "scenario-optimistic-v1",
+    "name": "optimistic",
+    "familyTimelines": {
+      "RSA": { "distribution": "triangular", "params": { "min": 18, "mode": 22, "max": 28 } },
+      "ECC": { "distribution": "triangular", "params": { "min": 20, "mode": 25, "max": 30 } },
+      "DH/DSA": { "distribution": "triangular", "params": { "min": 18, "mode": 22, "max": 28 } },
+      "AES": { "distribution": "triangular", "params": { "min": 35, "mode": 50, "max": 80 } },
+      "HASH": { "distribution": "triangular", "params": { "min": 35, "mode": 50, "max": 80 } }
+    },
+    "source": "ASSUMPTION - editable, cite before final demo",
+    "citationNote": "ASSUMPTION - editable, cite before final demo. No external citation is asserted.",
+    "editable": true,
+    "createdBy": "system-default"
+  },
+  {
+    "id": "scenario-median-v1",
+    "name": "median",
+    "familyTimelines": {
+      "RSA": { "distribution": "triangular", "params": { "min": 8, "mode": 12, "max": 18 } },
+      "ECC": { "distribution": "triangular", "params": { "min": 10, "mode": 15, "max": 20 } },
+      "DH/DSA": { "distribution": "triangular", "params": { "min": 8, "mode": 12, "max": 18 } },
+      "AES": { "distribution": "triangular", "params": { "min": 25, "mode": 40, "max": 70 } },
+      "HASH": { "distribution": "triangular", "params": { "min": 25, "mode": 40, "max": 70 } }
+    },
+    "source": "ASSUMPTION - editable, cite before final demo",
+    "citationNote": "ASSUMPTION - editable, cite before final demo. No external citation is asserted.",
+    "editable": true,
+    "createdBy": "system-default"
+  },
+  {
+    "id": "scenario-pessimistic-v1",
+    "name": "pessimistic",
+    "familyTimelines": {
+      "RSA": { "distribution": "triangular", "params": { "min": 3, "mode": 5, "max": 8 } },
+      "ECC": { "distribution": "triangular", "params": { "min": 4, "mode": 6, "max": 10 } },
+      "DH/DSA": { "distribution": "triangular", "params": { "min": 3, "mode": 5, "max": 8 } },
+      "AES": { "distribution": "triangular", "params": { "min": 20, "mode": 35, "max": 65 } },
+      "HASH": { "distribution": "triangular", "params": { "min": 20, "mode": 35, "max": 65 } }
+    },
+    "source": "ASSUMPTION - editable, cite before final demo",
+    "citationNote": "ASSUMPTION - editable, cite before final demo. No external citation is asserted.",
+    "editable": true,
+    "createdBy": "system-default"
+  }
+]

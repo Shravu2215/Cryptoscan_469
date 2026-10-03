@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Migration Scheduler - CryptoScan</title>
+  <link rel="stylesheet" href="assets/css/global.css">
+  <style>
+    .ms-page { padding: 2rem; max-width: 1200px; margin: 0 auto; }
+    .ms-heading { margin-bottom: 2rem; }
+    .ms-kicker { font-size: 0.75rem; font-weight: 700; color: var(--purple); letter-spacing: 0.05em; margin-bottom: 0.5rem; text-transform: uppercase; }
+    .ms-lede { color: var(--text-m); margin-top: 0.5rem; }
+    .ms-toolbar { display: flex; gap: 1rem; align-items: center; background: var(--bg-card); padding: 1rem; border-radius: var(--r-md); border: 1px solid var(--border-color); margin-bottom: 2rem; }
+    .ms-field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.875rem; }
+    .ms-field span { font-weight: 600; color: var(--text-h); }
+    .ms-field select, .ms-field input { padding: 0.5rem; border-radius: var(--r-sm); border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-h); }
+    .ms-button { padding: 0.5rem 1rem; border-radius: var(--r-sm); font-weight: 600; cursor: pointer; transition: var(--t); }
+    .ms-button-primary { background: var(--purple); color: white; border: none; }
+    .ms-button-primary:hover { background: #7c3aed; }
+    .ms-button-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .ms-button-quiet { background: transparent; color: var(--text-m); border: 1px solid transparent; }
+    .ms-button-quiet:hover { background: var(--bg-card-hover); }
+    
+    .ms-section { margin-bottom: 3rem; }
+    .ms-section-heading { margin-bottom: 1rem; }
+    .ms-section-heading h2 { font-size: 1.25rem; color: var(--text-h); }
+    
+    /* Comparison Strip */
+    .ms-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+    .ms-strip-card { background: var(--bg-card); border: 1px solid var(--border-color); padding: 1rem; border-radius: var(--r-md); }
+    .ms-strip-label { font-size: 0.75rem; color: var(--text-m); font-weight: 600; text-transform: uppercase; margin-bottom: 0.25rem; }
+    .ms-strip-value { font-size: 1.5rem; font-weight: 700; color: var(--text-h); }
+    .ms-strip-delta { font-size: 0.875rem; margin-top: 0.25rem; font-weight: 500; }
+    .ms-delta-pos { color: var(--green); }
+    .ms-delta-neg { color: var(--red); }
+    .ms-delta-neu { color: var(--text-m); }
+
+    /* Gantt Chart (CSS Grid) */
+    .ms-gantt-container { overflow-x: auto; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--r-md); padding: 1rem; }
+    .ms-gantt { display: grid; gap: 4px; min-width: 800px; }
+    .ms-gantt-header { display: contents; }
+    .ms-gantt-month { font-size: 0.75rem; color: var(--text-m); text-align: center; border-bottom: 1px solid var(--border-color); padding-bottom: 4px; font-weight: 600; }
+    .ms-gantt-row { display: contents; }
+    .ms-gantt-label { font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; color: var(--text-h); align-self: center; padding-right: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; grid-column: 1; }
+    .ms-gantt-bar { background: var(--purple-bg); border: 1px solid var(--purple); border-radius: 4px; height: 24px; display: flex; align-items: center; padding: 0 0.5rem; font-size: 0.65rem; color: var(--purple); font-weight: 600; white-space: nowrap; overflow: hidden; }
+    .ms-gantt-bar.changed { background: var(--amber-bg); border-color: var(--amber); color: var(--amber); }
+
+    /* Sensitivities */
+    .ms-presets { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+    .ms-preset-btn { padding: 0.25rem 0.75rem; font-size: 0.875rem; border-radius: 99px; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-h); cursor: pointer; }
+    .ms-preset-btn:hover { background: var(--bg-card-hover); }
+    .ms-preset-btn[aria-pressed="true"] { background: var(--purple); color: white; border-color: var(--purple); }
+
+    .ms-empty { color: var(--text-m); font-style: italic; }
+    .ms-status { font-size: 0.875rem; color: var(--text-m); margin-bottom: 1rem; min-height: 1.25em; }
+    .ms-status[data-kind="error"] { color: var(--red); }
+    .ms-status[data-kind="success"] { color: var(--green); }
+    
+    .ms-assumptions { font-size: 0.75rem; color: var(--text-m); margin-top: 2rem; border-top: 1px solid var(--border-light); padding-top: 1rem; }
+  </style>
+  <script src="assets/js/auth.js" defer></script>
+  <script src="assets/js/engine.js" defer></script>
+  <script src="assets/js/migrationScheduler.js" defer></script>
+  <script src="assets/js/shell.js" defer></script>
+</head>
+<body class="ms-shell">
+  <div class="app-layout">
+    <aside class="app-sidebar" id="app-sidebar"></aside>
+    <div class="app-main">
+      <header class="app-topbar" id="app-topbar"></header>
+      <main class="app-page-container ms-page">
+        <header class="ms-heading">
+          <div>
+            <p class="ms-kicker">QUANTUM RISK / FEATURE 02</p>
+            <h1>Migration Scheduler</h1>
+            <p class="ms-lede">Optimize cryptography migration sequences with sensitivity analysis.</p>
+          </div>
+        </header>
+
+        <section class="ms-toolbar" aria-label="Schedule controls">
+          <label class="ms-field" for="scan-select">
+            <span>Repository scan</span>
+            <select id="scan-select" name="scanId"></select>
+          </label>
+          <label class="ms-field" for="capacity-input">
+            <span>Team capacity (devs/mo)</span>
+            <input id="capacity-input" type="number" min="1" max="100" value="5">
+          </label>
+          <label class="ms-field" for="horizon-input">
+            <span>Horizon (months)</span>
+            <input id="horizon-input" type="number" min="1" max="120" value="36">
+          </label>
+          <button id="run-sensitivity" class="ms-button ms-button-primary" type="button">Run analysis</button>
+        </section>
+
+        <p id="page-status" class="ms-status" role="status" aria-live="polite"></p>
+
+        <section class="ms-section">
+          <div class="ms-section-heading">
+            <h2>Sensitivity Variations</h2>
+            <p class="ms-lede">Select a variation to view its impact on the schedule.</p>
+          </div>
+          <div id="variation-tabs" class="ms-presets"></div>
+        </section>
+
+        <section class="ms-section">
+          <div class="ms-section-heading">
+            <h2>Schedule Impact</h2>
+          </div>
+          <div id="summary-strip" class="ms-strip">
+            <div class="ms-strip-card"><div class="ms-strip-label">Exposure Risk</div><div id="val-exposure" class="ms-strip-value">—</div><div id="delta-exposure" class="ms-strip-delta ms-delta-neu">—</div></div>
+            <div class="ms-strip-card"><div class="ms-strip-label">Makespan</div><div id="val-makespan" class="ms-strip-value">—</div><div id="delta-makespan" class="ms-strip-delta ms-delta-neu">—</div></div>
+            <div class="ms-strip-card"><div class="ms-strip-label">Waves</div><div id="val-waves" class="ms-strip-value">—</div><div id="delta-waves" class="ms-strip-delta ms-delta-neu">—</div></div>
+            <div class="ms-strip-card"><div class="ms-strip-label">Status</div><div id="val-status" class="ms-strip-value">—</div><div id="delta-status" class="ms-strip-delta ms-delta-neu"></div></div>
+          </div>
+        </section>
+
+        <section class="ms-section">
+          <div class="ms-section-heading">
+            <h2>Gantt Chart</h2>
+          </div>
+          <div class="ms-gantt-container">
+            <div id="gantt-chart" class="ms-gantt"></div>
+            <p id="gantt-empty" class="ms-empty" hidden>No schedule data available. Run analysis first.</p>
+          </div>
+        </section>
+
+        <div id="assumptions" class="ms-assumptions"></div>
+      </main>
+    </div>
+  </div>
+</body>
+</html>
