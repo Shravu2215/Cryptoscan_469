@@ -113,9 +113,7 @@ router.post('/:repoId', requireAuth, async (req, res) => {
                     lineNumber: f.line || null,
                     algorithm: alg,
                     library: String(f.library || 'Standard API').slice(0, 200),
-                    version: String(f.version || '').slice(0, 100),
-                    exposure: f.exposure || 'internal',
-                    dataSensitivity: f.dataSensitivity || 'GENERAL',
+                    // NOTE: version/exposure/dataSensitivity are NOT in the Finding schema — omitted
                     usage: f.category || null,
                     keySize: f.key_size ||
                       (alg.includes('8192') ? 8192 : alg.includes('4096') ? 4096 :
@@ -139,10 +137,16 @@ router.post('/:repoId', requireAuth, async (req, res) => {
                 });
 
                 saveFindings(scan.id, dbFindings);
+                // Save findings separately so a createMany failure doesn't block the status update
                 try {
                   if (dbFindings.length > 0) {
-                    await prisma.finding.createMany({ data: dbFindings });
+                    await prisma.finding.createMany({ data: dbFindings, skipDuplicates: true });
                   }
+                } catch (findErr) {
+                  console.error('Failed to save findings to DB:', findErr.message);
+                }
+                // Always mark scan COMPLETED regardless of findings save result
+                try {
                   await prisma.scan.update({
                     where: { id: scan.id },
                     data: { 
