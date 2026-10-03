@@ -560,8 +560,32 @@ router.post('/:scanId/anchor', requireAuth, async (req, res) => {
   }
 });
 
+// Soft auth: decodes the token if valid, but does NOT reject on invalid/expired tokens.
+// Used for read-only public-facing endpoints like verify where authentication is informational.
+function softAuth(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const { verifyAccessToken } = require('../utils/tokenService');
+        const payload = verifyAccessToken(token);
+        req.user = { id: payload.id, email: payload.email, role: payload.role || 'Developer' };
+      } catch (_) {
+        // Token invalid or expired — still allow but user is anonymous
+        req.user = { id: 'anon', email: 'anon@cryptoscan.io', role: 'Developer' };
+      }
+    } else {
+      req.user = { id: 'anon', email: 'anon@cryptoscan.io', role: 'Developer' };
+    }
+  } catch (_) {
+    req.user = { id: 'anon', email: 'anon@cryptoscan.io', role: 'Developer' };
+  }
+  return next();
+}
+
 // GET /scan/:scanId/verify
-router.get('/:scanId/verify', requireAuth, async (req, res) => {
+router.get('/:scanId/verify', softAuth, async (req, res) => {
   try {
     const { scanId } = req.params;
     const { getScan, getAnchor, getFindings } = require('../utils/devStore');
