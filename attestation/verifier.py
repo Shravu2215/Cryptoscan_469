@@ -37,6 +37,7 @@ def verify_attestation(
     expected_identity: Optional[str] = None,
     expected_issuer: Optional[str] = None,
     check_rekor: bool = True,
+    allow_offline: bool = False,
 ) -> Dict[str, Any]:
     """
     Perform a full independent verification of a CryptoScan CBOM attestation.
@@ -49,10 +50,12 @@ def verify_attestation(
         expected_identity:     Expected OIDC identity SAN in the Sigstore certificate.
         expected_issuer:       Expected OIDC issuer.
         check_rekor:           If True, look up and verify inclusion in Rekor.
+        allow_offline:         If True, accepts unsigned offline development bundles.
 
     Returns:
         dict:
-          "valid"           — True iff ALL enabled checks pass.
+          "valid"           — True iff ALL enabled mandatory checks pass.
+          "mode"            — "sigstore" or "offline"
           "checks"          — per-check booleans.
           "errors"          — list of failure messages.
           "warnings"        — list of non-fatal warnings.
@@ -60,6 +63,7 @@ def verify_attestation(
     """
     result: Dict[str, Any] = {
         "valid": False,
+        "mode": "unknown",
         "checks": {
             "cbom_sha256": False,
             "statement_subject": False,
@@ -102,7 +106,7 @@ def verify_attestation(
             subject_sha = s.get("digest", {}).get("sha256")
             break
 
-        if subject_sha and computed_sha == subject_sha:
+        if subject_sha and computed_sha.lower() == subject_sha.lower():
             result["checks"]["cbom_sha256"] = True
         else:
             result["errors"].append(
@@ -152,14 +156,21 @@ def verify_attestation(
             bundle_path=bundle_path,
             expected_identity=expected_identity,
             expected_issuer=expected_issuer,
+            offline_ok=allow_offline,
         )
         if sig_result.get("valid"):
             result["checks"]["sigstore_bundle"] = True
+            if sig_result.get("offline"):
+                result["mode"] = "offline"
+                result["warnings"].append("Sigstore bundle is an offline/unsigned development artifact.")
+            else:
+                result["mode"] = "sigstore"
         else:
+            result["checks"]["sigstore_bundle"] = False
             errors = sig_result.get("errors", [])
             result["errors"].extend([f"Sigstore: {e}" for e in errors])
             if not errors:
-                result["errors"].append("Sigstore bundle verification failed (unknown reason)")
+                result["errors"].append("Sigstore bundle verification failed")
     except Exception as e:
         result["errors"].append(f"Sigstore bundle check failed: {e}")
 
@@ -180,32 +191,46 @@ def verify_attestation(
             result["warnings"].append(f"Hybrid PQC check failed: {e}")
 
     # ── Check 6: Rekor inclusion ───────────────────────────────────────────────
+    is_offline_bundle = (
+        bundle.get("verificationMaterial", {}).get("offline") is True
+        or not bundle.get("messageSignature", {}).get("signature")
+    )
     if check_rekor and not os.getenv("SIGSTORE_NO_REKOR"):
-        try:
-            from attestation.rekor import rekor_search_by_hash
-            from attestation.statement import sha256_file
-            cbom_sha = sha256_file(cbom_path)
-            lookup = rekor_search_by_hash(cbom_sha)
-            result["rekor_lookup"] = lookup
-            entries = lookup.get("entries", [])
-            if entries:
-                result["checks"]["rekor_inclusion"] = True
-            elif "error" in lookup:
-                result["warnings"].append(f"Rekor lookup error: {lookup['error']}")
-                result["checks"]["rekor_inclusion"] = None
-            else:
-                result["warnings"].append(
-                    "CBOM SHA-256 not found in Rekor — this is expected if the "
-                    "bundle was uploaded by artifact hash (not CBOM hash directly)."
-                )
-                result["checks"]["rekor_inclusion"] = None
-        except Exception as e:
-            result["warnings"].append(f"Rekor inclusion check failed: {e}")
+        if is_offline_bundle:
+            result["checks"]["rekor_inclusion"] = None
+            result["warnings"].append("Rekor lookup skipped: bundle is an offline development artifact.")
+        else:
+            try:
+                from attestation.rekor import rekor_search_by_hash
+                from attestation.signer import _canonical_bytes, _sha256_hex
+                stmt_sha = _sha256_hex(_canonical_bytes(statement))
+                lookup = rekor_search_by_hash(stmt_sha)
+                result["rekor_lookup"] = lookup
+                entries = lookup.get("entries", [])
+                if entries:
+                    result["checks"]["rekor_inclusion"] = True
+                elif "error" in lookup:
+                    result["warnings"].append(f"Rekor lookup error: {lookup['error']}")
+                    result["checks"]["rekor_inclusion"] = None
+                else:
+                    # Also check CBOM sha in case of legacy submission
+                    from attestation.statement import sha256_file
+                    cbom_sha = sha256_file(cbom_path)
+                    cbom_lookup = rekor_search_by_hash(cbom_sha)
+                    if cbom_lookup.get("entries"):
+                        result["checks"]["rekor_inclusion"] = True
+                    else:
+                        result["warnings"].append(
+                            f"Statement SHA-256 ({stmt_sha[:12]}...) not found in Rekor search index."
+                        )
+                        result["checks"]["rekor_inclusion"] = False
+            except Exception as e:
+                result["warnings"].append(f"Rekor inclusion check failed: {e}")
 
     # ── Overall verdict ────────────────────────────────────────────────────────
     mandatory = ["cbom_sha256", "statement_subject", "statement_predicate", "sigstore_bundle"]
     result["valid"] = (
-        all(result["checks"].get(k) for k in mandatory)
+        all(result["checks"].get(k) is True for k in mandatory)
         and len(result["errors"]) == 0
     )
 

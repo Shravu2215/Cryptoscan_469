@@ -16,7 +16,8 @@ Usage:
     --commit abc123 \\
     --branch main \\
     --with-pqc \\
-    --with-sepolia
+    --with-sepolia \\
+    --strict
 
   cryptoscan-attest verify \\
     --cbom cbom.json \\
@@ -28,7 +29,7 @@ Usage:
 
 Exit codes:
   0  — success / verification passed
-  1  — verification failed
+  1  — verification failed or strict signing failure
   2  — usage / file-not-found error
 """
 
@@ -62,20 +63,18 @@ def cmd_attest(args) -> int:
     """Generate a signed in-toto attestation for a CBOM file."""
     from attestation.statement import build_statement, statement_to_json, sha256_file
     from attestation.signer import sign_statement
-    from attestation.rekor import rekor_search_by_hash
 
     cbom_path = args.cbom
     if not os.path.isfile(cbom_path):
         sys.stderr.write(f"Error: CBOM file not found: {cbom_path}\n")
         return 2
 
-    # Build metadata from CLI args + environment
     metadata = {
         "repository": args.repo or os.getenv("GITHUB_REPOSITORY", ""),
         "commit": args.commit or os.getenv("GITHUB_SHA", ""),
         "branch": args.branch or os.getenv("GITHUB_REF_NAME", ""),
         "scanner_version": "cryptoscan/1.0.0",
-        "scanned_at": None,  # auto-set to now
+        "scanned_at": None,
         "policy_threshold": args.policy_threshold or "CRITICAL",
     }
 
@@ -91,7 +90,6 @@ def cmd_attest(args) -> int:
         metadata=metadata,
     )
 
-    # Write statement
     stmt_path = args.out_statement or "attestation.intoto.json"
     Path(stmt_path).parent.mkdir(parents=True, exist_ok=True)
     Path(stmt_path).write_text(statement_to_json(statement), encoding="utf-8")
@@ -103,6 +101,7 @@ def cmd_attest(args) -> int:
     sign_result = sign_statement(
         statement=statement,
         output_bundle_path=bundle_path,
+        strict=args.strict,
     )
 
     if sign_result.get("signed"):
@@ -113,11 +112,18 @@ def cmd_attest(args) -> int:
             rekor_url = os.getenv("SIGSTORE_REKOR_URL", "https://rekor.sigstore.dev")
             print(f"[attest] Rekor URL: {rekor_url}/api/v1/log/entries/{rekor_id}", file=sys.stderr)
     else:
-        print(
-            f"[attest] WARNING: Sigstore signing unavailable. Offline bundle written.\n"
-            f"         Install: pip install sigstore>=3.0.0",
-            file=sys.stderr,
-        )
+        err = sign_result.get("error", "Sigstore signing unavailable")
+        if args.strict:
+            print(f"[attest] ERROR: Keyless signing failed in strict mode: {err}", file=sys.stderr)
+            return 1
+        elif args.allow_offline:
+            print(f"[attest] NOTICE: Generated offline bundle in allow-offline mode: {err}", file=sys.stderr)
+        else:
+            print(
+                f"[attest] WARNING: Sigstore signing unavailable ({err}). Offline bundle written.\n"
+                f"         Use --strict to enforce genuine Sigstore signing in production.",
+                file=sys.stderr,
+            )
 
     # 3. Optional: Hybrid ML-DSA-65 outer signature
     hybrid_path = None
@@ -170,6 +176,8 @@ def cmd_attest(args) -> int:
         "rekorLogId": sign_result.get("rekor_log_id"),
         "signerIdentity": sign_result.get("signer_identity"),
         "signed": sign_result.get("signed", False),
+        "mode": sign_result.get("mode", "offline"),
+        "error": sign_result.get("error"),
         "hybridEnvelope": hybrid_path,
         "experimental": {
             "pqcAlgorithm": "ML-DSA-65 (FIPS 204)" if args.with_pqc else None,
@@ -193,12 +201,16 @@ def cmd_verify(args) -> int:
         expected_identity=args.identity,
         expected_issuer=args.issuer,
         check_rekor=not args.no_rekor,
+        allow_offline=args.allow_offline,
     )
 
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
     if result["valid"]:
-        print("\n✅ Attestation VALID", file=sys.stderr)
+        if result.get("mode") == "offline":
+            print("\n⚠️ Attestation VALID (Unsigned Offline Development Artifact)", file=sys.stderr)
+        else:
+            print("\n✅ Attestation VALID (Cryptographically Signed & Verified)", file=sys.stderr)
         return 0
     else:
         print("\n❌ Attestation INVALID", file=sys.stderr)
@@ -229,6 +241,8 @@ def main():
     a.add_argument("--policy-threshold", default="CRITICAL", help="Policy threshold label in predicate")
     a.add_argument("--with-pqc", action="store_true", help="Add experimental ML-DSA-65 hybrid outer signature")
     a.add_argument("--with-sepolia", action="store_true", help="Anchor attestation hash to Sepolia (requires env vars)")
+    a.add_argument("--strict", action="store_true", help="Fail with exit code 1 if Sigstore signing cannot be completed")
+    a.add_argument("--allow-offline", action="store_true", help="Explicitly permit generating an unsigned offline bundle")
 
     # verify
     v = sub.add_parser("verify", help="Independently verify an attestation")
@@ -239,6 +253,7 @@ def main():
     v.add_argument("--identity", help="Expected OIDC identity SAN in Sigstore certificate")
     v.add_argument("--issuer", help="Expected OIDC issuer (e.g. https://token.actions.githubusercontent.com)")
     v.add_argument("--no-rekor", action="store_true", help="Skip Rekor inclusion check")
+    v.add_argument("--allow-offline", action="store_true", help="Allow offline/unsigned development bundles (normally rejected)")
 
     args = parser.parse_args()
 

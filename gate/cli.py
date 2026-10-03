@@ -198,6 +198,8 @@ def main():
     attest_parser.add_argument("--policy-threshold", default="CRITICAL", help="Policy threshold label in predicate")
     attest_parser.add_argument("--with-pqc", action="store_true", help="Add experimental ML-DSA-65 hybrid outer signature")
     attest_parser.add_argument("--with-sepolia", action="store_true", help="Anchor attestation hash to Sepolia (requires env vars)")
+    attest_parser.add_argument("--strict", action="store_true", help="Fail with exit code 1 if Sigstore signing cannot be completed")
+    attest_parser.add_argument("--allow-offline", action="store_true", help="Explicitly permit generating an unsigned offline bundle")
 
     # 'verify' subcommand
     verify_parser = subparsers.add_parser("verify", help="Independently verify an attestation bundle")
@@ -208,6 +210,7 @@ def main():
     verify_parser.add_argument("--identity", help="Expected OIDC identity SAN in Sigstore certificate")
     verify_parser.add_argument("--issuer", help="Expected OIDC issuer (e.g. https://token.actions.githubusercontent.com)")
     verify_parser.add_argument("--no-rekor", action="store_true", help="Skip Rekor inclusion check")
+    verify_parser.add_argument("--allow-offline", action="store_true", help="Allow offline/unsigned development bundles (normally rejected)")
 
     args = parser.parse_args()
 

@@ -21,8 +21,8 @@ Usage:
 import json
 import logging
 import os
+import shutil
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -53,8 +53,13 @@ def anchor_attestation_hash(
           "skipped"     — True if anchoring is disabled
     """
     if not os.getenv("CRYPTOSCAN_SEPOLIA_ANCHOR"):
-        return {"anchored": False, "tx_hash": None, "error": None, "skipped": True,
-                "reason": "CRYPTOSCAN_SEPOLIA_ANCHOR not set"}
+        return {
+            "anchored": False,
+            "tx_hash": None,
+            "error": None,
+            "skipped": True,
+            "reason": "CRYPTOSCAN_SEPOLIA_ANCHOR not set",
+        }
 
     rpc_url = os.getenv("SEPOLIA_RPC_URL", "")
     wallet_key = os.getenv("WALLET_PRIVATE_KEY", "")
@@ -62,16 +67,27 @@ def anchor_attestation_hash(
 
     if not rpc_url or not wallet_key or not addr:
         missing = []
-        if not rpc_url: missing.append("SEPOLIA_RPC_URL")
-        if not wallet_key: missing.append("WALLET_PRIVATE_KEY")
-        if not addr: missing.append("CRYPTO_ANCHOR_CONTRACT_ADDRESS")
+        if not rpc_url:
+            missing.append("SEPOLIA_RPC_URL")
+        if not wallet_key:
+            missing.append("WALLET_PRIVATE_KEY")
+        if not addr:
+            missing.append("CRYPTO_ANCHOR_CONTRACT_ADDRESS")
         msg = f"Sepolia anchor skipped — missing env vars: {', '.join(missing)}"
         logger.warning(msg)
         return {"anchored": False, "tx_hash": None, "error": msg, "skipped": True}
 
-    # Delegate to the existing blockchain-module anchor.js script
-    # We write a minimal JSON content file containing the attestation hash
-    # as the "component" so anchorScan() records it.
+    if not shutil.which("node"):
+        msg = "Sepolia anchor failed — 'node' runtime not found in PATH"
+        logger.error(msg)
+        return {"anchored": False, "tx_hash": None, "error": msg, "skipped": False}
+
+    anchor_script = _BLOCKCHAIN_MODULE_PATH / "scripts" / "anchor.js"
+    if not anchor_script.is_file():
+        msg = f"Sepolia anchor script not found: {anchor_script}"
+        logger.error(msg)
+        return {"anchored": False, "tx_hash": None, "error": msg, "skipped": False}
+
     content = {"attestationSha256": attestation_sha256, "scanId": scan_id}
 
     with tempfile.NamedTemporaryFile(
@@ -81,48 +97,26 @@ def anchor_attestation_hash(
         tmp_path = tmp.name
 
     try:
-        result = subprocess.run(
-            [sys.executable or "node", str(_BLOCKCHAIN_MODULE_PATH / "scripts" / "anchor.js"),
-             scan_id, tmp_path],
-            capture_output=True,
-            text=True,
-            timeout=60,
-            env={**os.environ, "SEPOLIA_RPC_URL": rpc_url, "WALLET_PRIVATE_KEY": wallet_key,
-                 "CRYPTO_ANCHOR_CONTRACT_ADDRESS": addr},
-            cwd=str(_BLOCKCHAIN_MODULE_PATH),
-        )
-        # Note: anchor.js is a Node.js script; use node instead
-        pass
-    finally:
-        os.unlink(tmp_path)
-
-    # Re-run with node
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".json", delete=False, encoding="utf-8"
-    ) as tmp:
-        json.dump(content, tmp)
-        tmp_path = tmp.name
-
-    try:
         node_result = subprocess.run(
-            ["node", str(_BLOCKCHAIN_MODULE_PATH / "scripts" / "anchor.js"),
-             scan_id, tmp_path],
+            ["node", str(anchor_script), scan_id, tmp_path],
             capture_output=True,
             text=True,
             timeout=60,
-            env={**os.environ, "SEPOLIA_RPC_URL": rpc_url, "WALLET_PRIVATE_KEY": wallet_key,
-                 "CRYPTO_ANCHOR_CONTRACT_ADDRESS": addr},
+            env={
+                **os.environ,
+                "SEPOLIA_RPC_URL": rpc_url,
+                "WALLET_PRIVATE_KEY": wallet_key,
+                "CRYPTO_ANCHOR_CONTRACT_ADDRESS": addr,
+            },
             cwd=str(_BLOCKCHAIN_MODULE_PATH),
         )
 
         if node_result.returncode == 0:
-            # Try to parse txHash from stdout
             tx_hash = None
             try:
                 out = json.loads(node_result.stdout)
                 tx_hash = out.get("txHash") or out.get("tx_hash")
             except Exception:
-                # Try to extract from plain text
                 for line in node_result.stdout.splitlines():
                     if "0x" in line and len(line.strip()) >= 66:
                         tx_hash = line.strip().split()[-1]

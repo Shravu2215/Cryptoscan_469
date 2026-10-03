@@ -35,7 +35,7 @@ on:
 permissions:
   # Required for Sigstore keyless signing (GitHub OIDC token)
   id-token: write
-  # Required to upload attestation artefacts
+  # Required to read repository contents
   contents: read
   # Required for actions/attest (GitHub native attestation)
   attestations: write
@@ -65,6 +65,7 @@ jobs:
       # ── 3. Install dependencies ──────────────────────────────────────────────
       - name: Install scanner + attestation dependencies
         run: |
+          pip install --upgrade pip
           pip install -r scanner/requirements.txt
           pip install -r attestation/requirements.txt
 
@@ -75,10 +76,8 @@ jobs:
           echo "CBOM components: $(python -c "import json; d=json.load(open('cbom.json')); print(len(d.get('components',[])))")"
 
       # ── 5. GitHub native attestation (actions/attest) ────────────────────────
-      #   actions/attest v2 uses SLSA provenance format internally and signs
-      #   with the repo's OIDC token. This is separate from our Sigstore flow
-      #   but provides an additional GitHub-native audit trail.
       - name: GitHub native attestation (actions/attest)
+        if: github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork
         uses: actions/attest@v2
         with:
           subject-path: cbom.json
@@ -90,7 +89,7 @@ jobs:
               "commit": "${{ github.sha }}",
               "branch": "${{ github.ref_name }}"
             }
-        continue-on-error: true   # non-blocking if unavailable on forks
+        continue-on-error: true   # non-blocking auxiliary audit trail
 
       # ── 6. CryptoScan in-toto + Sigstore attestation ─────────────────────────
       - name: Generate in-toto Statement + Sigstore bundle
@@ -98,57 +97,111 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
-          # Respect SIGSTORE_NO_REKOR for PRs from forks (no id-token available)
-          SIGSTORE_NO_REKOR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && '1' || '' }}
+          IS_FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && 'true' || 'false' }}
+          SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+          WALLET_PRIVATE_KEY: ${{ secrets.WALLET_PRIVATE_KEY }}
+          CRYPTO_ANCHOR_CONTRACT_ADDRESS: ${{ secrets.CBOM_REGISTRY_ADDRESS || secrets.CRYPTO_ANCHOR_CONTRACT_ADDRESS }}
         run: |
-          python -m attestation.cli attest \
-            --cbom cbom.json \
-            --out-statement attestation.intoto.json \
-            --out-bundle    attestation.bundle.json \
-            --repo          "${{ github.repository }}" \
-            --commit        "${{ github.sha }}" \
-            --branch        "${{ github.ref_name }}" \
-            ${{ (github.event_name == 'workflow_dispatch' && inputs.with_pqc || vars.CRYPTOSCAN_WITH_PQC == 'true') && '--with-pqc' || '' }} \
-            ${{ (github.event_name == 'workflow_dispatch' && inputs.with_sepolia || false) && '--with-sepolia' || '' }} \
-            --out-hybrid attestation.hybrid.json \
-            > attestation-summary.json
+          PQC_FLAG=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.with_pqc }}" = "true" ]; then
+            PQC_FLAG="--with-pqc"
+          elif [ "${{ vars.CRYPTOSCAN_WITH_PQC }}" = "true" ] || [ "${{ env.CRYPTOSCAN_WITH_PQC }}" = "true" ] || [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            PQC_FLAG="--with-pqc"
+          fi
+
+          SEPOLIA_FLAG=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.with_sepolia }}" = "true" ]; then
+            SEPOLIA_FLAG="--with-sepolia"
+          elif [ "${{ vars.CRYPTOSCAN_SEPOLIA_ANCHOR }}" = "1" ]; then
+            SEPOLIA_FLAG="--with-sepolia"
+          fi
+
+          if [ "$IS_FORK_PR" = "true" ]; then
+            echo "::notice ::Running in unprivileged fork PR mode — Sigstore OIDC unavailable; generating offline development bundle."
+            python -m attestation.cli attest \
+              --cbom cbom.json \
+              --out-statement attestation.intoto.json \
+              --out-bundle    attestation.bundle.json \
+              --out-hybrid    attestation.hybrid.json \
+              --repo          "${{ github.repository }}" \
+              --commit        "${{ github.sha }}" \
+              --branch        "${{ github.ref_name }}" \
+              $PQC_FLAG $SEPOLIA_FLAG \
+              --allow-offline \
+              > attestation-summary.json
+          else
+            echo "Running in strict production mode with Sigstore keyless signing..."
+            python -m attestation.cli attest \
+              --cbom cbom.json \
+              --out-statement attestation.intoto.json \
+              --out-bundle    attestation.bundle.json \
+              --out-hybrid    attestation.hybrid.json \
+              --repo          "${{ github.repository }}" \
+              --commit        "${{ github.sha }}" \
+              --branch        "${{ github.ref_name }}" \
+              $PQC_FLAG $SEPOLIA_FLAG \
+              --strict \
+              > attestation-summary.json
+          fi
 
           echo "=== Attestation Summary ==="
           cat attestation-summary.json
 
-      # ── 7. Verify the attestation we just produced ────────────────────────────
+      # ── 7. Independent Cryptographic Verification ────────────────────────────
       - name: Verify attestation (self-verification)
+        env:
+          IS_FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && 'true' || 'false' }}
         run: |
-          python -m attestation.cli verify \
-            --cbom      cbom.json \
-            --statement attestation.intoto.json \
-            --bundle    attestation.bundle.json \
-            --hybrid    attestation.hybrid.json \
-            --no-rekor
-        # We skip Rekor in self-verification because the Sigstore bundle may
-        # be an offline bundle if OIDC token is unavailable (fork PRs).
-        # A separate rekor-verify job can be added for stricter enforcement.
-        continue-on-error: true
+          if [ "$IS_FORK_PR" = "true" ]; then
+            echo "Verifying fork PR development bundle with offline allowance..."
+            python -m attestation.cli verify \
+              --cbom      cbom.json \
+              --statement attestation.intoto.json \
+              --bundle    attestation.bundle.json \
+              --hybrid    attestation.hybrid.json \
+              --allow-offline \
+              --no-rekor
+          else
+            echo "Verifying genuine Sigstore keyless bundle and certificate identity..."
+            EXPECTED_IDENTITY="https://github.com/${{ github.repository }}/.github/workflows/crypto-attestation.yml@refs/heads/${{ github.ref_name }}"
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              EXPECTED_IDENTITY="https://github.com/${{ github.repository }}/.github/workflows/crypto-attestation.yml@refs/pull/${{ github.event.pull_request.number }}/merge"
+            fi
+            python -m attestation.cli verify \
+              --cbom      cbom.json \
+              --statement attestation.intoto.json \
+              --bundle    attestation.bundle.json \
+              --hybrid    attestation.hybrid.json \
+              --identity  "$EXPECTED_IDENTITY" \
+              --issuer    "https://token.actions.githubusercontent.com"
+          fi
 
       # ── 8. Publish Job Summary ────────────────────────────────────────────────
       - name: Publish attestation summary
         if: always()
         run: |
-          echo "## 🔏 CryptoScan CBOM Attestation" >> $GITHUB_STEP_SUMMARY
+          echo "## 🔏 CryptoScan CBOM Attestation Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f attestation-summary.json ]; then
             CBOM_SHA=$(python -c "import json; d=json.load(open('attestation-summary.json')); print(d.get('cbomSha256','N/A'))")
-            REKOR_ID=$(python -c "import json; d=json.load(open('attestation-summary.json')); print(d.get('rekorLogId','None'))")
-            SIGNED=$(python -c "import json; d=json.load(open('attestation-summary.json')); print('✅ Yes' if d.get('signed') else '⚠️ Offline bundle')")
+            REKOR_ID=$(python -c "import json; d=json.load(open('attestation-summary.json')); print(d.get('rekorLogId') or 'None')")
+            MODE=$(python -c "import json; d=json.load(open('attestation-summary.json')); print(d.get('mode','unknown'))")
+            SIGNED=$(python -c "import json; d=json.load(open('attestation-summary.json')); print('✅ Keyless Signed (Sigstore)' if d.get('signed') else '⚠️ Unsigned Offline Bundle')")
+            IDENTITY=$(python -c "import json; d=json.load(open('attestation-summary.json')); print(d.get('signerIdentity') or 'None')")
+            PQC_ALGO=$(python -c "import json; d=json.load(open('attestation-summary.json')); print(d.get('experimental',{}).get('pqcAlgorithm') or 'None')")
+
             echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
             echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
-            echo "| CBOM SHA-256 | \`${CBOM_SHA}\` |" >> $GITHUB_STEP_SUMMARY
-            echo "| Sigstore signed | ${SIGNED} |" >> $GITHUB_STEP_SUMMARY
-            echo "| Rekor log ID | \`${REKOR_ID}\` |" >> $GITHUB_STEP_SUMMARY
-            echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-            echo "| Repository | ${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Attestation Status** | ${SIGNED} |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Mode** | \`${MODE}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| **CBOM SHA-256** | \`${CBOM_SHA}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Signer Identity (OIDC SAN)** | \`${IDENTITY}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Rekor Transparency Log ID** | \`${REKOR_ID}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Post-Quantum Algorithm** | ${PQC_ALGO} |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Commit** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Repository** | ${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "Attestation summary not available." >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Attestation summary file not generated." >> $GITHUB_STEP_SUMMARY
           fi
 
       # ── 9. Upload attestation artefacts ──────────────────────────────────────
