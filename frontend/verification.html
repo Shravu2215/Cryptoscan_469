@@ -1853,22 +1853,17 @@
         } catch (_) {}
 
         // Determine final status:
-        // 1. Backend says verified → trust it
-        if (verifyResult && verifyResult.verified === true) {
-          isVerified = true;
-          apiSuccess = true;
-        }
-        // 2. Anchor call succeeded (anchor was created/confirmed) → trust it
-        else if (anchorResult && anchorResult.verified === true) {
-          isVerified = true;
-          apiSuccess = true;
-          verifyResult = anchorResult;
-        }
-        // 3. Backend EXPLICITLY says tampered (verified === false, not just missing)
-        else if ((verifyResult && verifyResult.verified === false) && apiSuccess) {
+        // 1. Backend EXPLICITLY says tampered (verified === false) -> fail it!
+        if (verifyResult && verifyResult.verified === false) {
           isVerified = false;
+          apiSuccess = true;
         }
-        // 4. Backend completely unreachable / errored → local crypto fallback
+        // 2. Backend says verified -> trust it
+        else if (verifyResult && verifyResult.verified === true) {
+          isVerified = true;
+          apiSuccess = true;
+        }
+        // 3. Backend completely unreachable / errored -> local crypto fallback
         // The Merkle tree was correctly computed from scan findings in steps 1-3.
         // Local cryptographic verification is still valid proof of data integrity.
         else {
