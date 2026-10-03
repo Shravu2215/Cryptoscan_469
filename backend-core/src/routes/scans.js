@@ -215,7 +215,15 @@ router.post('/:repoId', requireAuth, async (req, res) => {
                     rawFindings: rawFindingsForAnchor
                   });
 
-                  const { root: merkleRoot } = buildMerkleTree(cbomForAnchor.components || []);
+                  // Guard against empty CBOM — buildMerkleTree throws on empty array
+                  const anchorComponents = cbomForAnchor.components || [];
+                  let merkleRoot;
+                  if (anchorComponents.length > 0) {
+                    const { root } = buildMerkleTree(anchorComponents);
+                    merkleRoot = root;
+                  } else {
+                    merkleRoot = crypto.createHash('sha256').update('EMPTY_CBOM_' + scan.id).digest('hex');
+                  }
                   const contentHash = '0x' + merkleRoot;
                   const deterministicTx = '0x' + crypto.createHash('sha256').update(scan.id + merkleRoot).digest('hex');
                   const signature = '0x' + crypto.createHash('sha256').update(contentHash + scan.id).digest('hex');
@@ -651,7 +659,15 @@ router.get('/:scanId/verify', softAuth, async (req, res) => {
           repoScans: firstRepoScans, rawFindings: rawFirst
         });
 
-        const { root: merkleRoot } = buildMerkleTree(firstCbom.components || []);
+        // buildMerkleTree throws if components is empty — use SHA-256 hash fallback for empty scans
+        let merkleRoot;
+        const components = firstCbom.components || [];
+        if (components.length > 0) {
+          const { root } = buildMerkleTree(components);
+          merkleRoot = root;
+        } else {
+          merkleRoot = crypto.createHash('sha256').update('EMPTY_CBOM_' + scan.id).digest('hex');
+        }
         const contentHash = '0x' + merkleRoot;
         const deterministicTx = '0x' + crypto.createHash('sha256').update(scan.id + merkleRoot).digest('hex');
         const signature = '0x' + crypto.createHash('sha256').update(contentHash + scan.id).digest('hex');
