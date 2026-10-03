@@ -263,3 +263,119 @@ model MigrationSchedule {
 
   @@index([scanId])
 }
+
+model NetworkCapture {
+  id        String   @id @default(uuid())
+  scanId    String?
+  source    String   @default("json") // "json" | "pcap" | "openssl"
+  fileName  String?
+  createdAt DateTime @default(now())
+
+  observations NetworkObservation[]
+  @@index([scanId])
+}
+
+model NetworkObservation {
+  id                   String          @id @default(uuid())
+  captureId            String
+  capture              NetworkCapture  @relation(fields: [captureId], references: [id], onDelete: Cascade)
+  host                 String?
+  port                 Int?
+  protocol             String          @default("TLS")
+  protocolVersion      String          @default("TLSv1.3")
+  cipherSuite          String?
+  keyExchange          String?
+  signatureAlgorithm   String?
+  certificateKeyType   String?
+  certificateKeySize   Int?
+  normalizedAlgorithms Json
+  quantumVulnerable    Boolean         @default(false)
+  createdAt            DateTime        @default(now())
+
+  @@index([captureId])
+}
+
+model TriangulationResult {
+  id                           String   @id @default(uuid())
+  scanId                       String
+  runIds                       Json     // array of run IDs used
+  captureIds                   Json     // array of capture IDs used
+  algorithm                    String
+  keySize                      Int?
+  classification               String   // "Confirmed Active" | "Static Only" | "Runtime Only" | "Network Only"
+  confidence                   String   @default("medium") // "high" | "medium" | "low"
+  confidenceReason             String
+  coverageNote                 String
+  possibleStaticFalseNegative Boolean  @default(false)
+  quantumVulnerable            Boolean  @default(false)
+  staticFindingId              String?
+  location                     String
+  evidence                     Json     // consolidated EvidenceItems array
+  createdAt                    DateTime @default(now())
+
+  @@index([scanId])
+  @@index([scanId, classification])
+}
+
+model HistoryScan {
+  id              String           @id @default(uuid())
+  repoName        String
+  ref             String           @default("HEAD")
+  commitCount     Int
+  firstCommitDate DateTime
+  lastCommitDate  DateTime
+  scannerVersion  String           @default("1.0.0")
+  rulesetHash     String?
+  cacheHits       Int              @default(0)
+  cacheMisses     Int              @default(0)
+  createdAt       DateTime         @default(now())
+
+  findings        HistoryFinding[]
+  secrets         HistorySecret[]
+}
+
+model HistoryFinding {
+  id                    String      @id @default(uuid())
+  historyScanId         String
+  historyScan           HistoryScan @relation(fields: [historyScanId], references: [id], onDelete: Cascade)
+  findingKey            String
+  algorithm             String
+  keySize               Int?
+  file                  String
+  function              String
+  classification        String      // "weak" | "quantum_vulnerable" | "both" | "ok"
+  introducedCommit      String
+  introducedCommitIndex Int
+  introducedDate        DateTime
+  removedCommit         String?
+  removedCommitIndex    Int?
+  removedDate           DateTime?
+  exposureCommits       Int
+  exposureDays          Int
+  stillPresent          Boolean     @default(true)
+  createdAt             DateTime    @default(now())
+
+  @@index([historyScanId])
+  @@index([findingKey])
+}
+
+model HistorySecret {
+  id                 String      @id @default(uuid())
+  historyScanId      String
+  historyScan        HistoryScan @relation(fields: [historyScanId], references: [id], onDelete: Cascade)
+  secretType         String
+  file               String
+  addedCommit        String
+  addedCommitIndex   Int
+  addedDate          DateTime
+  removedCommit      String?
+  removedCommitIndex Int?
+  removedDate        DateTime?
+  presentInHistory   Boolean     @default(true)
+  fingerprint        String      // Truncated SHA-256 hash (redacted fingerprint) - NO secret content column
+  createdAt          DateTime    @default(now())
+
+  @@index([historyScanId])
+}
+
+

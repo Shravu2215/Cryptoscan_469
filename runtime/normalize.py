@@ -53,8 +53,17 @@ ALGORITHM_MAP = {
     "ecdh": "ECDH",
     "ed25519": "Ed25519",
     "ed448": "Ed448",
-    "ecdh": "ECDH",
-    "dh": "DH",
+    # Network & Key Exchange
+    "ecdhe": "ECDHE",
+    "x25519": "X25519",
+    "x25519mlkem768": "X25519MLKEM768",
+    "ml-kem": "ML-KEM",
+    "mlkem": "ML-KEM",
+    "ml-dsa": "ML-DSA",
+    "mldsa": "ML-DSA",
+    "tls_aes_256_gcm_sha384": "AES-256-GCM",
+    "tls_aes_128_gcm_sha256": "AES-128-GCM",
+    "tls_chacha20_poly1305_sha256": "ChaCha20-Poly1305",
     
     # KDF & Password Hashing
     "pbkdf2": "PBKDF2",
@@ -101,7 +110,18 @@ def normalize_algorithm(raw_name: Optional[str]) -> str:
     if cleaned in ALGORITHM_MAP:
         return ALGORITHM_MAP[cleaned]
     
-    # Strip common prefixes/suffixes (e.g. 'aes-256-gcm' -> 'AES')
+    # Network / Key exchange specific patterns
+    if cleaned == "ecdhe":
+        return "ECDHE"
+    if cleaned == "x25519":
+        return "X25519"
+    if "x25519mlkem768" in cleaned:
+        return "X25519MLKEM768"
+    if "mlkem" in cleaned or "ml-kem" in cleaned:
+        return "ML-KEM"
+    if "mldsa" in cleaned or "ml-dsa" in cleaned:
+        return "ML-DSA"
+        
     if cleaned.startswith("aes"):
         return "AES"
     if cleaned.startswith("rsa"):
@@ -110,6 +130,8 @@ def normalize_algorithm(raw_name: Optional[str]) -> str:
         return "ECDSA"
     if "sha256" in cleaned or "sha-256" in cleaned:
         return "SHA-256"
+    if "sha384" in cleaned or "sha-384" in cleaned:
+        return "SHA-384"
     if "sha512" in cleaned or "sha-512" in cleaned:
         return "SHA-512"
     if "sha1" in cleaned or "sha-1" in cleaned:
@@ -121,3 +143,64 @@ def normalize_algorithm(raw_name: Optional[str]) -> str:
     
     # Return uppercase representation if unknown pattern
     return raw_name.strip().upper()
+
+
+def extract_network_algorithms(
+    cipher_suite: Optional[str] = None,
+    key_exchange: Optional[str] = None,
+    signature_algorithm: Optional[str] = None,
+    certificate_key_type: Optional[str] = None,
+) -> list:
+    """
+    Extracts a deduplicated list of canonical algorithm names from network metadata fields.
+    """
+    algos = set()
+
+    if key_exchange:
+        kex_norm = normalize_algorithm(key_exchange)
+        if kex_norm != "UNKNOWN":
+            algos.add(kex_norm)
+
+    if certificate_key_type:
+        cert_norm = normalize_algorithm(certificate_key_type)
+        if cert_norm != "UNKNOWN":
+            algos.add(cert_norm)
+
+    if signature_algorithm:
+        sig_lower = signature_algorithm.lower()
+        if "rsa" in sig_lower:
+            algos.add("RSA")
+        if "ecdsa" in sig_lower or "ec" in sig_lower:
+            algos.add("ECDSA")
+        if "sha256" in sig_lower or "sha-256" in sig_lower:
+            algos.add("SHA-256")
+        elif "sha384" in sig_lower or "sha-384" in sig_lower:
+            algos.add("SHA-384")
+        elif "sha512" in sig_lower or "sha-512" in sig_lower:
+            algos.add("SHA-512")
+        elif "sha1" in sig_lower or "sha-1" in sig_lower:
+            algos.add("SHA-1")
+
+    if cipher_suite:
+        cs_upper = cipher_suite.upper()
+        if "AES_256_GCM" in cs_upper or "AES-256-GCM" in cs_upper:
+            algos.add("AES-256-GCM")
+            algos.add("AES")
+        elif "AES_128_GCM" in cs_upper or "AES-128-GCM" in cs_upper:
+            algos.add("AES-128-GCM")
+            algos.add("AES")
+        elif "AES" in cs_upper:
+            algos.add("AES")
+        if "CHACHA20" in cs_upper:
+            algos.add("ChaCha20-Poly1305")
+        if "SHA384" in cs_upper:
+            algos.add("SHA-384")
+        elif "SHA256" in cs_upper:
+            algos.add("SHA-256")
+        if "ECDHE" in cs_upper:
+            algos.add("ECDHE")
+        if "RSA" in cs_upper:
+            algos.add("RSA")
+
+    return sorted(list(algos))
+

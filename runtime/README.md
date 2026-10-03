@@ -6,11 +6,12 @@
 
 ---
 
-## 📖 Overview
+## Scope and design
 
-Runtime Cryptographic Intelligence dynamically instruments Python and Node.js applications during test/staging execution to record which cryptographic operations actually execute at runtime. 
-
-This provides dynamic runtime evidence that complements static AST discovery, allowing downstream features (such as **Triangulated Truth**) to correlate static findings with dynamic execution proofs and identify unexecuted static code paths.
+- **Execution Environment**: Runtime tracing runs strictly in the user's **OWN** test or staging environment (never on CryptoScan servers).
+- **Metadata Only**: Only cryptographic metadata is recorded (algorithm names, key sizes, ciphers, modes, curve names, caller locations). No secret keys, passwords, plaintext, or ciphertext are ever captured or logged.
+- **Language Support**: Currently supports Python and Node.js applications.
+- **Execution Coverage**: The tracer only records code paths that actually execute during the monitored run. Therefore, a finding marked as **"not observed" does NOT mean "unused"** or safe — it simply means that specific code path was not exercised during the test run.
 
 ---
 
