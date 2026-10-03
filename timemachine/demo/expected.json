@@ -1,0 +1,123 @@
+{
+  "total_commits": 7,
+  "commit_summary": [
+    {
+      "commit_index": 1,
+      "message": "C1: Add app.py using MD5 and SHA-256",
+      "weak_count": 1,
+      "quantum_vulnerable_count": 0,
+      "total_findings": 2,
+      "leaked_secrets": 0
+    },
+    {
+      "commit_index": 2,
+      "message": "C2: Add RSA-1024 key generation in keys.py",
+      "weak_count": 2,
+      "quantum_vulnerable_count": 1,
+      "total_findings": 3,
+      "leaked_secrets": 0
+    },
+    {
+      "commit_index": 3,
+      "message": "C3: Commit deploy_key.pem dummy key",
+      "weak_count": 2,
+      "quantum_vulnerable_count": 1,
+      "total_findings": 3,
+      "leaked_secrets": 1
+    },
+    {
+      "commit_index": 4,
+      "message": "C4: Delete deploy_key.pem",
+      "weak_count": 2,
+      "quantum_vulnerable_count": 1,
+      "total_findings": 3,
+      "leaked_secrets": 0,
+      "leaked_secrets_in_history": 1
+    },
+    {
+      "commit_index": 5,
+      "message": "C5: Replace MD5 with SHA-256 in app.py",
+      "weak_count": 1,
+      "quantum_vulnerable_count": 1,
+      "total_findings": 2,
+      "leaked_secrets": 0
+    },
+    {
+      "commit_index": 6,
+      "message": "C6: Replace RSA-1024 with RSA-2048 in keys.py",
+      "weak_count": 0,
+      "quantum_vulnerable_count": 1,
+      "total_findings": 2,
+      "leaked_secrets": 0
+    },
+    {
+      "commit_index": 7,
+      "message": "C7: Add ECDSA P-256 signing in sign.py",
+      "weak_count": 0,
+      "quantum_vulnerable_count": 2,
+      "total_findings": 3,
+      "leaked_secrets": 0
+    }
+  ],
+  "findings_lifecycle": [
+    {
+      "finding_key": "app.py:hash_password:MD5",
+      "algorithm": "MD5",
+      "file": "app.py",
+      "introduced_commit_index": 1,
+      "removed_commit_index": 5,
+      "exposure_commits": 4,
+      "exposure_days": 4,
+      "still_present": false
+    },
+    {
+      "finding_key": "app.py:hash_file:SHA-256",
+      "algorithm": "SHA-256",
+      "file": "app.py",
+      "introduced_commit_index": 1,
+      "removed_commit_index": null,
+      "exposure_commits": 7,
+      "exposure_days": 6,
+      "still_present": true
+    },
+    {
+      "finding_key": "keys.py:generate_key:RSA-1024",
+      "algorithm": "RSA-1024",
+      "file": "keys.py",
+      "introduced_commit_index": 2,
+      "removed_commit_index": 6,
+      "exposure_commits": 4,
+      "exposure_days": 4,
+      "still_present": false
+    },
+    {
+      "finding_key": "keys.py:generate_key:RSA-2048",
+      "algorithm": "RSA-2048",
+      "file": "keys.py",
+      "introduced_commit_index": 6,
+      "removed_commit_index": null,
+      "exposure_commits": 2,
+      "exposure_days": 1,
+      "still_present": true
+    },
+    {
+      "finding_key": "sign.py:sign_data:ECDSA P-256",
+      "algorithm": "ECDSA P-256",
+      "file": "sign.py",
+      "introduced_commit_index": 7,
+      "removed_commit_index": null,
+      "exposure_commits": 1,
+      "exposure_days": 0,
+      "still_present": true
+    }
+  ],
+  "leaked_secrets": [
+    {
+      "file": "deploy_key.pem",
+      "secret_type": "RSA private key",
+      "added_commit_index": 3,
+      "removed_commit_index": 4,
+      "present_in_history": true
+    }
+  ]
+}
