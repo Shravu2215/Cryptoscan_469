@@ -4,11 +4,11 @@
   const $ = (id) => document.getElementById(id);
   const DEFAULT_IDS = new Set(['scenario-optimistic-v1', 'scenario-median-v1', 'scenario-pessimistic-v1']);
   const COLORS = [
-    { at: 0, rgb: [0, 32, 76] },
-    { at: 0.25, rgb: [59, 113, 133] },
-    { at: 0.5, rgb: [142, 170, 128] },
-    { at: 0.75, rgb: [216, 195, 108] },
-    { at: 1, rgb: [255, 241, 168] },
+    { at: 0, rgb: [20, 184, 166] },
+    { at: 0.25, rgb: [132, 204, 22] },
+    { at: 0.5, rgb: [234, 179, 8] },
+    { at: 0.75, rgb: [249, 115, 22] },
+    { at: 1, rgb: [239, 68, 68] },
   ];
   const state = {
     scans: [],
