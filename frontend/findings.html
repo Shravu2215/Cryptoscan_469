@@ -1807,7 +1807,7 @@
         updateTopRisks();
         updateDetectionCoverage();
 
-        const urlSearch = getUrlParam('search') || getUrlParam('system') || getUrlParam('repo');
+        const urlSearch = getUrlParam('search') || getUrlParam('system') || getUrlParam('repo') || getUrlParam('file');
         if (urlSearch) document.getElementById('filter-search').value = urlSearch.replace(/\.zip$/i, '');
 
         const urlAlgo = getUrlParam('algo');

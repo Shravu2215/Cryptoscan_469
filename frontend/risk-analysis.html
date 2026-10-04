@@ -564,6 +564,95 @@
       margin-top: 6px;
     }
 
+    .hndl-metric.clickable {
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .hndl-metric.clickable:hover {
+      transform: translateY(-2px);
+      border-color: var(--purple);
+      box-shadow: 0 6px 18px rgba(139, 92, 246, 0.16);
+    }
+
+    .hndl-metric-hint {
+      font-size: 11px;
+      color: var(--purple);
+      margin-top: 8px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .hndl-how-btn {
+      background: rgba(139, 92, 246, 0.1);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      color: var(--purple);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .hndl-how-btn:hover {
+      background: rgba(139, 92, 246, 0.2);
+      border-color: var(--purple);
+    }
+
+    .hndl-tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-m);
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .hndl-tab-btn:hover {
+      color: var(--text-h);
+    }
+
+    .hndl-tab-btn.active {
+      color: var(--purple);
+      border-bottom-color: var(--purple);
+    }
+
+    .hndl-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .hndl-table th {
+      padding: 10px 12px;
+      text-align: left;
+      font-weight: 600;
+      color: var(--text-s);
+      border-bottom: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .hndl-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-h);
+    }
+
+    .hndl-table tr:hover td {
+      background: rgba(139, 92, 246, 0.04);
+      cursor: pointer;
+    }
+
     /* Crypto-Agility */
     .agility-panel {
       background: var(--bg-card);
@@ -1487,38 +1576,58 @@
 
             <!-- HNDL Aggregate Analysis Panel -->
             <div class="hndl-panel" id="hndl-panel" style="display:none;">
-              <div class="hndl-panel-hd">
-                <div class="hndl-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
-                  </svg>
+              <div class="hndl-panel-hd" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                <div style="display:flex; align-items:center; gap:14px;">
+                  <div class="hndl-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="hndl-title">HNDL Aggregate Analysis (Mosca's Inequality)</div>
+                    <div class="hndl-sub">X (data lifetime) + Y (migration time) &gt; Z (threat horizon)</div>
+                  </div>
                 </div>
                 <div>
-                  <div class="hndl-title">HNDL Aggregate Analysis (Mosca's Inequality)</div>
-                  <div class="hndl-sub">X (migration) + Y (data lifetime) &gt; Z (quantum threat)</div>
+                  <button type="button" class="hndl-how-btn" onclick="openHndlExplanationModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                    How is this calculated?
+                  </button>
                 </div>
               </div>
               <div class="hndl-grid">
-                <div class="hndl-metric">
-                  <div class="hndl-metric-lbl">Overall HNDL Risk</div>
-                  <div class="hndl-metric-val" id="hndl-overall" style="color:var(--red);">—</div>
-                  <div class="hndl-metric-sub">Aggregate vulnerability score</div>
+                <div class="hndl-metric clickable" onclick="openHndlDrawer('score')" title="Click to inspect HNDL score formula and top contributing findings">
+                  <div class="hndl-metric-lbl">HNDL Exposure Score</div>
+                  <div class="hndl-metric-val" id="hndl-overall" style="color:var(--red); display:flex; align-items:baseline; gap:4px; flex-wrap:wrap;">
+                    <span id="hndl-score-val">—</span>
+                    <span id="hndl-score-denom" style="font-size:15px; font-weight:500; color:var(--text-s);">/100</span>
+                    <span id="hndl-band-badge" class="badge badge-crit" style="margin-left:6px; font-size:11px; padding:2px 8px; vertical-align:middle;">LOW</span>
+                  </div>
+                  <div class="hndl-metric-sub" id="hndl-score-sub">Aggregated confidentiality exposure</div>
+                  <div class="hndl-metric-hint">View Score Breakdown →</div>
                 </div>
-                <div class="hndl-metric">
-                  <div class="hndl-metric-lbl">Vulnerable Assets</div>
+                <div class="hndl-metric clickable" onclick="openHndlDrawer('algorithms')" title="Click to view vulnerable algorithms rollup">
+                  <div class="hndl-metric-lbl">Vulnerable Algorithms</div>
                   <div class="hndl-metric-val" id="hndl-assets" style="color:var(--purple);">0</div>
-                  <div class="hndl-metric-sub">Quantum-broken algorithms in use</div>
+                  <div class="hndl-metric-sub">Confidentiality algorithms at risk</div>
+                  <div class="hndl-metric-hint">View Algorithm Rollup →</div>
                 </div>
-                <div class="hndl-metric">
-                  <div class="hndl-metric-lbl">At-Risk Encrypted Data</div>
+                <div class="hndl-metric clickable" onclick="openHndlDrawer('locations')" title="Click to view and export exposed code locations">
+                  <div class="hndl-metric-lbl">At-Risk Locations</div>
                   <div class="hndl-metric-val" id="hndl-data-pts" style="color:var(--amber);">0</div>
                   <div class="hndl-metric-sub">Unique code locations exposed</div>
+                  <div class="hndl-metric-hint" style="color:var(--amber);">Explore Locations & Export →</div>
                 </div>
-                <div class="hndl-metric">
-                  <div class="hndl-metric-lbl">HNDL Score Range</div>
-                  <div class="hndl-metric-val" id="hndl-range" style="font-size:16px; color:var(--text-h);">—</div>
-                  <div class="hndl-metric-sub">Low → High across all findings</div>
+                <div class="hndl-metric clickable" onclick="openHndlDrawer('authenticity')" title="Click to view authenticity-at-risk assets">
+                  <div class="hndl-metric-lbl">Authenticity at Risk</div>
+                  <div class="hndl-metric-val" id="hndl-auth-count" style="color:var(--cyan, #06b6d4);">0</div>
+                  <div class="hndl-metric-sub">Signatures & MACs (migrate before Z)</div>
+                  <div class="hndl-metric-hint" style="color:var(--cyan, #06b6d4);">View Authenticity Assets →</div>
                 </div>
               </div>
             </div>
@@ -1697,8 +1806,8 @@
         <div class="explanation-box" style="margin-top:16px;">
           <h4>Mosca's Inequality (X + Y &gt; Z)</h4>
           <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:13px;">
-            <div><strong>X (Migration Time):</strong> <span id="drw-mosca-x">-</span> years</div>
-            <div><strong>Y (Data Lifetime):</strong> <span id="drw-mosca-y">-</span> years</div>
+            <div><strong>X (Data Lifetime):</strong> <span id="drw-mosca-x">-</span> years</div>
+            <div><strong>Y (Migration Time):</strong> <span id="drw-mosca-y">-</span> years</div>
             <div><strong>Z (Threat Horizon):</strong> <span id="drw-mosca-z">-</span> years</div>
           </div>
           <div style="margin-top:8px; font-size:13px; font-weight:600;" id="drw-mosca-result"></div>
@@ -1732,6 +1841,122 @@
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- HNDL Drill-down Drawer -->
+    <div class="drawer-overlay" id="hndl-drawer-overlay" onclick="closeHndlDrawer()"></div>
+    <div class="drawer" id="hndl-drawer" style="width: 720px; max-width: 95vw; z-index: 1002;">
+      <div class="drawer-hd" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); background:var(--bg-card); padding:18px 24px;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="hndl-icon" style="width:36px; height:36px; border-radius:8px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+            </svg>
+          </div>
+          <div>
+            <div class="drawer-title" id="hndl-drawer-title" style="font-size:16px; font-weight:700;">HNDL Exposure Analysis</div>
+            <div style="font-size:12px; color:var(--text-s);" id="hndl-drawer-sub">Mosca's Inequality (X Lifetime + Y Migration &gt; Z Threat)</div>
+          </div>
+        </div>
+        <button class="drawer-close" onclick="closeHndlDrawer()" aria-label="Close HNDL Drawer" style="background:none; border:none; color:var(--text-m); cursor:pointer; padding:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Navigation Tabs inside Drawer -->
+      <div style="display:flex; border-bottom:1px solid var(--border-color); background:var(--bg-main); padding:0 24px; overflow-x:auto;">
+        <button type="button" class="hndl-tab-btn active" id="hndl-tab-score" onclick="switchHndlTab('score')">Score Breakdown</button>
+        <button type="button" class="hndl-tab-btn" id="hndl-tab-algorithms" onclick="switchHndlTab('algorithms')">Vulnerable Algorithms</button>
+        <button type="button" class="hndl-tab-btn" id="hndl-tab-locations" onclick="switchHndlTab('locations')">At-Risk Locations</button>
+        <button type="button" class="hndl-tab-btn" id="hndl-tab-authenticity" onclick="switchHndlTab('authenticity')">Authenticity Assets</button>
+      </div>
+
+      <div class="drawer-body" style="padding:20px 24px; overflow-y:auto; flex:1;">
+        <!-- Mandatory Disclaimer: Requirement E -->
+        <div style="padding:10px 14px; background:rgba(139,92,246,0.08); border-left:3px solid var(--purple); border-radius:6px; font-size:12px; color:var(--text-h); margin-bottom:18px; line-height:1.5;">
+          <strong>Planning Note:</strong> Data lifetimes are estimated from cryptographic purpose; edit them in the Risk Analysis table.
+        </div>
+
+        <!-- 1. Score Breakdown View -->
+        <div id="hndl-view-score" class="hndl-view-pane"></div>
+
+        <!-- 2. Algorithms Rollup View -->
+        <div id="hndl-view-algorithms" class="hndl-view-pane" style="display:none;"></div>
+
+        <!-- 3. At-Risk Locations View -->
+        <div id="hndl-view-locations" class="hndl-view-pane" style="display:none;"></div>
+
+        <!-- 4. Authenticity Crypto View -->
+        <div id="hndl-view-authenticity" class="hndl-view-pane" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- Explanation Popover / Modal -->
+    <div class="drawer-overlay" id="hndl-explain-overlay" onclick="closeHndlExplanationModal()" style="z-index: 1004;"></div>
+    <div id="hndl-explain-modal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width:600px; max-width:92vw; max-height:85vh; overflow-y:auto; background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--r-lg); box-shadow:0 20px 40px rgba(0,0,0,0.5); z-index:1005; padding:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
+        <div style="font-size:17px; font-weight:700; color:var(--text-h); display:flex; align-items:center; gap:8px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" style="width:20px;height:20px;">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+          <span>How is HNDL Exposure Calculated?</span>
+        </div>
+        <button onclick="closeHndlExplanationModal()" style="background:none; border:none; color:var(--text-m); cursor:pointer; font-size:18px; padding:2px;">✕</button>
+      </div>
+
+      <div style="font-size:13px; color:var(--text-b); line-height:1.6; display:flex; flex-direction:column; gap:16px;">
+        <div>
+          <strong style="color:var(--text-h);">Harvest-Now-Decrypt-Later (HNDL)</strong> occurs when an adversary intercepts and archives encrypted communications or sensitive stored ciphertext today, with the goal of decrypting it once a Cryptographically Relevant Quantum Computer (CRQC) is built.
+        </div>
+
+        <div style="background:var(--bg-main); border:1px solid var(--border-color); border-radius:8px; padding:14px;">
+          <div style="font-size:12px; font-weight:700; color:var(--purple); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">Mosca's Inequality Model</div>
+          <div style="font-family:'JetBrains Mono', monospace; font-size:14px; font-weight:700; color:var(--text-h); margin-bottom:8px;">
+            X (Data Lifetime) + Y (Migration Time) &gt; Z (Threat Horizon)
+          </div>
+          <ul style="margin:0; padding-left:18px; font-size:12px; color:var(--text-m); display:flex; flex-direction:column; gap:4px;">
+            <li><strong>X (Lifetime):</strong> Required secrecy duration of encrypted data (e.g. 20y for health/data, 10y for key exchange).</li>
+            <li><strong>Y (Migration):</strong> Years required to complete post-quantum migration across affected codebases.</li>
+            <li><strong>Z (Threat):</strong> Years until CRQC emergence (adjusted via the Threat Horizon slider above).</li>
+          </ul>
+        </div>
+
+        <div style="background:var(--bg-main); border:1px solid var(--border-color); border-radius:8px; padding:14px;">
+          <div style="font-size:12px; font-weight:700; color:var(--purple); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">Aggregate Exposure Score Formula</div>
+          <div style="font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:700; color:var(--text-h); margin-bottom:8px;">
+            Score = round( 0.5 × max(per-finding score) + 0.5 × mean(confidentiality scores) )
+          </div>
+          <div style="font-size:12px; color:var(--text-m);">
+            Only confidentiality-at-risk cryptography (key exchange, encryption) feeds the HNDL score. Digital signatures and MACs protect authenticity and must be upgraded before Z, but cannot be retrospectively decrypted.
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:12px; font-weight:700; color:var(--text-h); margin-bottom:6px;">Risk Band Thresholds:</div>
+          <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; font-size:12px;">
+            <div style="padding:8px 10px; background:rgba(16,185,129,0.1); border-left:3px solid var(--green); border-radius:4px;">
+              <strong>0 – 24 (LOW):</strong> Minimal confidentiality exposure.
+            </div>
+            <div style="padding:8px 10px; background:rgba(234,179,8,0.1); border-left:3px solid var(--yellow); border-radius:4px;">
+              <strong>25 – 49 (MEDIUM):</strong> Moderate secrecy runway.
+            </div>
+            <div style="padding:8px 10px; background:rgba(245,158,11,0.1); border-left:3px solid var(--amber); border-radius:4px;">
+              <strong>50 – 74 (HIGH):</strong> Migration timeline approaches CRQC threat.
+            </div>
+            <div style="padding:8px 10px; background:rgba(239,68,68,0.1); border-left:3px solid var(--red); border-radius:4px;">
+              <strong>75 – 100 (CRITICAL):</strong> Retained secrecy exceeds threat arrival (X + Y &gt; Z).
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:10px 12px; background:rgba(255,255,255,0.03); border:1px dashed var(--border-color); border-radius:6px; font-size:12px; color:var(--text-s);">
+          💡 <em>Note: X, Y, and Z are editable planning assumptions. Moving the CRQC Threat Horizon slider or editing data lifetimes immediately recalculates this score live.</em>
+        </div>
       </div>
     </div>
 
@@ -1784,6 +2009,7 @@
     </style>
 
     <script src="assets/js/engine.js"></script>
+    <script src="assets/js/hndl.js"></script>
     <script>
       let allFindings = [];
       let migrationCandidates = [];
@@ -2432,6 +2658,9 @@
         if (document.getElementById('p3-count')) document.getElementById('p3-count').textContent = migrationCandidates.filter(c => c.priority === 3).length;
       }
 
+      let currentHndlAnalysis = null;
+      let activeHndlTab = 'score';
+
       function computeHndlAndAgility() {
         const hndlPanel = document.getElementById('hndl-panel');
         const agilityPanel = document.getElementById('agility-panel');
@@ -2442,35 +2671,82 @@
           return;
         }
 
-        // HNDL: Quantum-broken algorithms are the HNDL threat
-        const QUANTUM_BROKEN_FAMILIES = new Set(['RSA', 'EC', 'ECDSA', 'ECDH', 'DH', 'DSA', 'ElGamal']);
-        const quantumBrokenFindings = allFindings.filter(f => {
-          const qs = (f.quantumStatus || '').toLowerCase();
-          const algo = (f.algorithm || '').toUpperCase();
-          return qs.includes('vulnerable') || qs.includes('broken') ||
-            QUANTUM_BROKEN_FAMILIES.has(algo.split('-')[0]) || QUANTUM_BROKEN_FAMILIES.has(algo);
-        });
+        // Real HNDL calculation using shared HndlEngine
+        const currentZ = (typeof CryptoEngine !== 'undefined' && CryptoEngine.getGlobalZ) ? CryptoEngine.getGlobalZ() : 12;
+        currentHndlAnalysis = (typeof HndlEngine !== 'undefined')
+          ? HndlEngine.calculateHndlAnalysis(allFindings, { yearsToQuantumThreat: currentZ })
+          : {
+              currentZ: currentZ,
+              aggregateScore: 0,
+              band: 'LOW',
+              bandColor: 'var(--green)',
+              hasConfidentialityRisk: false,
+              vulnerableAlgorithmsCount: 0,
+              atRiskLocationsCount: 0,
+              authenticityCount: 0,
+              minScore: 0,
+              maxScore: 0,
+              meanScore: 0,
+              histogram: { '0-24': 0, '25-49': 0, '50-74': 0, '75-100': 0 },
+              group1Findings: [],
+              group2Findings: [],
+              algorithmRollup: [],
+              uniqueLocations: []
+            };
 
-        const vulnerableAssets = new Set(quantumBrokenFindings.map(f => f.algorithm)).size;
-        const dataPoints = quantumBrokenFindings.length;
+        const scoreValEl = document.getElementById('hndl-score-val');
+        const scoreDenomEl = document.getElementById('hndl-score-denom');
+        const bandBadgeEl = document.getElementById('hndl-band-badge');
+        const scoreSubEl = document.getElementById('hndl-score-sub');
+        const assetsEl = document.getElementById('hndl-assets');
+        const dataPtsEl = document.getElementById('hndl-data-pts');
+        const authCountEl = document.getElementById('hndl-auth-count');
 
-        // Score: 0-100; based on % of findings that are quantum-broken
-        const hndlPct = allFindings.length > 0 ? Math.round((quantumBrokenFindings.length / allFindings.length) * 100) : 0;
-        const hndlLabel = hndlPct >= 60 ? 'CRITICAL' : hndlPct >= 35 ? 'HIGH' : hndlPct >= 15 ? 'MEDIUM' : 'LOW';
-        const hndlColor = hndlPct >= 60 ? 'var(--red)' : hndlPct >= 35 ? 'var(--amber)' : hndlPct >= 15 ? 'var(--yellow)' : 'var(--green)';
-
-        // Score range across all findings
-        const scoreMin = Math.max(0, hndlPct - 20);
-        const scoreMax = Math.min(100, hndlPct + 15);
-
-        if (document.getElementById('hndl-overall')) {
-          document.getElementById('hndl-overall').textContent = hndlLabel;
-          document.getElementById('hndl-overall').style.color = hndlColor;
+        if (currentHndlAnalysis.hasConfidentialityRisk) {
+          if (scoreValEl) {
+            scoreValEl.textContent = currentHndlAnalysis.aggregateScore;
+            scoreValEl.style.color = currentHndlAnalysis.bandColor;
+          }
+          if (scoreDenomEl) scoreDenomEl.style.display = 'inline';
+          if (bandBadgeEl) {
+            bandBadgeEl.textContent = currentHndlAnalysis.band;
+            bandBadgeEl.className = 'badge ' + (
+              currentHndlAnalysis.band === 'CRITICAL' ? 'badge-crit' :
+              (currentHndlAnalysis.band === 'HIGH' ? 'badge-high' :
+              (currentHndlAnalysis.band === 'MEDIUM' ? 'badge-med' : 'badge-low'))
+            );
+            bandBadgeEl.style.display = 'inline-block';
+          }
+          if (scoreSubEl) {
+            scoreSubEl.textContent = `Score Range: ${currentHndlAnalysis.minScore} – ${currentHndlAnalysis.maxScore} (Avg: ${currentHndlAnalysis.meanScore})`;
+          }
+        } else {
+          if (scoreValEl) {
+            scoreValEl.textContent = '0';
+            scoreValEl.style.color = 'var(--green)';
+          }
+          if (scoreDenomEl) scoreDenomEl.style.display = 'inline';
+          if (bandBadgeEl) {
+            bandBadgeEl.textContent = 'LOW';
+            bandBadgeEl.className = 'badge badge-low';
+            bandBadgeEl.style.display = 'inline-block';
+          }
+          if (scoreSubEl) {
+            scoreSubEl.textContent = 'No confidentiality-at-risk cryptography found';
+          }
         }
-        if (document.getElementById('hndl-assets')) document.getElementById('hndl-assets').textContent = vulnerableAssets;
-        if (document.getElementById('hndl-data-pts')) document.getElementById('hndl-data-pts').textContent = dataPoints;
-        if (document.getElementById('hndl-range')) document.getElementById('hndl-range').textContent = `${scoreMin} – ${scoreMax}`;
+
+        if (assetsEl) assetsEl.textContent = currentHndlAnalysis.vulnerableAlgorithmsCount;
+        if (dataPtsEl) dataPtsEl.textContent = currentHndlAnalysis.atRiskLocationsCount;
+        if (authCountEl) authCountEl.textContent = currentHndlAnalysis.authenticityCount;
+
         hndlPanel.style.display = 'block';
+
+        // Refresh drawer live if currently open
+        const drawer = document.getElementById('hndl-drawer');
+        if (drawer && drawer.classList.contains('active')) {
+          renderHndlDrawerView(activeHndlTab);
+        }
 
         // Crypto-Agility: based on category/rule patterns
         const SAFE_ALGOS = new Set(['AES-256', 'AES-256-GCM', 'AES-192', 'SHA-256', 'SHA-384', 'SHA-512', 'SHA3-256', 'SHA3-512', 'CHACHA20', 'HMAC']);
@@ -2768,6 +3044,379 @@
         document.getElementById('drawer-overlay').classList.remove('active');
         document.getElementById('drawer').classList.remove('active');
       }
+
+      // HNDL Drawer Controller
+      function openHndlDrawer(tab) {
+        if (!currentHndlAnalysis) {
+          const currentZ = (typeof CryptoEngine !== 'undefined' && CryptoEngine.getGlobalZ) ? CryptoEngine.getGlobalZ() : 12;
+          currentHndlAnalysis = HndlEngine.calculateHndlAnalysis(allFindings, { yearsToQuantumThreat: currentZ });
+        }
+        activeHndlTab = tab || 'score';
+        document.getElementById('hndl-drawer-overlay').classList.add('active');
+        document.getElementById('hndl-drawer').classList.add('active');
+        switchHndlTab(activeHndlTab);
+      }
+
+      function closeHndlDrawer() {
+        document.getElementById('hndl-drawer-overlay').classList.remove('active');
+        document.getElementById('hndl-drawer').classList.remove('active');
+      }
+
+      function switchHndlTab(tab) {
+        activeHndlTab = tab;
+        ['score', 'algorithms', 'locations', 'authenticity'].forEach(t => {
+          const btn = document.getElementById('hndl-tab-' + t);
+          const view = document.getElementById('hndl-view-' + t);
+          if (btn) btn.classList.toggle('active', t === tab);
+          if (view) view.style.display = (t === tab) ? 'block' : 'none';
+        });
+
+        const titleEl = document.getElementById('hndl-drawer-title');
+        const subEl = document.getElementById('hndl-drawer-sub');
+        if (tab === 'score') {
+          if (titleEl) titleEl.textContent = 'HNDL Exposure Score Breakdown';
+          if (subEl) subEl.textContent = 'Formula Breakdown & Top Contributing Confidentiality Findings';
+        } else if (tab === 'algorithms') {
+          if (titleEl) titleEl.textContent = 'Vulnerable Algorithms Rollup';
+          if (subEl) subEl.textContent = 'Confidentiality Algorithms Subject to Shor Decryption';
+        } else if (tab === 'locations') {
+          if (titleEl) titleEl.textContent = 'At-Risk Cryptographic Locations';
+          if (subEl) subEl.textContent = 'Unique Code Locations Exposing Long-Term Ciphertext';
+        } else if (tab === 'authenticity') {
+          if (titleEl) titleEl.textContent = 'Authenticity Cryptographic Assets';
+          if (subEl) subEl.textContent = 'Signatures & MACs (Pre-Quantum Threat Migration Window)';
+        }
+
+        renderHndlDrawerView(tab);
+      }
+
+      function renderHndlDrawerView(tab) {
+        if (!currentHndlAnalysis) return;
+        if (tab === 'score') renderHndlScoreView();
+        else if (tab === 'algorithms') renderHndlAlgorithmsView();
+        else if (tab === 'locations') renderHndlLocationsView();
+        else if (tab === 'authenticity') renderHndlAuthenticityView();
+      }
+
+      function renderHndlScoreView() {
+        const container = document.getElementById('hndl-view-score');
+        if (!container) return;
+        const a = currentHndlAnalysis;
+
+        const max = a.maxScore || 0;
+        const mean = a.meanScore || 0;
+        const hist = a.histogram || { '0-24': 0, '25-49': 0, '50-74': 0, '75-100': 0 };
+        const totalConf = a.group1Findings ? a.group1Findings.length : 0;
+
+        const top10 = a.group1Findings ? a.group1Findings.slice(0, 10) : [];
+
+        const buckets = [
+          { key: '0-24', label: '0–24 (Low)', color: 'var(--green)', count: hist['0-24'] || 0 },
+          { key: '25-49', label: '25–49 (Medium)', color: 'var(--yellow)', count: hist['25-49'] || 0 },
+          { key: '50-74', label: '50–74 (High)', color: 'var(--amber)', count: hist['50-74'] || 0 },
+          { key: '75-100', label: '75–100 (Critical)', color: 'var(--red)', count: hist['75-100'] || 0 }
+        ];
+
+        const histHtml = buckets.map(b => {
+          const pct = totalConf > 0 ? Math.round((b.count / totalConf) * 100) : 0;
+          return `
+            <div style="margin-bottom:10px;">
+              <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                <span style="font-weight:600; color:var(--text-h);">${b.label}</span>
+                <span style="color:var(--text-m); font-family:'JetBrains Mono',monospace;">${b.count} findings (${pct}%)</span>
+              </div>
+              <div style="height:8px; background:rgba(255,255,255,0.06); border-radius:4px; overflow:hidden;">
+                <div style="height:100%; width:${pct}%; background:${b.color}; border-radius:4px; transition:width 0.3s ease;"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        let top10Rows = '';
+        if (top10.length === 0) {
+          top10Rows = `<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-s);">No confidentiality-at-risk cryptography found</td></tr>`;
+        } else {
+          top10Rows = top10.map((f, idx) => {
+            const badgeClass = f.score >= 75 ? 'badge-crit' : (f.score >= 50 ? 'badge-high' : (f.score >= 25 ? 'badge-med' : 'badge-low'));
+            return `
+              <tr onclick="window.location.href='findings.html?file=${encodeURIComponent(f.file)}&algo=${encodeURIComponent(f.algorithm)}'" title="Click to inspect finding details in Findings view">
+                <td style="font-family:'JetBrains Mono',monospace; color:var(--text-s);">${idx + 1}</td>
+                <td style="font-weight:700; color:var(--purple); font-family:'JetBrains Mono',monospace;">${f.algorithm}</td>
+                <td style="font-family:'JetBrains Mono',monospace; font-size:11px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${f.file}:${f.line}">${f.file}:${f.line}</td>
+                <td><span style="font-size:11px; color:var(--text-m);">${f.purpose}</span></td>
+                <td style="text-align:center; font-family:'JetBrains Mono',monospace; font-weight:700; color:${f.exposureWindow > 0 ? 'var(--red)' : 'var(--green)'};">${f.exposureWindow}y</td>
+                <td style="text-align:center;"><span class="badge ${badgeClass}" style="font-family:'JetBrains Mono',monospace; font-weight:800;">${f.score}</span></td>
+              </tr>
+            `;
+          }).join('');
+        }
+
+        container.innerHTML = `
+          <!-- Score Summary Box -->
+          <div style="background:var(--bg-main); border:1px solid var(--border-color); border-radius:8px; padding:18px; margin-bottom:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+              <div>
+                <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-s); font-weight:700;">HNDL Exposure Score</div>
+                <div style="display:flex; align-items:baseline; gap:8px; margin-top:2px;">
+                  <span style="font-size:32px; font-weight:800; font-family:'JetBrains Mono',monospace; color:${a.bandColor};">${a.aggregateScore}</span>
+                  <span style="font-size:16px; color:var(--text-s);">/100</span>
+                  <span class="badge ${a.band === 'CRITICAL' ? 'badge-crit' : (a.band === 'HIGH' ? 'badge-high' : (a.band === 'MEDIUM' ? 'badge-med' : 'badge-low'))}" style="padding:2px 8px;">${a.band}</span>
+                </div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:11px; color:var(--text-s);">Planning Threat Horizon (Z)</div>
+                <div style="font-size:18px; font-weight:700; color:var(--purple); font-family:'JetBrains Mono',monospace;">${a.currentZ} Years</div>
+              </div>
+            </div>
+
+            <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border-color); font-size:12px; color:var(--text-m); line-height:1.6;">
+              <div style="font-family:'JetBrains Mono',monospace; font-weight:600; color:var(--text-h); margin-bottom:4px;">
+                Score = round( 0.5 × max(${max}) + 0.5 × mean(${mean}) ) = ${a.aggregateScore}
+              </div>
+              <div>Calculated from ${totalConf} confidentiality-at-risk cryptographic component(s).</div>
+            </div>
+          </div>
+
+          <!-- Score Distribution Histogram -->
+          <div style="background:var(--bg-main); border:1px solid var(--border-color); border-radius:8px; padding:18px; margin-bottom:20px;">
+            <div style="font-size:13px; font-weight:700; color:var(--text-h); margin-bottom:14px;">Finding Score Distribution Histogram</div>
+            ${histHtml}
+          </div>
+
+          <!-- Top Contributing Findings -->
+          <div style="background:var(--bg-main); border:1px solid var(--border-color); border-radius:8px; padding:18px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+              <div style="font-size:13px; font-weight:700; color:var(--text-h);">Top Contributing Confidentiality Findings</div>
+              <span style="font-size:11px; color:var(--text-s);">Top 10 sorted by HNDL Score descending</span>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="hndl-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Algorithm</th>
+                    <th>Location</th>
+                    <th>Purpose</th>
+                    <th style="text-align:center;">Exposure Window</th>
+                    <th style="text-align:center;">Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${top10Rows}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderHndlAlgorithmsView() {
+        const container = document.getElementById('hndl-view-algorithms');
+        if (!container) return;
+        const roll = currentHndlAnalysis.algorithmRollup || [];
+
+        let rows = '';
+        if (roll.length === 0) {
+          rows = `<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-s);">No vulnerable confidentiality algorithms identified</td></tr>`;
+        } else {
+          rows = roll.map(item => {
+            const badgeClass = item.score >= 75 ? 'badge-crit' : (item.score >= 50 ? 'badge-high' : (item.score >= 25 ? 'badge-med' : 'badge-low'));
+            return `
+              <tr onclick="window.location.href='migration-plan.html?algo=${encodeURIComponent(item.algorithm)}'" title="Click to view algorithm migration plan in Migration Plan view">
+                <td style="font-weight:700; color:var(--purple); font-family:'JetBrains Mono',monospace;">${item.algorithm}</td>
+                <td style="text-align:center; font-family:'JetBrains Mono',monospace;">${item.locationsCount}</td>
+                <td style="text-align:center; font-family:'JetBrains Mono',monospace;">${item.avgX}y</td>
+                <td style="text-align:center; font-family:'JetBrains Mono',monospace;">${item.Y}y</td>
+                <td style="text-align:center; font-family:'JetBrains Mono',monospace;">${item.Z}y</td>
+                <td style="text-align:center; font-family:'JetBrains Mono',monospace; font-weight:700; color:${item.exposureWindow > 0 ? 'var(--red)' : 'var(--green)'};">${item.exposureWindow}y</td>
+                <td style="text-align:center;"><span class="badge ${badgeClass}" style="font-family:'JetBrains Mono',monospace; font-weight:800;">${item.score}</span></td>
+                <td style="font-size:11px; color:var(--green); font-weight:600;">${item.replacement}</td>
+              </tr>
+            `;
+          }).join('');
+        }
+
+        container.innerHTML = `
+          <div style="background:var(--bg-main); border:1px solid var(--border-color); border-radius:8px; padding:18px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+              <div>
+                <div style="font-size:13px; font-weight:700; color:var(--text-h);">Vulnerable Algorithms Exposure Table</div>
+                <div style="font-size:11px; color:var(--text-s);">Click any algorithm row to inspect and execute its migration plan</div>
+              </div>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="hndl-table">
+                <thead>
+                  <tr>
+                    <th>Algorithm</th>
+                    <th style="text-align:center;">Locations</th>
+                    <th style="text-align:center;">Avg X (Lifetime)</th>
+                    <th style="text-align:center;">Y (Migration)</th>
+                    <th style="text-align:center;">Z (Threat)</th>
+                    <th style="text-align:center;">Exposure Window</th>
+                    <th style="text-align:center;">Score</th>
+                    <th>Recommended Replacement</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+
+      let hndlLocationFilter = '';
+      function onHndlLocSearch(val) {
+        hndlLocationFilter = (val || '').toLowerCase();
+        renderHndlLocationsView();
+      }
+
+      function renderHndlLocationsView() {
+        const container = document.getElementById('hndl-view-locations');
+        if (!container) return;
+        const locs = currentHndlAnalysis.uniqueLocations || [];
+
+        const filtered = locs.filter(item => {
+          if (!hndlLocationFilter) return true;
+          const searchStr = `${item.file}:${item.line} ${item.algorithm} ${item.purpose} ${item.confidence}`.toLowerCase();
+          return searchStr.indexOf(hndlLocationFilter) !== -1;
+        });
+
+        let rows = '';
+        if (filtered.length === 0) {
+          rows = `<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-s);">No locations matching filter</td></tr>`;
+        } else {
+          rows = filtered.map(item => {
+            const badgeClass = item.score >= 75 ? 'badge-crit' : (item.score >= 50 ? 'badge-high' : (item.score >= 25 ? 'badge-med' : 'badge-low'));
+            const confColor = item.confidence === 'high' ? 'var(--green)' : (item.confidence === 'medium' ? 'var(--amber)' : 'var(--text-s)');
+            return `
+              <tr onclick="window.location.href='findings.html?file=${encodeURIComponent(item.file)}&algo=${encodeURIComponent(item.algorithm)}'" title="Click to view file in Findings explorer">
+                <td style="font-family:'JetBrains Mono',monospace; font-weight:600; color:var(--text-h); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${item.file}:${item.line}">${item.file}:${item.line}</td>
+                <td style="font-weight:700; color:var(--purple); font-family:'JetBrains Mono',monospace;">${item.algorithm}</td>
+                <td style="font-size:11px; color:var(--text-m);">${item.purpose}</td>
+                <td style="text-align:center; font-family:'JetBrains Mono',monospace;">${item.X}y</td>
+                <td style="text-align:center; font-family:'JetBrains Mono',monospace; font-weight:700; color:${item.exposureWindow > 0 ? 'var(--red)' : 'var(--green)'};">${item.exposureWindow}y</td>
+                <td style="text-align:center;"><span class="badge ${badgeClass}" style="font-family:'JetBrains Mono',monospace; font-weight:800;">${item.score}</span></td>
+                <td style="text-align:center;"><span style="font-size:11px; font-weight:700; color:${confColor}; text-transform:uppercase;">${item.confidence}</span></td>
+              </tr>
+            `;
+          }).join('');
+        }
+
+        container.innerHTML = `
+          <div style="background:var(--bg-main); border:1px solid var(--border-color); border-radius:8px; padding:18px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+              <div style="flex:1; min-width:240px;">
+                <input type="text" id="hndl-loc-search" placeholder="Search file, line, algorithm, or purpose..." value="${hndlLocationFilter}" oninput="onHndlLocSearch(this.value)" style="width:100%; padding:8px 12px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:6px; color:var(--text-h); font-size:12px;">
+              </div>
+              <div>
+                <button type="button" class="btn-sec" onclick="HndlEngine.exportLocationsToCsv(currentHndlAnalysis.uniqueLocations)" style="padding:8px 14px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:6px;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Export CSV (${locs.length})
+                </button>
+              </div>
+            </div>
+
+            <div style="overflow-x:auto;">
+              <table class="hndl-table">
+                <thead>
+                  <tr>
+                    <th>File:Line</th>
+                    <th>Algorithm</th>
+                    <th>Purpose</th>
+                    <th style="text-align:center;">X Lifetime</th>
+                    <th style="text-align:center;">Exposure Window</th>
+                    <th style="text-align:center;">Score</th>
+                    <th style="text-align:center;">Confidence</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderHndlAuthenticityView() {
+        const container = document.getElementById('hndl-view-authenticity');
+        if (!container) return;
+        const g2 = currentHndlAnalysis.group2Findings || [];
+
+        let rows = '';
+        if (g2.length === 0) {
+          rows = `<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-s);">No authenticity-at-risk cryptographic components identified</td></tr>`;
+        } else {
+          rows = g2.map(item => {
+            return `
+              <tr onclick="window.location.href='migration-plan.html?algo=${encodeURIComponent(item.algorithm)}'" title="Click to view authenticity asset migration plan in Migration Plan view">
+                <td style="font-family:'JetBrains Mono',monospace; font-weight:600; color:var(--text-h); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${item.file}:${item.line}">${item.file}:${item.line}</td>
+                <td style="font-weight:700; color:var(--cyan, #06b6d4); font-family:'JetBrains Mono',monospace;">${item.algorithm}</td>
+                <td style="font-size:11px; color:var(--text-m);">${item.purpose}</td>
+                <td style="text-align:center; font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--purple);">${item.migrateByYear} (Z = ${item.Z}y)</td>
+                <td style="font-size:11px; color:var(--green); font-weight:600;">${item.replacement}</td>
+              </tr>
+            `;
+          }).join('');
+        }
+
+        container.innerHTML = `
+          <div style="background:var(--bg-main); border:1px solid var(--border-color); border-radius:8px; padding:18px;">
+            <div style="margin-bottom:14px;">
+              <div style="font-size:13px; font-weight:700; color:var(--text-h);">Authenticity Cryptographic Assets (Group 2)</div>
+              <div style="font-size:12px; color:var(--text-m); margin-top:4px; line-height:1.6;">
+                Digital signatures, code-signing certificates, and MACs protect authenticity and integrity. They do not encrypt long-term secrets, meaning harvested traffic cannot be decrypted later (HNDL does not apply). However, they must be upgraded before a CRQC emerges (Z = ${currentHndlAnalysis.currentZ}y) to prevent retrospective forgery of future communications.
+              </div>
+            </div>
+
+            <div style="overflow-x:auto;">
+              <table class="hndl-table">
+                <thead>
+                  <tr>
+                    <th>File:Line</th>
+                    <th>Algorithm</th>
+                    <th>Purpose</th>
+                    <th style="text-align:center;">Migrate By Deadline</th>
+                    <th>Recommended Replacement</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+
+      function openHndlExplanationModal() {
+        document.getElementById('hndl-explain-overlay').classList.add('active');
+        document.getElementById('hndl-explain-modal').style.display = 'block';
+      }
+
+      function closeHndlExplanationModal() {
+        document.getElementById('hndl-explain-overlay').classList.remove('active');
+        document.getElementById('hndl-explain-modal').style.display = 'none';
+      }
+
+      // Hash handler for #hndl navigation
+      window.addEventListener('load', function() {
+        if (window.location.hash === '#hndl') {
+          setTimeout(function() {
+            const hPanel = document.getElementById('hndl-panel');
+            if (hPanel) {
+              hPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 350);
+        }
+      });
 
       window.addEventListener('load', init);
       window.addEventListener('cryptoscan_data_updated', init);

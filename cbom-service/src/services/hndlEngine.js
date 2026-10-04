@@ -22,10 +22,10 @@ const PURPOSE_DATA_LIFETIME = {
 const DEFAULT_YEARS_TO_QUANTUM_THREAT = 7; // Estimated CRQC arrival: ~7 years (NIST SP 800-208 timeline)
 
 /**
- * Calculates Mosca's Inequality: X (migration time) + Y (data lifetime) > Z (years to quantum threat)
+ * Calculates Mosca's Inequality: X (data lifetime) + Y (migration time) > Z (years to quantum threat)
  *
- * @param {number} migrationTimeYears - Estimated migration time X (years)
- * @param {number} dataLifetimeYears - Data secrecy lifetime requirement Y (years)
+ * @param {number} migrationTimeYears - Estimated migration time Y (years)
+ * @param {number} dataLifetimeYears - Data secrecy lifetime requirement X (years)
  * @param {number} [yearsToQuantumThreat=7] - Estimated time to CRQC arrival Z (years)
  */
 function calculateMoscaInequality(migrationTimeYears, dataLifetimeYears, yearsToQuantumThreat = DEFAULT_YEARS_TO_QUANTUM_THREAT) {
@@ -44,7 +44,7 @@ function calculateMoscaInequality(migrationTimeYears, dataLifetimeYears, yearsTo
     moscaRisk = 'MEDIUM';
   }
 
-  const formulaReadout = `X (${X}y migration) + Y (${Y}y lifetime) ${moscaInequalityHolds ? '>' : '≤'} Z (${Z}y threat)`;
+  const formulaReadout = `X (${Y}y lifetime) + Y (${X}y migration) ${moscaInequalityHolds ? '>' : '≤'} Z (${Z}y threat)`;
 
   return {
     X,

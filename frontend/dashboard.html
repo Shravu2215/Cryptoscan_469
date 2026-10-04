@@ -12,6 +12,7 @@
     rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="assets/js/engine.js"></script>
+  <script src="assets/js/hndl.js"></script>
   <link rel="stylesheet" href="assets/css/global.css" />
   <script>
     function initTheme() {
@@ -1342,27 +1343,45 @@
             </div>`;
         }
 
-        // HNDL logic
-        let hasHndl = false;
-        let hndlText = "Not calculated";
-        const hndlBlock = document.getElementById('hndl-block');
-        allFindings.forEach(f => {
-          if ((f.snippet || '').toLowerCase().includes('hndl') || (f.category || '').toLowerCase().includes('hndl')) {
-            hasHndl = true;
-          }
-        });
+        // Real HNDL calculation using shared HndlEngine
+        const currentZ = (typeof CryptoEngine !== 'undefined' && CryptoEngine.getGlobalZ) ? CryptoEngine.getGlobalZ() : 12;
+        const hndlRes = (typeof HndlEngine !== 'undefined')
+          ? HndlEngine.calculateHndlAnalysis(allFindings, { yearsToQuantumThreat: currentZ })
+          : { hasConfidentialityRisk: false, aggregateScore: 0, band: 'LOW', atRiskLocationsCount: 0 };
 
-        if (hasHndl) {
-          hndlText = "Long-term sensitive data found. Migration urgency: HIGH.";
-          if (hndlBlock) hndlBlock.style.display = 'block';
-          const hndlVal = document.getElementById('hndl-val');
-          if (hndlVal) hndlVal.textContent = "Exposure Detected";
-        } else {
-          hndlText = "No HNDL data identified. Routine migration recommended.";
-          if (hndlBlock) hndlBlock.style.display = 'none';
-        }
+        const hndlBlock = document.getElementById('hndl-block');
+        const hndlVal = document.getElementById('hndl-val');
         const qExp = document.getElementById('q-exposure');
-        if (qExp) qExp.textContent = hndlText;
+
+        if (hndlBlock) {
+          hndlBlock.style.display = 'block';
+          hndlBlock.style.cursor = 'pointer';
+          hndlBlock.onclick = function() { window.location.href = 'risk-analysis.html#hndl'; };
+
+          if (hndlRes.hasConfidentialityRisk) {
+            const isCrit = hndlRes.band === 'CRITICAL' || hndlRes.band === 'HIGH';
+            hndlBlock.style.background = isCrit ? 'rgba(254,226,226,0.85)' : 'rgba(254,243,199,0.85)';
+            hndlBlock.style.borderColor = isCrit ? 'rgba(239,68,68,0.35)' : 'rgba(245,158,11,0.35)';
+            if (hndlVal) {
+              const valColor = isCrit ? '#dc2626' : '#d97706';
+              hndlVal.style.color = valColor;
+              hndlVal.innerHTML = `<div>HNDL Exposure: ${hndlRes.aggregateScore}/100 (${hndlRes.band})</div><div style="font-size:12px;font-weight:600;color:var(--text-s);margin-top:2px;">${hndlRes.atRiskLocationsCount} confidentiality locations at risk &rarr;</div>`;
+            }
+            if (qExp) {
+              qExp.textContent = `HNDL Exposure: ${hndlRes.aggregateScore}/100 (${hndlRes.band}) — ${hndlRes.atRiskLocationsCount} confidentiality location(s) exposed to retrospective decryption under Mosca's Inequality (Z = ${currentZ}y).`;
+            }
+          } else {
+            hndlBlock.style.background = 'rgba(209,250,229,0.85)';
+            hndlBlock.style.borderColor = 'rgba(16,185,129,0.35)';
+            if (hndlVal) {
+              hndlVal.style.color = '#059669';
+              hndlVal.innerHTML = `<div>HNDL Exposure: 0/100 (LOW)</div><div style="font-size:12px;font-weight:600;color:var(--text-s);margin-top:2px;">No confidentiality-at-risk cryptography found &rarr;</div>`;
+            }
+            if (qExp) {
+              qExp.textContent = "No confidentiality-at-risk cryptography identified. Routine cryptographic migration recommended.";
+            }
+          }
+        }
       } else {
         if (qContent) qContent.style.display = 'none';
         if (qEmpty) qEmpty.style.display = 'flex';
