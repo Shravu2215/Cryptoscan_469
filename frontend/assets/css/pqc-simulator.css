@@ -40,7 +40,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 24px;
-  background: linear-gradient(90deg, rgba(124,58,237,0.08) 0%, rgba(59,130,246,0.06) 100%);
+  background: linear-gradient(90deg, rgba(239,68,68,0.08) 0%, rgba(16,185,129,0.06) 100%);
   border-bottom: 1px solid var(--border-color);
   gap: 12px;
 }
@@ -61,8 +61,8 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
-.before-tag { background: rgba(99,102,241,0.12); color: #6366f1; }
-.after-tag  { background: rgba(124,58,237,0.14); color: #7c3aed; }
+.before-tag { background: rgba(239,68,68,0.12); color: #ef4444; }
+.after-tag  { background: rgba(16,185,129,0.14); color: #10b981; }
 
 /* Two-column body */
 .pqc-bva-body {
@@ -87,8 +87,8 @@
   width: fit-content;
   font-family: 'JetBrains Mono', monospace;
 }
-.before-pill { background: rgba(99,102,241,0.12); color: #6366f1; border: 1px solid rgba(99,102,241,0.25); }
-.after-pill  { background: rgba(124,58,237,0.12); color: #7c3aed; border: 1px solid rgba(124,58,237,0.3); }
+.before-pill { background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.25); }
+.after-pill  { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.3); }
 
 .pqc-bva-metric {
   display: flex;
@@ -107,14 +107,14 @@
   font-family: 'JetBrains Mono', monospace;
   color: var(--text-h);
 }
-.before-val { color: #6366f1; }
-.after-val  { color: #7c3aed; }
+.before-val { color: #ef4444; }
+.after-val  { color: #10b981; }
 
 .pqc-bva-multiplier {
   font-size: 11px;
   font-weight: 700;
-  background: rgba(239,68,68,0.12);
-  color: #ef4444;
+  background: rgba(245,158,11,0.12);
+  color: #f59e0b;
   padding: 2px 7px;
   border-radius: 10px;
 }
@@ -185,8 +185,8 @@
   width: 0%;
   transition: width 0.85s cubic-bezier(.22,1,.36,1);
 }
-.pqc-bva-bar-fill.before-fill { background: linear-gradient(90deg, #6366f1, #818cf8); }
-.pqc-bva-bar-fill.after-fill  { background: linear-gradient(90deg, #7c3aed, #f59e0b); }
+.pqc-bva-bar-fill.before-fill { background: linear-gradient(90deg, #ef4444, #f87171); }
+.pqc-bva-bar-fill.after-fill  { background: linear-gradient(90deg, #10b981, #34d399); }
 .pqc-bva-bar-sz {
   font-size: 11px;
   font-family: 'JetBrains Mono', monospace;
