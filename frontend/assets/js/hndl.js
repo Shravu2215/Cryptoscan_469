@@ -36,31 +36,33 @@
     unknown: 10
   };
 
-  var DEFAULT_YEARS_TO_QUANTUM_THREAT = 12;
-
-  // Quantum-broken algorithm families vulnerable to Shor's polynomial-time factoring / discrete log
-  var QUANTUM_BROKEN_FAMILIES = [
-    'RSA', 'ECC', 'ECDSA', 'ECDH', 'DH', 'DIFFIE-HELLMAN', 'DSA', 'ELGAMAL',
-    'ED25519', 'ED448', 'X25519', 'X448'
-  ];
+  var DEFAULT_YEARS_TO_QUANTUM_THREAT = 10; // DEFAULT_Z = 10 years (NIST CNSA 2.0 baseline)
+  var BUFFER_YEARS = 5;
 
   /**
-   * Determine if a finding utilizes quantum-vulnerable cryptography
+   * Determine if a finding utilizes quantum-vulnerable (Shor-breakable) cryptography.
+   * Uses QuantumRules config if available, otherwise falls back to family list.
    */
   function isQuantumVulnerable(f) {
     if (!f) return false;
+    // Delegate to QuantumRules if loaded
+    if (typeof QuantumRules !== 'undefined' && QuantumRules.isQuantumVulnerable) {
+      return QuantumRules.isQuantumVulnerable(f);
+    }
     if (f.quantum === 'yes' || f.quantum === true) return true;
     if (f.quantumVulnerable !== undefined) return Boolean(f.quantumVulnerable);
     if (f.is_quantum_vulnerable !== undefined) return Boolean(f.is_quantum_vulnerable);
     var qs = (f.quantumStatus || f.quantum_status || '').toLowerCase();
-    if (qs.includes('vulnerable') || qs.includes('broken')) return true;
-
+    if (qs.indexOf('vulnerable') !== -1 || qs.indexOf('broken') !== -1) return true;
+    // Shor-breakable algorithm families
+    var SHOR_FAMILIES = ['RSA', 'ECC', 'ECDSA', 'ECDH', 'DH', 'DIFFIE-HELLMAN', 'DSA', 'ELGAMAL', 'ED25519', 'ED448', 'X25519', 'X448'];
     var name = (f.algorithm || f.title || f.name || '').toUpperCase();
-    for (var i = 0; i < QUANTUM_BROKEN_FAMILIES.length; i++) {
-      if (name.indexOf(QUANTUM_BROKEN_FAMILIES[i]) !== -1) return true;
+    for (var i = 0; i < SHOR_FAMILIES.length; i++) {
+      if (name.indexOf(SHOR_FAMILIES[i]) !== -1) return true;
     }
     return false;
   }
+
 
   /**
    * Classify finding into Group 1 (Confidentiality / HNDL applies)
@@ -146,13 +148,15 @@
 
   /**
    * Calculates Mosca's Inequality:
-   * X = Data Lifetime (years)
-   * Y = Migration Time (years)
+   * X = Data Lifetime (years data must stay secret)
+   * Y = Migration Time (years to complete migration)
    * Z = Years to Quantum Threat (CRQC)
+   * exposure = X + Y
+   * margin = Z - (X + Y)
    */
   function calculateMosca(dataLifetimeYears, migrationTimeYears, yearsToQuantumThreat) {
-    var X = Math.max(0.5, parseFloat(Number(dataLifetimeYears || 10).toFixed(1)));
-    var Y = Math.max(0.5, parseFloat(Number(migrationTimeYears || 1.5).toFixed(1)));
+    var X = Math.max(0.5, parseFloat(Number(dataLifetimeYears || 10).toFixed(1)));   // X = data lifetime
+    var Y = Math.max(0.5, parseFloat(Number(migrationTimeYears || 1.5).toFixed(1))); // Y = migration time
     var Z = Math.max(1, parseFloat(Number(yearsToQuantumThreat || DEFAULT_YEARS_TO_QUANTUM_THREAT).toFixed(1)));
 
     var totalRequirement = parseFloat((X + Y).toFixed(1));
@@ -162,8 +166,8 @@
     var moscaRisk = 'LOW';
     if (totalRequirement > Z) {
       moscaRisk = 'HIGH';
-    } else if (totalRequirement > (Z - 2)) {
-      moscaRisk = 'MEDIUM';
+    } else if (totalRequirement > (Z - BUFFER_YEARS)) {
+      moscaRisk = 'MEDIUM'; // within BUFFER_YEARS=5 of threat horizon
     }
 
     var formulaReadout = 'X (' + X + 'y lifetime) + Y (' + Y + 'y migration) ' + (moscaInequalityHolds ? '>' : '≤') + ' Z (' + Z + 'y threat)';
@@ -178,6 +182,38 @@
       exposureWindow: exposureWindow,
       formulaReadout: formulaReadout
     };
+  }
+
+  /**
+   * classify(x, y, z) — Canonical Mosca classifier
+   * Delegates to QuantumRules.classify() if available.
+   * Returns { X, Y, Z, exposure, margin, category, label, message }
+   *
+   * VULNERABLE_NOW             : margin < 0   (X + Y > Z)
+   * VULNERABLE_WITHIN_HORIZON  : 0 <= margin <= BUFFER_YEARS
+   * SAFE_UNDER_CURRENT_TIMELINE: margin > BUFFER_YEARS
+   */
+  function classify(x, y, z) {
+    if (typeof QuantumRules !== 'undefined' && QuantumRules.classify) {
+      return QuantumRules.classify(x, y, z);
+    }
+    var X = Math.max(0, Number(x) || 0);
+    var Y = Math.max(0, Number(y) || 0);
+    var Z = Math.max(1, Number(z) || DEFAULT_YEARS_TO_QUANTUM_THREAT);
+    var exposure = parseFloat((X + Y).toFixed(2));
+    var margin = parseFloat((Z - exposure).toFixed(2));
+    var category, label, message;
+    if (margin < 0) {
+      category = 'VULNERABLE_NOW'; label = 'Vulnerable Now';
+      message = 'X + Y (' + exposure.toFixed(1) + 'y) > Z (' + Z + 'y) — data will be at risk when CRQC arrives.';
+    } else if (margin <= BUFFER_YEARS) {
+      category = 'VULNERABLE_WITHIN_HORIZON'; label = 'Vulnerable Within Horizon';
+      message = 'Margin is only ' + margin.toFixed(1) + 'y — less than the ' + BUFFER_YEARS + 'y safety buffer.';
+    } else {
+      category = 'SAFE_UNDER_CURRENT_TIMELINE'; label = 'Safe Under Current Timeline';
+      message = 'Margin of ' + margin.toFixed(1) + 'y exceeds the ' + BUFFER_YEARS + 'y buffer.';
+    }
+    return { X: X, Y: Y, Z: Z, exposure: exposure, margin: margin, category: category, label: label, message: message };
   }
 
   /**
@@ -496,9 +532,11 @@
   return {
     PURPOSE_DATA_LIFETIME: PURPOSE_DATA_LIFETIME,
     DEFAULT_YEARS_TO_QUANTUM_THREAT: DEFAULT_YEARS_TO_QUANTUM_THREAT,
+    BUFFER_YEARS: BUFFER_YEARS,
     isQuantumVulnerable: isQuantumVulnerable,
     classifyFinding: classifyFinding,
     calculateMosca: calculateMosca,
+    classify: classify,
     calculateFindingScore: calculateFindingScore,
     calculateHndlAnalysis: calculateHndlAnalysis,
     determineReplacement: determineReplacement,

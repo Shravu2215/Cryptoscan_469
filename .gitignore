@@ -58,3 +58,5 @@ yarn-error.log*
 .idea/
 .DS_Store
 Thumbs.db
+runtime_events.jsonl
+attestation-download/

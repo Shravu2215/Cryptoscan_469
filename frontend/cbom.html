@@ -715,6 +715,7 @@ tbody tr:hover { background: var(--bg-card-hover); }
   </div>
 </div>
 
+<script src="assets/js/quantumRules.js"></script>
 <script src="assets/js/engine.js"></script>
 <script>
 let inventory = [];
@@ -821,7 +822,7 @@ async function init() {
           subfactors: enriched.subfactors || { data_sensitivity: 1, exposure: 1, system_role: 1, regulatory_impact: 2 },
           criticality_score: enriched.criticality_score || 2.0,
           criticality_label: enriched.criticality_label || 'Medium',
-          moscaRisk: enriched.risk || { X: 5, Y: 1, Z: 12, urgency_margin: 6, urgency_tier: 'Low', priority_score: 2 },
+          moscaRisk: enriched.risk || { X: 5, Y: 1, Z: (typeof CryptoEngine !== 'undefined' ? CryptoEngine.getGlobalZ() : 10), urgency_margin: 4, urgency_tier: 'Low', priority_score: 2 },
           purpose: enriched.usage || enriched.category || 'Data Protection',
           exposure: enriched.exposure || 'internal',
           criticality: itemCrit,
@@ -832,7 +833,7 @@ async function init() {
           keySize: enriched.keySize || '—',
           latencyImpactMs: enriched.latencyImpactMs ?? (enriched.performanceImpact ? enriched.performanceImpact.latencyImpactMs : 2.0),
           risk: (enriched.severity || 'SAFE').toUpperCase(),
-          quantumVulnerable: enriched.quantum === 'yes' || qRisk.includes('vulnerable') || qRisk.includes('broken') || Boolean(enriched.isQuantumVulnerable) || isAsymmetricVuln,
+          quantumVulnerable: (typeof QuantumRules !== 'undefined' && QuantumRules.isQuantumVulnerable) ? QuantumRules.isQuantumVulnerable(enriched) : (enriched.quantum === 'yes' || qRisk.includes('vulnerable') || qRisk.includes('broken') || Boolean(enriched.isQuantumVulnerable) || isAsymmetricVuln),
           usageContext: enriched.snippet || enriched.remediation || 'Standard implementation detected.'
         };
     });

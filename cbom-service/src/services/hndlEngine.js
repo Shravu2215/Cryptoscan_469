@@ -1,17 +1,24 @@
 /**
- * HNDL (Harvest-Now-Decrypt-Later) Engine
+ * HNDL (Harvest-Now-Decrypt-Later) Engine - cbom-service backend
  *
  * Models quantum exposure risk based on data secrecy lifetime requirements
  * versus estimated years until a Cryptographically Relevant Quantum Computer (CRQC).
  *
- * Timeline Baseline: NIST / NSA CNSA 2.0 guidance projects CRQC emergence between
- * 2030 and 2035. Using a baseline estimate of 7 years (2033 CRQC arrival).
+ * DEFAULT_Z = 10 years (NIST/NSA CNSA 2.0 guidance; aligned with frontend QuantumRules.DEFAULT_Z)
+ * BUFFER_YEARS = 5 (safety margin for VULNERABLE_WITHIN_HORIZON category)
+ *
+ * DEFINITIONS (do not swap X and Y):
+ *   X = Data Lifetime (years data/key must stay secret)
+ *   Y = Migration Time (years to complete migration)
+ *   Z = Years until CRQC (Cryptographically Relevant Quantum Computer)
+ *   exposure = X + Y
+ *   margin   = Z - (X + Y)
  */
 
 const PURPOSE_DATA_LIFETIME = {
   data_encryption: 20,
-  password_hashing: 15,
   key_exchange: 10,
+  password_hashing: 15,
   digital_signature: 5,
   mac: 5,
   random_generation: 5,
@@ -19,18 +26,24 @@ const PURPOSE_DATA_LIFETIME = {
   unknown: 10,
 };
 
-const DEFAULT_YEARS_TO_QUANTUM_THREAT = 7; // Estimated CRQC arrival: ~7 years (NIST SP 800-208 timeline)
+const DEFAULT_YEARS_TO_QUANTUM_THREAT = 10; // DEFAULT_Z = 10 years (aligned with frontend QuantumRules.DEFAULT_Z)
+const BUFFER_YEARS = 5;
 
 /**
  * Calculates Mosca's Inequality: X (data lifetime) + Y (migration time) > Z (years to quantum threat)
  *
- * @param {number} migrationTimeYears - Estimated migration time Y (years)
- * @param {number} dataLifetimeYears - Data secrecy lifetime requirement X (years)
- * @param {number} [yearsToQuantumThreat=7] - Estimated time to CRQC arrival Z (years)
+ * CORRECT DEFINITIONS (never swap these):
+ *   X = dataLifetimeYears   - how long data must stay secret
+ *   Y = migrationTimeYears  - time required to complete migration
+ *   Z = yearsToQuantumThreat - years until CRQC
+ *
+ * @param {number} dataLifetimeYears    - X: data secrecy requirement (years)
+ * @param {number} migrationTimeYears   - Y: estimated migration time (years)
+ * @param {number} yearsToQuantumThreat - Z: estimated CRQC arrival (years, default=10)
  */
-function calculateMoscaInequality(migrationTimeYears, dataLifetimeYears, yearsToQuantumThreat = DEFAULT_YEARS_TO_QUANTUM_THREAT) {
-  const X = Math.max(0.5, parseFloat(Number(migrationTimeYears || 1.5).toFixed(1)));
-  const Y = Math.max(1, parseFloat(Number(dataLifetimeYears || 10).toFixed(1)));
+function calculateMoscaInequality(dataLifetimeYears, migrationTimeYears, yearsToQuantumThreat = DEFAULT_YEARS_TO_QUANTUM_THREAT) {
+  const X = Math.max(0.5, parseFloat(Number(dataLifetimeYears || 10).toFixed(1)));   // X = data lifetime
+  const Y = Math.max(0.5, parseFloat(Number(migrationTimeYears || 1.5).toFixed(1))); // Y = migration time
   const Z = parseFloat(Number(yearsToQuantumThreat || DEFAULT_YEARS_TO_QUANTUM_THREAT).toFixed(1));
 
   const totalRequirement = parseFloat((X + Y).toFixed(1));
@@ -40,11 +53,11 @@ function calculateMoscaInequality(migrationTimeYears, dataLifetimeYears, yearsTo
   let moscaRisk = 'LOW';
   if (totalRequirement > Z) {
     moscaRisk = 'HIGH';
-  } else if (totalRequirement > Z - 2) {
-    moscaRisk = 'MEDIUM';
+  } else if (totalRequirement > Z - BUFFER_YEARS) {
+    moscaRisk = 'MEDIUM'; // within BUFFER_YEARS=5 of threat horizon
   }
 
-  const formulaReadout = `X (${Y}y lifetime) + Y (${X}y migration) ${moscaInequalityHolds ? '>' : '≤'} Z (${Z}y threat)`;
+  const formulaReadout = `X (${X}y lifetime) + Y (${Y}y migration) ${moscaInequalityHolds ? '>' : '\u2264'} Z (${Z}y threat)`;
 
   return {
     X,
@@ -59,18 +72,17 @@ function calculateMoscaInequality(migrationTimeYears, dataLifetimeYears, yearsTo
 }
 
 /**
- * Core HNDL function as requested by specification using Mosca's Inequality:
- * Takes (algorithm, keySize, dataLifetimeYears, migrationTimeYears) and returns:
- * { dataLifetimeYears, migrationTimeYears, yearsToQuantumThreat, hndlRisk: "high"|"medium"|"low", quantumExposureWindow, moscaInequalityHolds, formulaReadout }
+ * Core HNDL function using Mosca's Inequality (corrected X/Y definitions).
+ * X = data lifetime years, Y = migration time years, Z = years to CRQC
  */
 function calculateHndl(algorithm, keySize, dataLifetimeYears, migrationTimeYears) {
-  const Y = dataLifetimeYears != null ? Number(dataLifetimeYears) : 10;
-  const X = migrationTimeYears != null ? Number(migrationTimeYears) : 1.5;
+  const X = dataLifetimeYears != null ? Number(dataLifetimeYears) : 10;   // X = data lifetime
+  const Y = migrationTimeYears != null ? Number(migrationTimeYears) : 1.5; // Y = migration time
   const mosca = calculateMoscaInequality(X, Y, DEFAULT_YEARS_TO_QUANTUM_THREAT);
 
   return {
-    dataLifetimeYears: Y,
-    migrationTimeYears: X,
+    dataLifetimeYears: X,    // X = data lifetime
+    migrationTimeYears: Y,   // Y = migration time
     yearsToQuantumThreat: DEFAULT_YEARS_TO_QUANTUM_THREAT,
     hndlRisk: mosca.moscaRisk.toLowerCase(),
     quantumExposureWindow: mosca.exposureWindow,
@@ -81,18 +93,19 @@ function calculateHndl(algorithm, keySize, dataLifetimeYears, migrationTimeYears
 }
 
 /**
- * Calculates numeric HNDL risk score (0-100) for vulnerability scoring engine using Mosca's Inequality.
+ * Calculates numeric HNDL risk score (0-100) for vulnerability scoring engine.
  *
- * @param {string} purpose - Derived purpose from purposeDetection
+ * @param {string} purpose                   - Derived purpose from purposeDetection
  * @param {number} quantumVulnerabilityScore - 0-100 quantum vulnerability score
  * @param {object} [options]
- * @param {number} [options.dataLifetimeYears] - Override secrecy requirement Y in years
- * @param {number} [options.migrationTimeYears] - Override migration time X in years
- * @param {number} [options.yearsToQuantumThreat] - Override estimated years to CRQC Z
- * @param {number} [options.affectedFilesCount=1] - Number of affected locations
- * @param {boolean} [options.isHardcoded=false] - Whether algorithm is hardcoded inline
+ * @param {number} [options.dataLifetimeYears]    - Override X (data lifetime) in years
+ * @param {number} [options.migrationTimeYears]   - Override Y (migration time) in years
+ * @param {number} [options.yearsToQuantumThreat] - Override Z in years
+ * @param {number} [options.affectedFilesCount=1] - Number of affected locations (increases Y)
+ * @param {boolean} [options.isHardcoded=false]   - Whether algorithm is hardcoded inline
  */
 function calculateHndlRisk(purpose, quantumVulnerabilityScore, options = {}) {
+  // X: data lifetime
   let dataLifetimeYears = options.dataLifetimeYears;
   if (dataLifetimeYears == null && options.dataSensitivity) {
     const sensMap = { HEALTH: 20, PII: 15, FINANCIAL: 12, AUTH: 5 };
@@ -103,6 +116,7 @@ function calculateHndlRisk(purpose, quantumVulnerabilityScore, options = {}) {
   }
   const yearsToQuantumThreat = options.yearsToQuantumThreat ?? DEFAULT_YEARS_TO_QUANTUM_THREAT;
 
+  // Y: migration time (derived if not provided)
   let migrationTimeYears = options.migrationTimeYears;
   if (migrationTimeYears == null) {
     const locCount = options.affectedFilesCount || 1;
@@ -111,7 +125,7 @@ function calculateHndlRisk(purpose, quantumVulnerabilityScore, options = {}) {
     migrationTimeYears = parseFloat((1.0 + locMultiplier + agilityPenalty).toFixed(1));
   }
 
-  const mosca = calculateMoscaInequality(migrationTimeYears, dataLifetimeYears, yearsToQuantumThreat);
+  const mosca = calculateMoscaInequality(dataLifetimeYears, migrationTimeYears, yearsToQuantumThreat);
 
   let hndlRisk = 0;
   if (quantumVulnerabilityScore >= 80) {
@@ -130,8 +144,8 @@ function calculateHndlRisk(purpose, quantumVulnerabilityScore, options = {}) {
   }
 
   return {
-    dataLifetimeYears: mosca.Y,
-    migrationTimeYears: mosca.X,
+    dataLifetimeYears: mosca.X,    // X = data lifetime
+    migrationTimeYears: mosca.Y,   // Y = migration time
     yearsToQuantumThreat: mosca.Z,
     quantumExposureWindow: mosca.exposureWindow,
     moscaInequalityHolds: mosca.moscaInequalityHolds,
@@ -147,4 +161,5 @@ module.exports = {
   calculateMoscaInequality,
   PURPOSE_DATA_LIFETIME,
   DEFAULT_YEARS_TO_QUANTUM_THREAT,
+  BUFFER_YEARS,
 };

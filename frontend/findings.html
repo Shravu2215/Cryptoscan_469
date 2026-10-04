@@ -1681,6 +1681,7 @@
       </div>
     </div>
 
+    <script src="assets/js/quantumRules.js"></script>
     <script src="assets/js/engine.js"></script>
     <script>
       let currentDrawerFinding = null;
@@ -1935,6 +1936,9 @@
       }
       function isQuantum(f) {
         if (!f) return false;
+        if (typeof QuantumRules !== 'undefined' && QuantumRules.isQuantumVulnerable) {
+          return QuantumRules.isQuantumVulnerable(f);
+        }
         const qs = (f.quantumStatus || '').toLowerCase();
         return f.quantum === 'yes' || qs.includes('vuln') || Boolean(f.isQuantumVulnerable);
       }

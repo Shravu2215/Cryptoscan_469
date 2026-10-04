@@ -1450,16 +1450,16 @@
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <label for="global-z-slider" style="font-size: 13px; font-weight: 600; color: var(--text-h);">
                       CRQC Quantum Threat Horizon (Z): <span id="global-z-val-display"
-                        style="color: var(--purple); font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700;">12</span>
+                        style="color: var(--purple); font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700;">10</span>
                       Years
                     </label>
                     <span style="font-size: 11px; color: var(--text-s);">Range: 1 – 30 Years</span>
                   </div>
                   <div style="display: flex; align-items: center; gap: 16px;">
-                    <input type="range" id="global-z-slider" min="1" max="30" step="1" value="12"
+                    <input type="range" id="global-z-slider" min="1" max="30" step="1" value="10"
                       oninput="onGlobalZChange(this.value)"
                       style="flex: 1; accent-color: var(--purple); cursor: pointer;">
-                    <input type="number" id="global-z-input" min="1" max="30" step="1" value="12"
+                    <input type="number" id="global-z-input" min="1" max="30" step="1" value="10"
                       onchange="onGlobalZChange(this.value)"
                       style="width: 75px; padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-h); font-weight: 700; font-family: 'JetBrains Mono', monospace; text-align: center;">
                   </div>
@@ -2008,6 +2008,7 @@
       }
     </style>
 
+    <script src="assets/js/quantumRules.js"></script>
     <script src="assets/js/engine.js"></script>
     <script src="assets/js/hndl.js"></script>
     <script>
@@ -2031,7 +2032,7 @@
       }
 
       function syncGlobalZUI() {
-        const z = typeof CryptoEngine !== 'undefined' ? CryptoEngine.getGlobalZ() : 12;
+        const z = typeof CryptoEngine !== 'undefined' ? CryptoEngine.getGlobalZ() : 10;
         const slider = document.getElementById('global-z-slider');
         const input = document.getElementById('global-z-input');
         const display = document.getElementById('global-z-val-display');
@@ -2672,7 +2673,7 @@
         }
 
         // Real HNDL calculation using shared HndlEngine
-        const currentZ = (typeof CryptoEngine !== 'undefined' && CryptoEngine.getGlobalZ) ? CryptoEngine.getGlobalZ() : 12;
+        const currentZ = (typeof CryptoEngine !== 'undefined' && CryptoEngine.getGlobalZ) ? CryptoEngine.getGlobalZ() : 10;
         currentHndlAnalysis = (typeof HndlEngine !== 'undefined')
           ? HndlEngine.calculateHndlAnalysis(allFindings, { yearsToQuantumThreat: currentZ })
           : {
@@ -2718,7 +2719,7 @@
             bandBadgeEl.style.display = 'inline-block';
           }
           if (scoreSubEl) {
-            scoreSubEl.textContent = `Score Range: ${currentHndlAnalysis.minScore} – ${currentHndlAnalysis.maxScore} (Avg: ${currentHndlAnalysis.meanScore})`;
+            scoreSubEl.textContent = `Score = round(0.5×max + 0.5×mean) of per-finding HNDL scores (Group 1 only). Min: ${currentHndlAnalysis.minScore} / Avg: ${currentHndlAnalysis.meanScore} / Max: ${currentHndlAnalysis.maxScore}`;
           }
         } else {
           if (scoreValEl) {

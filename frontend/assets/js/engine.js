@@ -642,13 +642,27 @@ const CryptoEngine = {
 
   getGlobalZ: function() {
     const saved = localStorage.getItem('cs_global_z');
-    return saved ? Number(saved) : 12;
+    if (saved !== null && saved !== '') {
+      const n = Number(saved);
+      if (!isNaN(n) && n >= 1 && n <= 30) return n;
+    }
+    return 10; // DEFAULT_Z = 10 years (NIST CNSA 2.0 baseline)
   },
 
+  // Alias: pages can call CryptoEngine.getZ() or QuantumRules.getZ() interchangeably
+  getZ: function() { return this.getGlobalZ(); },
+
   setGlobalZ: function(val) {
-    localStorage.setItem('cs_global_z', String(val));
+    const n = Number(val);
+    if (isNaN(n) || n < 1 || n > 30) return;
+    localStorage.setItem('cs_global_z', String(n));
+    // Fire both events so all pages (risk-analysis, migration-plan, dashboard) update
+    try { window.dispatchEvent(new CustomEvent('zchange', { detail: { z: n } })); } catch(e) {}
     window.dispatchEvent(new Event('cryptoscan_data_updated'));
   },
+
+  // Alias for QuantumRules compatibility
+  setZ: function(val) { this.setGlobalZ(val); },
 
   computeMoscaRisk: function(finding, globalZ) {
     const Z = globalZ !== undefined ? Number(globalZ) : this.getGlobalZ();

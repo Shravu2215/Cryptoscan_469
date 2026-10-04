@@ -11,6 +11,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="assets/js/quantumRules.js"></script>
   <script src="assets/js/engine.js"></script>
   <script src="assets/js/hndl.js"></script>
   <link rel="stylesheet" href="assets/css/global.css" />
@@ -1111,9 +1112,12 @@
       const lowCount  = allFindings.filter(f => sev(f) === 'low').length;
       const infoCount = allFindings.filter(f => sev(f) === 'informational' || sev(f) === 'info').length;
 
-      const quantVulnCount = allFindings.filter(f => f.quantum === 'yes' || (f.quantumStatus || '').toLowerCase().includes('vuln') || Boolean(f.isQuantumVulnerable)).length;
-      const quantSafeCount = allFindings.filter(f => (f.quantumStatus || '').toLowerCase() === 'quantum-safe').length;
-      const quantUnkCount = totalFindings - quantVulnCount - quantSafeCount;
+      const isQVuln = f => (typeof QuantumRules !== 'undefined' && QuantumRules.isQuantumVulnerable)
+        ? QuantumRules.isQuantumVulnerable(f)
+        : (f.quantum === 'yes' || (f.quantumStatus || '').toLowerCase().includes('vuln') || Boolean(f.isQuantumVulnerable));
+      const quantVulnCount = allFindings.filter(isQVuln).length;
+      const quantSafeCount = allFindings.filter(f => (f.quantumStatus || '').toLowerCase() === 'quantum-safe' || (typeof QuantumRules !== 'undefined' && QuantumRules.lookup && QuantumRules.lookup(f.algorithm || f.name).quantumStatus === 'quantum-safe')).length;
+      const quantUnkCount = Math.max(0, totalFindings - quantVulnCount - quantSafeCount);
 
 
       // Header Updates
@@ -1344,7 +1348,7 @@
         }
 
         // Real HNDL calculation using shared HndlEngine
-        const currentZ = (typeof CryptoEngine !== 'undefined' && CryptoEngine.getGlobalZ) ? CryptoEngine.getGlobalZ() : 12;
+        const currentZ = (typeof CryptoEngine !== 'undefined' && CryptoEngine.getGlobalZ) ? CryptoEngine.getGlobalZ() : 10;
         const hndlRes = (typeof HndlEngine !== 'undefined')
           ? HndlEngine.calculateHndlAnalysis(allFindings, { yearsToQuantumThreat: currentZ })
           : { hasConfidentialityRisk: false, aggregateScore: 0, band: 'LOW', atRiskLocationsCount: 0 };

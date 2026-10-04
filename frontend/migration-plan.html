@@ -1083,11 +1083,11 @@
                   style="--card-accent: var(--amber); --card-active-bg: rgba(245, 158, 11, 0.08);">
                   <div class="mosca-card-badge"
                     style="background:rgba(245,158,11,0.15); color:var(--amber); border:1px solid rgba(245,158,11,0.3);">
-                    Buffer ≤ 3.0 yrs • Z - (X + Y) ≤ 3y
+                    Buffer ≤ 5 yrs • Z - (X + Y) ≤ 5y
                   </div>
                   <div class="mosca-card-count" id="mc-count-horizon" style="color:var(--amber);">0</div>
                   <div class="mosca-card-ttl">Vulnerable Within Threat Horizon</div>
-                  <div class="mosca-card-desc">Inequality not yet breached, but transition margin is under 3.0 years.
+                  <div class="mosca-card-desc">Inequality not yet breached, but transition margin is under 5 years.
                     Immediate migration planning required before buffer collapses.</div>
                   <div class="mosca-card-sub" id="mc-sub-horizon">0 components affected</div>
                 </div>
@@ -1097,7 +1097,7 @@
                   style="--card-accent: var(--green); --card-active-bg: rgba(16, 185, 129, 0.08);">
                   <div class="mosca-card-badge"
                     style="background:rgba(16,185,129,0.15); color:var(--green); border:1px solid rgba(16,185,129,0.3);">
-                    Runway &gt; 3.0 yrs • Comfortable Margin
+                    Runway &gt; 5 yrs • Comfortable Margin
                   </div>
                   <div class="mosca-card-count" id="mc-count-safe" style="color:var(--green);">0</div>
                   <div class="mosca-card-ttl">Safe Under Current Timeline</div>
@@ -1316,7 +1316,9 @@
       }
     </style>
 
+    <script src="assets/js/quantumRules.js"></script>
     <script src="assets/js/engine.js"></script>
+    <script src="assets/js/hndl.js"></script>
     <script>
       let allFindings = [];
       let migrationCandidates = [];
@@ -1387,7 +1389,7 @@
       }
 
       function syncGlobalZUI() {
-        const z = typeof CryptoEngine !== 'undefined' ? CryptoEngine.getGlobalZ() : 12;
+        const z = typeof CryptoEngine !== 'undefined' ? CryptoEngine.getGlobalZ() : 10;
         const slider = document.getElementById('global-z-slider');
         const input = document.getElementById('global-z-input');
         const display = document.getElementById('global-z-val-display');
@@ -1665,6 +1667,9 @@
 
       function isQuantum(f) {
         if (!f) return false;
+        if (typeof QuantumRules !== 'undefined' && QuantumRules.isQuantumVulnerable) {
+          return QuantumRules.isQuantumVulnerable(f);
+        }
         if (f.quantum === 'yes' || f.quantum === true) return true;
         if (f.quantumVulnerable !== undefined) return Boolean(f.quantumVulnerable);
         if (f.is_quantum_vulnerable !== undefined) return Boolean(f.is_quantum_vulnerable);
@@ -1673,6 +1678,10 @@
       }
 
       function determineReplacement(algo) {
+        if (typeof QuantumRules !== 'undefined' && QuantumRules.lookup) {
+          const rule = QuantumRules.lookup(algo);
+          if (rule && rule.replacement) return rule.replacement;
+        }
         if (!algo) return 'ML-KEM / ML-DSA';
         const al = algo.toLowerCase();
         if (al.includes('rsa') || al.includes('dh') || al.includes('ecdh')) return 'ML-KEM (Kyber-768/1024) or Hybrid X25519+ML-KEM';
@@ -1708,50 +1717,54 @@
       }
 
       function computeFindingMosca(rawFinding, fileCount) {
-        // Use pre-computed risk if available and sensible
-        const risk = (rawFinding && rawFinding.risk) ? rawFinding.risk : null;
-        const x = risk && risk.X !== undefined ? risk.X : 5;
-        const y = risk && risk.Y !== undefined ? risk.Y : 1.5;
-        const z = risk && risk.Z !== undefined ? risk.Z : 12;
-        const margin = (risk && risk.urgency_margin !== undefined) ? risk.urgency_margin : (z - (x + y));
-        const isMet = (x + y) > z;
+        const x = (typeof QuantumRules !== 'undefined' && QuantumRules.deriveX)
+          ? QuantumRules.deriveX(rawFinding)
+          : ((rawFinding && rawFinding.risk && rawFinding.risk.X !== undefined) ? rawFinding.risk.X : 5);
+        const y = (typeof QuantumRules !== 'undefined' && QuantumRules.deriveY)
+          ? QuantumRules.deriveY(rawFinding, fileCount)
+          : ((rawFinding && rawFinding.risk && rawFinding.risk.Y !== undefined) ? rawFinding.risk.Y : 1.5);
+        const z = (typeof CryptoEngine !== 'undefined' && CryptoEngine.getGlobalZ)
+          ? CryptoEngine.getGlobalZ()
+          : ((typeof QuantumRules !== 'undefined' && QuantumRules.getZ) ? QuantumRules.getZ() : 10);
 
-        // Classify based on algorithm characteristics directly — immune to stale cache
-        const cat = getMoscaCategoryDirect(rawFinding);
-        const catLabel = cat === 'VULNERABLE_NOW' ? 'Vulnerable Now (X + Y > Z)'
-                       : cat === 'WITHIN_HORIZON' ? 'Vulnerable Within Horizon'
-                       : 'Safe Under Current Timeline';
+        const cls = (typeof QuantumRules !== 'undefined' && QuantumRules.classify)
+          ? QuantumRules.classify(x, y, z)
+          : (typeof HndlEngine !== 'undefined' && HndlEngine.classify)
+          ? HndlEngine.classify(x, y, z)
+          : {
+              X: x, Y: y, Z: z, exposure: x + y, margin: z - (x + y),
+              category: (x + y > z) ? 'VULNERABLE_NOW' : ((z - (x + y) <= 5) ? 'VULNERABLE_WITHIN_HORIZON' : 'SAFE_UNDER_CURRENT_TIMELINE'),
+              label: (x + y > z) ? 'Vulnerable Now' : ((z - (x + y) <= 5) ? 'Vulnerable Within Horizon' : 'Safe Under Current Timeline'),
+              message: (x + y > z) ? 'X + Y > Z — data will be at risk when CRQC arrives.' : 'Safe under current timeline.'
+            };
+
+        // Align internal category keys: 'VULNERABLE_NOW', 'WITHIN_HORIZON', 'SAFE_TIMELINE' for UI compatibility
+        const uiCat = cls.category === 'VULNERABLE_WITHIN_HORIZON' ? 'WITHIN_HORIZON'
+                    : cls.category === 'SAFE_UNDER_CURRENT_TIMELINE' ? 'SAFE_TIMELINE'
+                    : cls.category;
+
         return {
-          X: x, Y: y, Z: z,
-          moscaX: `${x}y`, moscaY: `${y}y`, moscaZ: `${z}y`,
-          diff: margin, urgency_margin: margin, isMet: isMet,
-          category: cat, categoryLabel: catLabel
+          X: cls.X,
+          Y: cls.Y,
+          Z: cls.Z,
+          moscaX: `${cls.X}y`,
+          moscaY: `${cls.Y}y`,
+          moscaZ: `${cls.Z}y`,
+          diff: cls.margin,
+          urgency_margin: cls.margin,
+          isMet: cls.margin < 0,
+          category: uiCat,
+          rawCategory: cls.category,
+          categoryLabel: cls.label,
+          message: cls.message
         };
       }
 
-      /* Direct Mosca bucketing — no dependency on cached risk values */
+      /* Unified Mosca bucketing powered by computeFindingMosca */
       function getMoscaCategoryDirect(f) {
         if (!f) return 'WITHIN_HORIZON';
-        const algo = (f.algorithm || f.title || '').toLowerCase();
-        const sev  = (f.severity || f.severity_level || 'medium').toLowerCase();
-        const isQ  = f.quantum === 'yes' || f.quantum === true || f.quantumVulnerable === true || f.is_quantum_vulnerable === true
-                     || algo.includes('rsa') || algo.includes('ecdsa') || algo.includes('ecdh') || algo.includes('dsa') || algo.includes('ecc') || algo.includes('elgamal') || algo.includes('dh');
-        const isWeak = algo.includes('md5') || algo.includes('sha1') || algo.includes('sha-1')
-                    || algo.includes('des') || algo.includes('3des') || algo.includes('rc4')
-                    || algo.includes('blowfish') || algo.includes('rc2') || algo.includes('rc5');
-        const isModern = algo.includes('aes') || algo.includes('sha256') || algo.includes('sha-256')
-                      || algo.includes('sha3') || algo.includes('blake') || algo.includes('chacha')
-                      || algo.includes('bcrypt') || algo.includes('argon') || algo.includes('pbkdf2')
-                      || algo.includes('hmac') || algo.includes('ed25519') || algo.includes('x25519');
-
-        // Quantum-vulnerable asymmetric + critical/high severity → immediately at risk
-        if (isQ && (sev === 'critical' || sev === 'high')) return 'VULNERABLE_NOW';
-        // Quantum-vulnerable but lower severity, OR weak legacy symmetric → transitional horizon
-        if (isQ || isWeak) return 'WITHIN_HORIZON';
-        // Modern, strong symmetric algorithms → safe under current timeline
-        if (isModern) return 'SAFE_TIMELINE';
-        // Default: within horizon (conservative)
-        return 'WITHIN_HORIZON';
+        const m = computeFindingMosca(f, 1);
+        return m.category;
       }
 
       function updateMoscaCategorizationPanel() {
@@ -1761,9 +1774,11 @@
 
         let v = 0, h = 0, s = 0;
         migrationCandidates.forEach(c => {
-          const cat = getMoscaCategoryDirect(c.rawFinding || c);
+          const m = computeFindingMosca(c.rawFinding || c, c.fileCount);
+          c.mosca = m;
+          const cat = m.category;
           if (cat === 'VULNERABLE_NOW') v++;
-          else if (cat === 'WITHIN_HORIZON') h++;
+          else if (cat === 'WITHIN_HORIZON' || cat === 'VULNERABLE_WITHIN_HORIZON') h++;
           else s++;
         });
 
@@ -1786,7 +1801,13 @@
         if (msSafe) msSafe.textContent = `${s} component${s === 1 ? '' : 's'} affected`;
       }
 
-      function getRecommendedMode(algo, replacement, purpose) {
+      function getRecommendedMode(algo, replacement, purpose, finding) {
+        const isWeak = (typeof QuantumRules !== 'undefined' && QuantumRules.isClassicallyWeak)
+          ? QuantumRules.isClassicallyWeak(finding || { algorithm: algo })
+          : false;
+        if (isWeak) {
+          return 'CLASSICALLY WEAK - FIX NOW';
+        }
         if (!algo) return 'Direct Upgrade';
         const a = algo.toLowerCase();
         if (a.includes('rsa') || a.includes('ec') || a.includes('dh')) {
@@ -1884,6 +1905,7 @@
               purpose: f.usage || f.category || 'Data Protection',
               severity: getSeverity(f),
               quantumVulnerable: isQuantum(f),
+              isClassicallyWeak: (typeof QuantumRules !== 'undefined' && QuantumRules.isClassicallyWeak) ? QuantumRules.isClassicallyWeak(f) : false,
               affectedFiles: new Set(),
               maxCriticality: 'MEDIUM',
               maxCritWeight: 2,
@@ -1912,11 +1934,14 @@
             candidateMap[algo].severity = s2;
           }
           if (isQuantum(f)) candidateMap[algo].quantumVulnerable = true;
+          if (typeof QuantumRules !== 'undefined' && QuantumRules.isClassicallyWeak && QuantumRules.isClassicallyWeak(f)) {
+            candidateMap[algo].isClassicallyWeak = true;
+          }
         });
 
         migrationCandidates = Object.values(candidateMap).map(c => {
           let priority = 3;
-          if (c.maxCriticality === 'CRITICAL' || c.severity === 'CRITICAL' || c.severity === 'HIGH' || c.quantumVulnerable) {
+          if (c.isClassicallyWeak || c.maxCriticality === 'CRITICAL' || c.severity === 'CRITICAL' || c.severity === 'HIGH' || c.quantumVulnerable) {
             priority = 1;
           } else if (c.maxCriticality === 'HIGH' || c.severity === 'MEDIUM') {
             priority = 2;
@@ -2033,34 +2058,26 @@
           return;
         }
 
-        // HNDL: Quantum-broken algorithms are the HNDL threat
-        const QUANTUM_BROKEN_FAMILIES = new Set(['RSA', 'EC', 'ECDSA', 'ECDH', 'DH', 'DSA', 'ElGamal']);
-        const quantumBrokenFindings = allFindings.filter(f => {
-          const qs = (f.quantumStatus || '').toLowerCase();
-          const algo = (f.algorithm || '').toUpperCase();
-          return qs.includes('vulnerable') || qs.includes('broken') ||
-            QUANTUM_BROKEN_FAMILIES.has(algo.split('-')[0]) || QUANTUM_BROKEN_FAMILIES.has(algo);
-        });
-
-        const vulnerableAssets = new Set(quantumBrokenFindings.map(f => f.algorithm)).size;
-        const dataPoints = quantumBrokenFindings.length;
-
-        // Score: 0-100; based on % of findings that are quantum-broken
-        const hndlPct = allFindings.length > 0 ? Math.round((quantumBrokenFindings.length / allFindings.length) * 100) : 0;
-        const hndlLabel = hndlPct >= 60 ? 'CRITICAL' : hndlPct >= 35 ? 'HIGH' : hndlPct >= 15 ? 'MEDIUM' : 'LOW';
-        const hndlColor = hndlPct >= 60 ? 'var(--red)' : hndlPct >= 35 ? 'var(--amber)' : hndlPct >= 15 ? 'var(--yellow)' : 'var(--green)';
-
-        // Score range across all findings
-        const scoreMin = Math.max(0, hndlPct - 20);
-        const scoreMax = Math.min(100, hndlPct + 15);
+        // Real HNDL calculation using shared HndlEngine
+        const currentZ = (typeof CryptoEngine !== 'undefined' && CryptoEngine.getGlobalZ) ? CryptoEngine.getGlobalZ() : 10;
+        const hndlAnalysis = (typeof HndlEngine !== 'undefined')
+          ? HndlEngine.calculateHndlAnalysis(allFindings, { yearsToQuantumThreat: currentZ })
+          : {
+              aggregateScore: 0,
+              band: 'LOW',
+              bandColor: 'var(--green)',
+              vulnerableAlgorithmsCount: 0,
+              atRiskLocationsCount: 0,
+              hasConfidentialityRisk: false
+            };
 
         if (document.getElementById('hndl-overall')) {
-          document.getElementById('hndl-overall').textContent = hndlLabel;
-          document.getElementById('hndl-overall').style.color = hndlColor;
+          document.getElementById('hndl-overall').textContent = hndlAnalysis.band || 'LOW';
+          document.getElementById('hndl-overall').style.color = hndlAnalysis.bandColor || 'var(--green)';
         }
-        if (document.getElementById('hndl-assets')) document.getElementById('hndl-assets').textContent = vulnerableAssets;
-        if (document.getElementById('hndl-data-pts')) document.getElementById('hndl-data-pts').textContent = dataPoints;
-        if (document.getElementById('hndl-range')) document.getElementById('hndl-range').textContent = `${scoreMin} – ${scoreMax}`;
+        if (document.getElementById('hndl-assets')) document.getElementById('hndl-assets').textContent = hndlAnalysis.vulnerableAlgorithmsCount;
+        if (document.getElementById('hndl-data-pts')) document.getElementById('hndl-data-pts').textContent = hndlAnalysis.atRiskLocationsCount;
+        if (document.getElementById('hndl-range')) document.getElementById('hndl-range').textContent = `${hndlAnalysis.aggregateScore}/100 Exposure`;
         hndlPanel.style.display = 'block';
 
         // Crypto-Agility: based on category/rule patterns
@@ -2144,6 +2161,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--text-s);"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
               ${c.purpose}
               <span class="badge ${mBadgeClass}" style="margin-left:8px; font-size:10px;">${m.categoryLabel}</span>
+              ${c.isClassicallyWeak ? '<span class="badge badge-crit" style="margin-left:8px; font-size:10px; font-weight:700;">CLASSICALLY WEAK - FIX NOW</span>' : ''}
             </div>
           </div>
           <div class="rec-priority-badge p${c.priority}">${priorityLabel}</div>
@@ -2155,9 +2173,9 @@
             <div class="rg-val"><span class="badge ${getBadgeClass(c.severity)}" style="padding:3px 8px;">${c.severity}</span></div>
           </div>
           <div class="rg-card">
-            <div class="rg-lbl">Quantum Exposure</div>
-            <div class="rg-val" style="color:${c.quantumVulnerable ? 'var(--red)' : 'var(--green)'}; font-weight:700;">
-              ${c.quantumVulnerable ? '⚠️ Vulnerable' : '🛡️ Safe'}
+            <div class="rg-lbl">Exposure Category</div>
+            <div class="rg-val" style="color:${c.isClassicallyWeak ? 'var(--amber)' : (c.quantumVulnerable ? 'var(--red)' : 'var(--green)')}; font-weight:700;">
+              ${c.isClassicallyWeak ? '⚠️ Legacy Broken' : (c.quantumVulnerable ? '⚠️ Quantum-Broken' : '🛡️ Safe')}
             </div>
           </div>
           <div class="rg-card">
@@ -2181,7 +2199,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
           </div>
           <div>
-            <div class="replace-lbl">Recommended NIST PQC Replacement</div>
+            <div class="replace-lbl">${c.isClassicallyWeak ? 'Recommended Classical Replacement' : 'Recommended NIST PQC Replacement'}</div>
             <div class="replace-val">${c.replacement || 'None specified'}</div>
           </div>
         </div>
@@ -2295,8 +2313,10 @@
         document.getElementById('drw-mosca-y').textContent = mosca.moscaY;
         document.getElementById('drw-mosca-z').textContent = mosca.moscaZ;
         const resEl = document.getElementById('drw-mosca-result');
-        resEl.textContent = mosca.isMet ? "🚨 Inequality Met: Data will be vulnerable before migration completes!" : "✅ Safe: Migration can complete before threat horizon.";
-        resEl.style.color = mosca.isMet ? "var(--red)" : "var(--green)";
+        const resColor = mosca.category === 'VULNERABLE_NOW' ? "var(--red)" : (mosca.category === 'WITHIN_HORIZON' ? "var(--amber)" : "var(--green)");
+        const resIcon = mosca.category === 'VULNERABLE_NOW' ? "🚨" : (mosca.category === 'WITHIN_HORIZON' ? "⚠️" : "✅");
+        resEl.textContent = `${resIcon} ${mosca.message || (mosca.isMet ? "Inequality Met: Data will be vulnerable before migration completes!" : "Safe: Migration can complete before threat horizon.")}`;
+        resEl.style.color = resColor;
 
         const catEl = document.getElementById('drw-mosca-category');
         if (catEl) {
@@ -2305,11 +2325,13 @@
         }
 
         // Part 3: Recommended Mode
-        const recMode = getRecommendedMode(c.algorithm, c.replacement, c.purpose);
+        const recMode = getRecommendedMode(c.algorithm, c.replacement, c.purpose, c.rawFinding || c);
         const recModeEl = document.getElementById('drw-recommended-mode');
         if (recModeEl) {
+          const isClassicallyWeak = recMode.includes('CLASSICALLY WEAK');
           const isHybrid = recMode.startsWith('Hybrid');
-          recModeEl.innerHTML = `<span class="badge ${isHybrid ? 'badge-quant' : 'badge-safe'}" style="font-weight:600;">${recMode}</span>`;
+          const badgeClass = isClassicallyWeak ? 'badge-crit' : (isHybrid ? 'badge-quant' : 'badge-safe');
+          recModeEl.innerHTML = `<span class="badge ${badgeClass}" style="font-weight:600;">${recMode}</span>`;
         }
 
         // Part 3: Cost Impact
@@ -2379,6 +2401,7 @@
 
       window.addEventListener('load', init);
       window.addEventListener('cryptoscan_data_updated', init);
+      window.addEventListener('zchange', init);
     </script>
   </div>
   <script src="assets/js/shell.js"></script>
