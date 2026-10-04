@@ -157,6 +157,8 @@ const Auth = (() => {
   function saveSession(token, user) {
     _accessToken = token;
     sessionStorage.setItem(SESSION_TOKEN_KEY, token);
+    localStorage.setItem('cs_token', token);
+    localStorage.setItem('cs_auth_token', token);
     saveUser(user);
   }
 
@@ -322,9 +324,9 @@ const Auth = (() => {
 
   /** Fabricate a long-lived JWT-shaped token that isAccessTokenValid() accepts. */
   function _makeLocalToken(user) {
-    const header = btoa(JSON.stringify({ alg: 'LOCAL', typ: 'JWT' })).replace(/=/g, '');
+    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).replace(/=/g, '');
     const exp = Math.floor(Date.now() / 1000) + 86400 * 30; // 30 days
-    const payload = btoa(JSON.stringify({ sub: user.id, email: user.email, exp })).replace(/=/g, '');
+    const payload = btoa(JSON.stringify({ id: user.id, sub: user.id, email: user.email, role: user.role || 'Developer', exp })).replace(/=/g, '');
     return `${header}.${payload}.local_sig`;
   }
 

@@ -96,27 +96,48 @@ router.post('/github', requireAuth, async (req, res) => {
     // 2. Fetch repository metadata (only for github.com)
     let metadata = { default_branch: 'main', full_name: `${owner}/${repoSlug}`, archived: false };
     if (host === 'github.com') {
-      const metadataResponse = await fetch(
-        `https://api.github.com/repos/${owner}/${repoSlug}`,
-        { headers }
-      );
-      if (!metadataResponse.ok) {
-        return res.status(metadataResponse.status === 404 ? 404 : 502).json({
-          error: 'GitHub repository could not be found or accessed',
-        });
-      }
-      metadata = await metadataResponse.json();
-      if (metadata.archived) {
-        return res.status(400).json({ error: 'Archived GitHub repositories cannot be scanned' });
+      try {
+        const metadataResponse = await fetch(
+          `https://api.github.com/repos/${owner}/${repoSlug}`,
+          { headers }
+        );
+        if (metadataResponse.ok) {
+          metadata = await metadataResponse.json();
+          if (metadata.archived) {
+            return res.status(400).json({ error: 'Archived GitHub repositories cannot be scanned' });
+          }
+        } else if (metadataResponse.status === 404) {
+          return res.status(404).json({
+            error: `GitHub repository "${owner}/${repoSlug}" was not found or is private.`,
+          });
+        } else {
+          console.warn(`GitHub API returned status ${metadataResponse.status}, proceeding with default branch 'main'`);
+        }
+      } catch (metaErr) {
+        console.warn('GitHub API metadata fetch failed, proceeding with default branch:', metaErr.message);
       }
     }
 
     // 3. Download the archive (ZIP — no git clone, no hooks, no LFS)
-    const branch     = encodeURIComponent(metadata.default_branch || 'main');
-    const archiveUrl = `https://codeload.github.com/${owner}/${repoSlug}/zip/refs/heads/${branch}`;
-    const archiveResponse = await fetch(archiveUrl, { headers });
+    let branch = encodeURIComponent(metadata.default_branch || 'main');
+    let archiveUrl = `https://codeload.github.com/${owner}/${repoSlug}/zip/refs/heads/${branch}`;
+    let archiveResponse = await fetch(archiveUrl, { headers });
+    
+    // If 'main' branch is 404, try 'master' branch fallback
+    if (!archiveResponse.ok && (branch === 'main' || !metadata.default_branch)) {
+      const masterUrl = `https://codeload.github.com/${owner}/${repoSlug}/zip/refs/heads/master`;
+      const masterRes = await fetch(masterUrl, { headers });
+      if (masterRes.ok) {
+        archiveUrl = masterUrl;
+        archiveResponse = masterRes;
+        branch = 'master';
+      }
+    }
+
     if (!archiveResponse.ok) {
-      return res.status(502).json({ error: 'GitHub repository archive could not be downloaded' });
+      return res.status(502).json({
+        error: `GitHub repository "${owner}/${repoSlug}" could not be downloaded. Please verify the URL and ensure the repository is public.`,
+      });
     }
 
     const contentLength = Number(archiveResponse.headers.get('content-length') || 0);
