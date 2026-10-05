@@ -883,8 +883,9 @@
                 <form class="runtime-form" id="runtime-prepare-form">
                   <div style="flex:1 1 320px; min-width:0;">
                     <label for="runtime-target-url">Target website URL</label>
-                    <input class="runtime-url" id="runtime-target-url" type="url" placeholder="https://example.org" required>
+                    <input class="runtime-url" id="runtime-target-url" type="url" value="https://agentic-ai-mocha-pi.vercel.app/" required>
                   </div>
+                  <button type="button" class="btn-p" id="runtime-open-target-button">Open target</button>
                   <button type="submit" class="btn-p" id="runtime-prepare-button">Prepare Session</button>
                 </form>
                 <div class="runtime-extension-state" id="runtime-extension-state">Checking for the CryptoScan extension…</div>
@@ -1933,6 +1934,21 @@
           document.getElementById('runtime-page-stop').disabled = false;
         }
       }
+
+      document.getElementById('runtime-open-target-button').addEventListener('click', () => {
+        const targetUrl = document.getElementById('runtime-target-url').value.trim();
+        let parsedTarget;
+        try { parsedTarget = new URL(targetUrl); } catch (_) {
+          showRuntimeError('Enter a valid website URL before opening the target.');
+          return;
+        }
+        if (!['http:', 'https:'].includes(parsedTarget.protocol) || parsedTarget.username || parsedTarget.password) {
+          showRuntimeError('Use an http or https URL without embedded credentials.');
+          return;
+        }
+        showRuntimeError('');
+        window.open(parsedTarget.href, '_blank', 'noopener,noreferrer');
+      });
 
       document.getElementById('runtime-prepare-form').addEventListener('submit', prepareRuntimeSession);
       if (runtimeSession) {

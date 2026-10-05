@@ -1,4 +1,5 @@
 const $ = selector => document.querySelector(selector);
+const DEMO_TARGET_URL = 'https://agentic-ai-mocha-pi.vercel.app/';
 
 function send(message) {
   return new Promise(resolve => {
@@ -49,6 +50,19 @@ async function configureOrigin(origin) {
 }
 
 $('#connect').addEventListener('click', () => configureOrigin($('#origin').value.trim()));
+
+$('#open-target').addEventListener('click', async () => {
+  const button = $('#open-target');
+  button.disabled = true;
+  try {
+    await chrome.tabs.create({ url: DEMO_TARGET_URL });
+  } catch (error) {
+    $('#connection').textContent = error.message || 'Could not open the demo target site.';
+    document.querySelector('details').open = true;
+  } finally {
+    button.disabled = false;
+  }
+});
 
 $('#connect-current-tab').addEventListener('click', async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

@@ -9,10 +9,15 @@
 <body>
   <main>
     <header><strong>CryptoScan</strong><span>Runtime Observer</span></header>
-    <label for="origin">CryptoScan origin</label>
-    <div class="row"><input id="origin" type="url" placeholder="https://your-app.vercel.app"><button id="connect">Connect</button></div>
-    <button id="connect-current-tab" class="secondary">Use current tab as CryptoScan origin</button>
-    <p id="connection" class="muted">Configure the exact origin of your CryptoScan frontend.</p>
+    <button id="open-target" class="target-button">Open demo target site</button>
+    <p class="muted">Demo target: agentic-ai-mocha-pi.vercel.app</p>
+    <details>
+      <summary>Dashboard connection setup</summary>
+      <label for="origin">CryptoScan dashboard origin</label>
+      <div class="row"><input id="origin" type="url" placeholder="https://your-cryptoscan-app.vercel.app"><button id="connect">Save</button></div>
+      <button id="connect-current-tab" class="secondary">Use current tab as dashboard</button>
+      <p id="connection" class="muted">Configure the exact origin of your CryptoScan dashboard.</p>
+    </details>
     <section aria-live="polite">
       <div class="state-row"><span id="state-dot"></span><strong id="state">No session</strong></div>
       <div id="session-id" class="muted"></div>
@@ -22,7 +27,7 @@
     </section>
     <button id="self-test" class="secondary" disabled>Self-test</button>
     <p id="test-result" class="muted"></p>
-    <p class="note">Connect this extension to the CryptoScan dashboard tab. Enter the site to observe in the dashboard's Target website URL field.</p>
+    <p class="note">Prepare a session in the CryptoScan dashboard, then open the target site to demonstrate runtime observation.</p>
   </main>
   <script src="popup.js"></script>
 </body>
