@@ -33,6 +33,22 @@
     else delete status.dataset.kind;
   }
 
+  function clearResults() {
+    state.sensitivityData = null;
+    state.activeVariationIndex = -1;
+    $('variation-tabs').replaceChildren();
+    $('gantt-chart').replaceChildren();
+    $('gantt-empty').textContent = 'No schedule data available. Run analysis first.';
+    $('gantt-empty').hidden = false;
+    ['val-exposure', 'val-makespan', 'val-waves', 'val-status'].forEach((id) => {
+      $(id).textContent = '—';
+    });
+    ['delta-exposure', 'delta-makespan', 'delta-waves', 'delta-status'].forEach((id) => {
+      $(id).textContent = '—';
+      $(id).className = 'ms-strip-delta ms-delta-neu';
+    });
+  }
+
   async function apiRequest(path, method = 'GET', body) {
     const url = `${window.Auth.API_BASE}/scan/${encodeURIComponent(state.scanId)}/quantum-risk${path}`;
     const response = await window.Auth.apiFetch(url, {
@@ -75,14 +91,25 @@
       state.scanId = state.scans[0].scanId;
       select.value = state.scanId;
       fetchTasks();
+    } else {
+      $('run-sensitivity').disabled = true;
+      setStatus('No repository scans are available.', 'error');
     }
   }
 
   async function fetchTasks() {
+    $('run-sensitivity').disabled = true;
+    state.tasks = [];
+    clearResults();
     try {
       setStatus('Loading tasks...');
       const payload = await apiRequest('/schedule');
       state.tasks = payload.tasks || [];
+      if (state.tasks.length === 0) {
+        setStatus('No migration tasks were found for this scan.', 'error');
+        return;
+      }
+      $('run-sensitivity').disabled = false;
       setStatus(`Loaded ${state.tasks.length} tasks. Ready to run analysis.`, 'success');
     } catch (e) {
       setStatus(`Failed to load tasks: ${e.message}`, 'error');
@@ -90,12 +117,14 @@
   }
 
   async function runSensitivity() {
-    if (state.running || !state.tasks.length) return;
+    if (state.running) return;
+    if (!state.scanId) return setStatus('Select a repository scan first.', 'error');
+    if (!state.tasks.length) return setStatus('No migration tasks are available for this scan.', 'error');
     
     const capacity = parseInt($('capacity-input').value, 10);
     const horizon = parseInt($('horizon-input').value, 10);
-    if (isNaN(capacity) || capacity < 1) return setStatus('Invalid capacity', 'error');
-    if (isNaN(horizon) || horizon < 1) return setStatus('Invalid horizon', 'error');
+    if (!Number.isInteger(capacity) || capacity < 1 || capacity > 100) return setStatus('Team capacity must be between 1 and 100.', 'error');
+    if (!Number.isInteger(horizon) || horizon < 1 || horizon > 120) return setStatus('Horizon must be between 1 and 120 months.', 'error');
     
     state.running = true;
     $('run-sensitivity').disabled = true;
@@ -124,12 +153,11 @@
       
       renderTabs();
       renderActiveVariation();
-      setStatus('Analysis complete.', 'success');
     } catch (e) {
       setStatus(`Analysis failed: ${e.message}`, 'error');
     } finally {
       state.running = false;
-      $('run-sensitivity').disabled = false;
+      $('run-sensitivity').disabled = state.tasks.length === 0;
     }
   }
 
@@ -148,7 +176,7 @@
     });
     container.append(baseBtn);
     
-    state.sensitivityData.variations.forEach((v, idx) => {
+    (state.sensitivityData.variations || []).forEach((v, idx) => {
       const btn = make('button', 'ms-preset-btn', v.label);
       btn.type = 'button';
       btn.setAttribute('aria-pressed', state.activeVariationIndex === idx ? 'true' : 'false');
@@ -167,14 +195,25 @@
     
     const base = data.base;
     const active = state.activeVariationIndex === -1 ? base : data.variations[state.activeVariationIndex];
+    const schedulable = ['OPTIMAL', 'FEASIBLE'].includes(active.solverStatus);
+    const baselineSchedulable = ['OPTIMAL', 'FEASIBLE'].includes(base.solverStatus);
     
     // Update strip
-    $('val-exposure').textContent = active.totalExposure.toFixed(4);
-    $('val-makespan').textContent = `${active.makespanMonths} mo`;
-    $('val-waves').textContent = active.waveCount;
+    $('val-exposure').textContent = schedulable && Number.isFinite(active.totalExposure)
+      ? active.totalExposure.toFixed(4) : '—';
+    $('val-makespan').textContent = schedulable && Number.isFinite(active.makespanMonths)
+      ? `${active.makespanMonths} mo` : '—';
+    $('val-waves').textContent = schedulable && Number.isFinite(active.waveCount)
+      ? active.waveCount : '—';
     $('val-status').textContent = active.solverStatus;
+    if (schedulable) {
+      setStatus(`${state.activeVariationIndex === -1 ? 'Baseline' : data.variations[state.activeVariationIndex].label} schedule computed successfully.`, 'success');
+    } else {
+      const message = active.message || 'Review the team capacity, horizon, and task constraints.';
+      setStatus(`${active.solverStatus}: ${message}`, 'error');
+    }
     
-    if (state.activeVariationIndex !== -1) {
+    if (state.activeVariationIndex !== -1 && schedulable && baselineSchedulable) {
       const imp = active.improvementPct;
       const dExp = $('delta-exposure');
       dExp.textContent = imp > 0 ? `-${imp}%` : (imp < 0 ? `+${Math.abs(imp)}%` : '0%');
@@ -189,6 +228,11 @@
       const dWaves = $('delta-waves');
       dWaves.textContent = dWv > 0 ? `+${dWv}` : (dWv < 0 ? `${dWv}` : '0');
       dWaves.className = `ms-strip-delta ${dWv < 0 ? 'ms-delta-pos' : (dWv > 0 ? 'ms-delta-neg' : 'ms-delta-neu')}`;
+    } else if (state.activeVariationIndex !== -1) {
+      ['delta-exposure', 'delta-makespan', 'delta-waves'].forEach((id) => {
+        $(id).textContent = 'N/A';
+        $(id).className = 'ms-strip-delta ms-delta-neu';
+      });
     } else {
       $('delta-exposure').textContent = 'Base';
       $('delta-exposure').className = 'ms-strip-delta ms-delta-neu';
@@ -200,14 +244,15 @@
     
     $('delta-status').textContent = '';
     
-    renderGantt(active.ganttRows || [], active.makespanMonths, active.changedTaskIds || []);
+    renderGantt(active.ganttRows || [], active.makespanMonths, active.changedTaskIds || [], active.message);
   }
 
-  function renderGantt(rows, makespan, changedIds) {
+  function renderGantt(rows, makespan, changedIds, message = '') {
     const container = $('gantt-chart');
     container.replaceChildren();
     
     if (rows.length === 0) {
+      $('gantt-empty').textContent = message || 'No schedule data available. Run analysis first.';
       $('gantt-empty').hidden = false;
       return;
     }
@@ -258,14 +303,11 @@
   // Init
   $('scan-select').addEventListener('change', (e) => {
     state.scanId = e.target.value;
-    state.sensitivityData = null;
-    $('gantt-chart').replaceChildren();
-    $('gantt-empty').hidden = false;
-    $('variation-tabs').replaceChildren();
     fetchTasks();
   });
   
   $('run-sensitivity').addEventListener('click', runSensitivity);
+  $('run-sensitivity').disabled = true;
   
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', loadScans);

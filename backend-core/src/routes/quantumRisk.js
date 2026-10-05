@@ -1113,6 +1113,7 @@ router.post('/schedule/sensitivity', async (req, res) => {
         baselineTotalExposure: baseTotalExposure,
         improvementPct,
         solverStatus: varResult.solverStatus,
+        message: varResult.message,
         makespanMonths,
         waveCount: (varResult.waves || []).length,
         changedTaskIds,
@@ -1125,6 +1126,7 @@ router.post('/schedule/sensitivity', async (req, res) => {
       base: {
         totalExposure: baseTotalExposure,
         solverStatus: baseResult.solverStatus,
+        message: baseResult.message,
         makespanMonths: baseResult.ganttRows && baseResult.ganttRows.length > 0
           ? Math.max(...baseResult.ganttRows.map((r) => r.endMonth))
           : 0,
