@@ -7,58 +7,93 @@
   <title>Migration Scheduler - CryptoScan</title>
   <link rel="stylesheet" href="assets/css/global.css">
   <style>
-    .ms-page { padding: 2rem; max-width: 1200px; margin: 0 auto; }
-    .ms-heading { margin-bottom: 2rem; }
-    .ms-kicker { font-size: 0.75rem; font-weight: 700; color: var(--accent-violet); letter-spacing: 0.05em; margin-bottom: 0.5rem; text-transform: uppercase; }
-    .ms-lede { color: var(--text-m); margin-top: 0.5rem; }
-    .ms-toolbar { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; background: var(--bg-card); padding: 1rem; border-radius: var(--r-md); border: 1px solid var(--border-color); margin-bottom: 1rem; }
-    .ms-run-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
-    .ms-field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.875rem; }
-    .ms-field span { font-weight: 600; color: var(--text-h); }
-    .ms-field select, .ms-field input { padding: 0.5rem; border-radius: var(--r-sm); border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-h); }
-    .ms-button { padding: 0.5rem 1rem; border-radius: var(--r-sm); font-weight: 600; cursor: pointer; transition: var(--t); }
-    .ms-button-primary { background: var(--accent-violet); color: white; border: none; }
-    .ms-button-primary:hover { background: var(--accent-violet-dark, #6D28D9); }
-    .ms-button-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-    .ms-button-quiet { background: transparent; color: var(--text-m); border: 1px solid transparent; }
-    .ms-button-quiet:hover { background: var(--bg-card-hover); }
-    
-    .ms-section { margin-bottom: 3rem; }
-    .ms-section-heading { margin-bottom: 1rem; }
-    .ms-section-heading h2 { font-size: 1.25rem; color: var(--text-h); }
-    
-    /* Comparison Strip */
-    .ms-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
-    .ms-strip-card { background: var(--bg-card); border: 1px solid var(--border-color); padding: 1rem; border-radius: var(--r-md); }
-    .ms-strip-label { font-size: 0.75rem; color: var(--text-m); font-weight: 600; text-transform: uppercase; margin-bottom: 0.25rem; }
-    .ms-strip-value { font-size: 1.5rem; font-weight: 700; color: var(--text-h); }
-    .ms-strip-delta { font-size: 0.875rem; margin-top: 0.25rem; font-weight: 500; }
+    .ms-page { max-width: 1440px; margin: 0 auto; padding: clamp(1rem, 2.5vw, 2rem); }
+    .ms-heading { margin-bottom: 1.25rem; }
+    .ms-kicker { margin: 0 0 .45rem; color: var(--accent-violet); font-size: .72rem; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
+    .ms-heading h1 { margin: 0; color: var(--text-h); font-size: clamp(1.65rem, 3vw, 2.25rem); }
+    .ms-lede { margin: .4rem 0 0; color: var(--text-m); }
+    .ms-toolbar { display: grid; grid-template-columns: minmax(220px, 1.8fr) minmax(125px, .65fr) minmax(125px, .65fr) auto; gap: .75rem; align-items: end; margin-bottom: .75rem; padding: .85rem; border: 1px solid var(--border-color); border-radius: var(--r-md); background: var(--bg-card); }
+    .ms-field { display: flex; min-width: 0; flex-direction: column; gap: .35rem; font-size: .78rem; }
+    .ms-field span { color: var(--text-h); font-weight: 650; }
+    .ms-field select, .ms-field input, .ms-filter { width: 100%; min-height: 2.45rem; padding: .5rem .65rem; border: 1px solid var(--border-color); border-radius: var(--r-sm); background: var(--bg-main); color: var(--text-h); font: inherit; }
+    .ms-field select { text-overflow: ellipsis; }
+    .ms-button { min-height: 2.45rem; padding: .55rem 1rem; border: 0; border-radius: var(--r-sm); background: var(--accent-violet); color: #fff; font: inherit; font-weight: 700; cursor: pointer; transition: var(--t); white-space: nowrap; }
+    .ms-button:hover { background: var(--accent-violet-dark, #6D28D9); }
+    .ms-button:disabled { cursor: not-allowed; opacity: .55; }
+    .ms-button:focus-visible, .ms-field :focus-visible, .ms-filter:focus-visible, .ms-scenario-row:focus-visible, .ms-wave-summary:focus-visible { outline: 3px solid var(--accent-violet); outline-offset: 2px; }
+    .ms-status { min-height: 1.25rem; margin: 0 0 .6rem; color: var(--text-m); font-size: .82rem; }
+    .ms-status[data-kind="error"] { color: var(--status-danger, #DC2626); }
+    .ms-status[data-kind="success"] { color: var(--status-success, #16A34A); }
+    .ms-warning { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; justify-content: space-between; margin: 0 0 1rem; padding: .85rem 1rem; border: 1px solid rgba(217, 119, 6, .35); border-radius: var(--r-md); background: rgba(245, 158, 11, .1); color: var(--text-h); }
+    .ms-warning[hidden] { display: none; }
+    .ms-warning p { margin: 0; font-weight: 650; }
+    .ms-warning a { color: var(--accent-violet); font-weight: 700; text-decoration: none; }
+    .ms-warning a:hover { text-decoration: underline; }
+    .ms-section { margin: 0 0 1.5rem; }
+    .ms-section-heading { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
+    .ms-section-heading h2 { margin: 0; color: var(--text-h); font-size: 1.08rem; }
+    .ms-section-heading p { margin: .25rem 0 0; color: var(--text-m); font-size: .82rem; }
+    .ms-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
+    .ms-strip-card { position: relative; min-width: 0; padding: .9rem 1rem; border: 1px solid var(--border-color); border-radius: var(--r-md); background: var(--bg-card); }
+    .ms-strip-label { display: flex; align-items: center; gap: .4rem; color: var(--text-m); font-size: .7rem; font-weight: 750; letter-spacing: .045em; text-transform: uppercase; }
+    .ms-info { display: inline-grid; width: 1rem; height: 1rem; place-items: center; border: 1px solid var(--border-color); border-radius: 50%; color: var(--text-m); font-size: .65rem; cursor: help; }
+    .ms-strip-value { overflow: hidden; margin-top: .4rem; color: var(--text-h); font-size: clamp(1.2rem, 2vw, 1.6rem); font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+    .ms-strip-delta { min-height: 1.15rem; margin-top: .35rem; color: var(--text-m); font-size: .76rem; font-weight: 600; }
     .ms-delta-pos { color: var(--status-success, #16A34A); }
     .ms-delta-neg { color: var(--status-danger, #DC2626); }
     .ms-delta-neu { color: var(--text-m); }
-
-    /* Gantt Chart (CSS Grid) */
-    .ms-gantt-container { overflow-x: auto; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--r-md); padding: 1rem; }
-    .ms-gantt { display: grid; gap: 4px; min-width: 800px; }
-    .ms-gantt-header { display: contents; }
-    .ms-gantt-month { font-size: 0.75rem; color: var(--text-m); text-align: center; border-bottom: 1px solid var(--border-color); padding-bottom: 4px; font-weight: 600; }
-    .ms-gantt-row { display: contents; }
-    .ms-gantt-label { font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; color: var(--text-h); align-self: center; padding-right: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; grid-column: 1; }
-    .ms-gantt-bar { background: var(--accent-violet-bg); border: 1px solid var(--accent-violet); border-radius: 4px; height: 24px; display: flex; align-items: center; padding: 0 0.5rem; font-size: 0.65rem; color: var(--accent-violet); font-weight: 600; white-space: nowrap; overflow: hidden; }
-    .ms-gantt-bar.changed { background: rgba(245, 158, 11, 0.2); border-color: #F59E0B; color: #D97706; }
-
-    /* Sensitivities */
-    .ms-presets { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
-    .ms-preset-btn { padding: 0.25rem 0.75rem; font-size: 0.875rem; border-radius: 99px; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-h); cursor: pointer; }
-    .ms-preset-btn:hover { background: var(--bg-card-hover); }
-    .ms-preset-btn[aria-pressed="true"] { background: var(--accent-violet); color: white; border-color: var(--accent-violet); }
-
-    .ms-empty { color: var(--text-m); font-style: italic; }
-    .ms-status { font-size: 0.875rem; color: var(--text-m); margin-bottom: 1rem; min-height: 1.25em; }
-    .ms-status[data-kind="error"] { color: var(--status-danger, #DC2626); }
-    .ms-status[data-kind="success"] { color: var(--status-success, #16A34A); }
-    
-    .ms-assumptions { font-size: 0.75rem; color: var(--text-m); margin-top: 2rem; border-top: 1px solid var(--border-light); padding-top: 1rem; }
+    .ms-table-scroll { overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--r-md); background: var(--bg-card); }
+    .ms-comparison { width: 100%; border-collapse: collapse; min-width: 620px; }
+    .ms-comparison th, .ms-comparison td { padding: .72rem .85rem; border-bottom: 1px solid var(--border-color); text-align: left; white-space: nowrap; }
+    .ms-comparison th { color: var(--text-m); font-size: .68rem; font-weight: 750; letter-spacing: .045em; text-transform: uppercase; }
+    .ms-comparison td { color: var(--text-h); font-size: .83rem; }
+    .ms-comparison tbody tr:last-child td { border-bottom: 0; }
+    .ms-scenario-row { cursor: pointer; transition: background var(--t); }
+    .ms-scenario-row:hover, .ms-scenario-row[aria-current="true"] { background: var(--bg-card-hover); }
+    .ms-scenario-row[aria-current="true"] td:first-child { color: var(--accent-violet); font-weight: 750; }
+    .ms-scenario-name { font-weight: 650; }
+    .ms-scenario-hint { display: block; margin-top: .15rem; color: var(--text-m); font-size: .7rem; }
+    .ms-status-pill { display: inline-block; padding: .2rem .5rem; border-radius: 99px; background: var(--accent-violet-bg); color: var(--accent-violet); font-size: .7rem; font-weight: 750; }
+    .ms-gantt-tools { display: grid; grid-template-columns: minmax(180px, 1.5fr) repeat(3, minmax(125px, 1fr)); gap: .6rem; width: min(100%, 820px); }
+    .ms-gantt-container { overflow: auto; max-height: 68vh; min-height: 180px; border: 1px solid var(--border-color); border-radius: var(--r-md); background: var(--bg-card); }
+    .ms-gantt { --ms-label-width: 220px; min-width: max-content; padding: .5rem .75rem .75rem; }
+    .ms-gantt-header, .ms-wave-summary { display: grid; grid-template-columns: var(--ms-label-width) repeat(var(--ms-month-count), minmax(34px, 1fr)); align-items: center; column-gap: 0; }
+    .ms-gantt-header { position: sticky; z-index: 3; top: 0; min-width: max-content; padding: .55rem 0; border-bottom: 1px solid var(--border-color); background: var(--bg-card); }
+    .ms-gantt-month { padding: .2rem 0; color: var(--text-m); font-size: .65rem; font-weight: 700; text-align: center; }
+    .ms-wave { border-bottom: 1px solid var(--border-color); }
+    .ms-wave:last-child { border-bottom: 0; }
+    .ms-wave-summary { min-width: max-content; min-height: 3.25rem; list-style: none; cursor: pointer; }
+    .ms-wave-summary::-webkit-details-marker { display: none; }
+    .ms-wave-label { display: flex; flex-direction: column; gap: .12rem; padding-right: .75rem; color: var(--text-h); font-size: .78rem; font-weight: 700; }
+    .ms-wave-label small { color: var(--text-m); font-size: .68rem; font-weight: 500; }
+    .ms-wave-bar { z-index: 1; display: flex; min-width: 0; height: 1.55rem; align-items: center; overflow: hidden; padding: 0 .45rem; border: 1px solid hsl(var(--risk-hue) 68% 45%); border-radius: 5px; background: hsl(var(--risk-hue) 78% 88%); color: #312e3b; font-size: .67rem; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+    .ms-wave-tasks { display: grid; gap: .35rem; padding: .2rem 0 .8rem calc(var(--ms-label-width) + .75rem); }
+    .ms-task-detail { display: grid; grid-template-columns: minmax(180px, 1.5fr) minmax(100px, .8fr) minmax(100px, .8fr) auto; gap: .5rem; align-items: center; min-width: 540px; padding: .45rem .6rem; border-radius: var(--r-sm); background: var(--bg-main); color: var(--text-h); font-size: .74rem; }
+    .ms-task-name { overflow: hidden; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+    .ms-task-meta { overflow: hidden; color: var(--text-m); text-overflow: ellipsis; white-space: nowrap; }
+    .ms-risk-tag { justify-self: end; color: var(--text-m); font-size: .68rem; white-space: nowrap; }
+    .ms-empty { margin: 0; padding: 1.5rem; color: var(--text-m); text-align: center; }
+    .ms-assumptions { margin-top: 1.25rem; padding-top: .75rem; border-top: 1px solid var(--border-color); color: var(--text-m); font-size: .75rem; }
+    @media (max-width: 800px) {
+      .ms-toolbar { grid-template-columns: minmax(0, 1fr) minmax(120px, .7fr) minmax(120px, .7fr); }
+      .ms-toolbar .ms-button { grid-column: 1 / -1; }
+      .ms-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .ms-gantt-heading { align-items: stretch; }
+      .ms-gantt-tools { grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+    }
+    @media (max-width: 520px) {
+      .ms-page { padding: 1rem .75rem; }
+      .ms-toolbar { grid-template-columns: 1fr 1fr; }
+      .ms-toolbar .ms-field:first-child { grid-column: 1 / -1; }
+      .ms-toolbar .ms-button { grid-column: 1 / -1; width: 100%; }
+      .ms-strip { gap: .5rem; }
+      .ms-strip-card { padding: .75rem; }
+      .ms-gantt-tools { grid-template-columns: 1fr 1fr; }
+      .ms-gantt-tools .ms-search { grid-column: 1 / -1; }
+      .ms-gantt { --ms-label-width: 160px; }
+      .ms-wave-tasks { padding-left: calc(var(--ms-label-width) + .25rem); }
+      .ms-wave-summary { grid-template-columns: var(--ms-label-width) repeat(var(--ms-month-count), minmax(34px, 1fr)); }
+    }
   </style>
   <script src="assets/js/auth.js" defer></script>
   <script src="assets/js/engine.js" defer></script>
@@ -92,41 +127,64 @@
             <span>Horizon (months)</span>
             <input id="horizon-input" type="number" min="1" max="120" value="36">
           </label>
+          <button id="run-sensitivity" class="ms-button" type="button">Run analysis</button>
         </section>
-        <div class="ms-run-row">
-          <button id="run-sensitivity" class="ms-button ms-button-primary" type="button" style="padding: 0.6rem 1.5rem; font-size: 1rem; background: #16a34a; color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 8px rgba(22,163,74,0.4);">▶ Run Analysis</button>
-          <span style="font-size:0.875rem; color: var(--text-m);">Click to compute sensitivity schedule with CP-SAT solver</span>
-        </div>
 
         <p id="page-status" class="ms-status" role="status" aria-live="polite"></p>
 
-        <section class="ms-section">
-          <div class="ms-section-heading">
-            <h2>Sensitivity Variations</h2>
-            <p class="ms-lede">Select a variation to view its impact on the schedule.</p>
-          </div>
-          <div id="variation-tabs" class="ms-presets"></div>
-        </section>
+        <aside id="assessment-warning" class="ms-warning" role="status" hidden>
+          <p>Run the Quantum Threat Model first so exposure can be optimized</p>
+          <a href="quantum-threat-model.html">Open Quantum Threat Model <span aria-hidden="true">→</span></a>
+        </aside>
 
-        <section class="ms-section">
-          <div class="ms-section-heading">
-            <h2>Schedule Impact</h2>
-          </div>
+        <section class="ms-section" aria-label="Schedule impact">
           <div id="summary-strip" class="ms-strip">
-            <div class="ms-strip-card"><div class="ms-strip-label">Exposure Risk</div><div id="val-exposure" class="ms-strip-value">—</div><div id="delta-exposure" class="ms-strip-delta ms-delta-neu">—</div></div>
-            <div class="ms-strip-card"><div class="ms-strip-label">Makespan</div><div id="val-makespan" class="ms-strip-value">—</div><div id="delta-makespan" class="ms-strip-delta ms-delta-neu">—</div></div>
-            <div class="ms-strip-card"><div class="ms-strip-label">Waves</div><div id="val-waves" class="ms-strip-value">—</div><div id="delta-waves" class="ms-strip-delta ms-delta-neu">—</div></div>
-            <div class="ms-strip-card"><div class="ms-strip-label">Status</div><div id="val-status" class="ms-strip-value">—</div><div id="delta-status" class="ms-strip-delta ms-delta-neu"></div></div>
+            <div class="ms-strip-card" title="Sum of migration risk probability weighted by scheduled month.">
+              <div class="ms-strip-label">Weighted exposure <span class="ms-info" title="Exposure probability × scheduled months, summed across migration tasks." aria-label="Exposure probability multiplied by scheduled months">i</span></div>
+              <div id="val-exposure" class="ms-strip-value">—</div><div id="delta-exposure" class="ms-strip-delta ms-delta-neu">Waiting for analysis</div>
+            </div>
+            <div class="ms-strip-card" title="The month when the final scheduled migration task completes.">
+              <div class="ms-strip-label">Makespan <span class="ms-info" title="Total elapsed months until the final task finishes." aria-label="Total elapsed months until the final task finishes">i</span></div>
+              <div id="val-makespan" class="ms-strip-value">—</div><div id="delta-makespan" class="ms-strip-delta ms-delta-neu">Waiting for analysis</div>
+            </div>
+            <div class="ms-strip-card" title="Number of start-month groups in the schedule.">
+              <div class="ms-strip-label">Waves <span class="ms-info" title="Groups of tasks that start in the same month." aria-label="Groups of tasks that start in the same month">i</span></div>
+              <div id="val-waves" class="ms-strip-value">—</div><div id="delta-waves" class="ms-strip-delta ms-delta-neu">Waiting for analysis</div>
+            </div>
+            <div class="ms-strip-card" title="Result returned by the schedule solver.">
+              <div class="ms-strip-label">Solver status <span class="ms-info" title="Whether the solver found an optimal or feasible schedule." aria-label="Whether the solver found an optimal or feasible schedule">i</span></div>
+              <div id="val-status" class="ms-strip-value">—</div><div id="delta-status" class="ms-strip-delta ms-delta-neu">Waiting for analysis</div>
+            </div>
           </div>
         </section>
 
-        <section class="ms-section">
+        <section class="ms-section" aria-labelledby="comparison-heading">
           <div class="ms-section-heading">
-            <h2>Gantt Chart</h2>
+            <div><h2 id="comparison-heading">Scenario comparison</h2><p>Select a row to view that schedule.</p></div>
+          </div>
+          <div class="ms-table-scroll">
+            <table class="ms-comparison">
+              <thead><tr><th scope="col">Scenario</th><th scope="col">Makespan</th><th scope="col">Waves</th><th scope="col">Exposure</th><th scope="col">Status</th></tr></thead>
+              <tbody id="scenario-rows"><tr><td colspan="5" class="ms-empty">Run analysis to compare scenarios.</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="ms-section" aria-labelledby="gantt-heading">
+          <div class="ms-section-heading ms-gantt-heading">
+            <div><h2 id="gantt-heading">Migration timeline</h2><p>Expand a wave to inspect its migration tasks.</p></div>
+            <div class="ms-gantt-tools" aria-label="Filter timeline">
+              <input id="gantt-search" class="ms-filter ms-search" type="search" placeholder="Search tasks or files" aria-label="Search tasks or files">
+              <select id="filter-service" class="ms-filter" aria-label="Filter by service"><option value="">All services</option></select>
+              <select id="filter-family" class="ms-filter" aria-label="Filter by family"><option value="">All families</option></select>
+              <select id="filter-risk" class="ms-filter" aria-label="Filter by risk band">
+                <option value="">All risk bands</option><option value="LOW">Low</option><option value="MODERATE">Moderate</option><option value="HIGH">High</option><option value="CRITICAL">Critical</option>
+              </select>
+            </div>
           </div>
           <div class="ms-gantt-container">
             <div id="gantt-chart" class="ms-gantt"></div>
-            <p id="gantt-empty" class="ms-empty" hidden>No schedule data available. Run analysis first.</p>
+            <p id="gantt-empty" class="ms-empty">Run analysis to see the wave-grouped schedule.</p>
           </div>
         </section>
 
