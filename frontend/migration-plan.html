@@ -1867,8 +1867,16 @@
           if (s.repoName && s.businessCriticality) repoCritMap[s.repoName] = s.businessCriticality.toUpperCase();
         });
 
-        allFindings = scans.flatMap(s => (s.findings || []).map(f => {
-          const enriched = CryptoEngine.enrichFinding(f);
+        allFindings = scans.flatMap(s => (s.findings || []).filter(Boolean).map(f => {
+          // Normalize severity before enriching — guards against undefined crashing enrichFinding
+          if (!f.severity) f.severity = 'medium';
+          let enriched;
+          try {
+            enriched = CryptoEngine.enrichFinding(f);
+          } catch (e) {
+            console.warn('enrichFinding failed for finding:', f, e);
+            enriched = f;
+          }
           return {
             ...enriched,
             repoId: s.repoId,

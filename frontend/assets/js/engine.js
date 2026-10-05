@@ -838,7 +838,7 @@ const CryptoEngine = {
         version: f.version || f.libraryVersion || '',
         exposure: f.exposure || 'internal',
         dataSensitivity: f.dataSensitivity || 'GENERAL',
-        severity: f.severity.toLowerCase(),
+        severity: (f.severity || 'medium').toLowerCase(),
         quantum: (f.quantumStatus || '').toLowerCase().includes('vulnerable') ? 'yes' : 'safe',
         file: f.filePath,
         line: f.lineNumber,
