@@ -5,6 +5,10 @@
   "description": "Observe cryptographic operations and transport metadata during a user-started website session.",
   "permissions": ["storage", "scripting", "tabs", "activeTab"],
   "host_permissions": ["<all_urls>"],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
   "background": {
     "service_worker": "background.js"
   },

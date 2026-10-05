@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CryptoScan Runtime Observer Settings</title>
+  <link rel="stylesheet" href="popup.css">
+  <style>
+    body { width: min(560px, calc(100vw - 32px)); margin: 32px auto; }
+    main { padding: 24px; background: white; border: 1px solid #d8dfe3; border-radius: 8px; }
+    .row { margin-top: 8px; }
+    #origin { width: 100%; }
+    #connect { margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header><strong>CryptoScan</strong><span>Runtime Observer</span></header>
+    <label for="origin">Exact CryptoScan frontend origin</label>
+    <div class="row"><input id="origin" type="url" placeholder="http://127.0.0.1:3000"><button id="connect">Connect</button></div>
+    <p id="connection" class="muted" role="status">Set the exact frontend origin, including scheme and port.</p>
+    <section aria-live="polite">
+      <div class="state-row"><span id="state-dot"></span><strong id="state">No session</strong></div>
+      <div id="session-id" class="muted"></div>
+      <div class="count"><span id="count">0</span><span>events</span></div>
+      <div class="muted">Last flush: <span id="last-flush">Never</span></div>
+      <div id="last-error" class="error" hidden></div>
+    </section>
+    <button id="self-test" class="secondary" disabled>Self-test</button>
+    <p id="test-result" class="muted"></p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+  
+</html>
