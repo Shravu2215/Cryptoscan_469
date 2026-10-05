@@ -1030,6 +1030,12 @@
       border-color: rgba(6, 182, 212, 0.2);
     }
 
+    .badge-runtime {
+      background: rgba(244, 63, 94, 0.12);
+      color: #f43f5e;
+      border-color: rgba(244, 63, 94, 0.25);
+    }
+
     /* Language badges — one hue per broad category */
     .badge-lang {
       background: rgba(99, 102, 241, 0.1);
@@ -1294,7 +1300,7 @@
           style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom: 8px;">
           <div>
             <h1 style="font-size:22px; font-weight:700; color:var(--text-h); letter-spacing:-0.02em;">Findings</h1>
-            <div style="font-size:13px; color:var(--text-m); margin-top:2px;">Review cryptographic usage and security
+            <div id="findings-subtitle" style="font-size:13px; color:var(--text-m); margin-top:2px;">Review cryptographic usage and security
               risks detected in your repository</div>
           </div>
           <div style="display:flex; align-items:center; gap:12px;">
@@ -1316,8 +1322,8 @@
               style="width:48px;height:48px;color:var(--text-s);margin-bottom:8px">
               <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <div style="font-size:18px; font-weight:600; color:var(--text-h);">No scan results yet</div>
-            <div class="empty-msg">Run a repository scan to discover cryptographic findings.</div>
+            <div id="no-data-title" style="font-size:18px; font-weight:600; color:var(--text-h);">No scan results yet</div>
+            <div class="empty-msg" id="no-data-message">Run a repository scan to discover cryptographic findings.</div>
             <button class="btn-p" style="margin-top:16px;" onclick="window.location.href='scan.html'">Start
               Scan</button>
           </div>
@@ -1424,6 +1430,7 @@
                     <thead>
                       <tr>
                         <th>Risk</th>
+                        <th>Source</th>
                         <th>Algorithm</th>
                         <th>Type</th>
                         <th title="Internal: code/system only accessible inside the company (admin tools, batch jobs). External: code/system directly reachable from the internet (public API, login page) — external findings carry higher risk.">Exposure</th>
@@ -1706,13 +1713,55 @@
       }
 
       async function init() {
-        const data = (typeof CryptoEngine !== 'undefined') ? CryptoEngine.getData() : {};
+        let data = (typeof CryptoEngine !== 'undefined') ? CryptoEngine.getData() : {};
         const noDataEl = document.getElementById('view-no-data');
         const activeEl = document.getElementById('view-active');
         const exportBtn = document.getElementById('btn-export');
         const exportJsonBtn = document.getElementById('btn-export-json');
+        const runtimeSessionId = getUrlParam('runtimeSession');
+        let runtimeEventCount = null;
+        let runtimeScanId = '';
+        let runtimeLoadError = '';
 
-        const scans = (data.scans && data.scans.length > 0) ? data.scans : (data.activeScan && data.activeScan.findings ? [data.activeScan] : (data.repositories || []));
+        if (runtimeSessionId) {
+          document.getElementById('findings-subtitle').textContent = 'Observed during this session. Findings reflect activity seen while the target site was in use.';
+          try {
+            const apiBase = (window.Auth && window.Auth.API_BASE) || '';
+            const token = (window.Auth && window.Auth.getToken && window.Auth.getToken())
+              || sessionStorage.getItem('cs_access_token') || localStorage.getItem('cs_token') || localStorage.getItem('cs_auth_token');
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const sessionUrl = `${apiBase}/api/runtime/sessions/${encodeURIComponent(runtimeSessionId)}`;
+            const sessionResponse = window.Auth && window.Auth.apiFetch
+              ? await window.Auth.apiFetch(sessionUrl)
+              : await fetch(sessionUrl, { headers });
+            if (!sessionResponse) throw new Error('CryptoScan authentication failed.');
+            const session = await sessionResponse.json();
+            if (!sessionResponse.ok) throw new Error(session.error || 'Runtime session could not be loaded.');
+            runtimeEventCount = Number(session.eventCount) || 0;
+            if (!session.scanId) throw new Error('The runtime session has no associated scan.');
+            runtimeScanId = session.scanId;
+            const findingsUrl = `${apiBase}/scan/${encodeURIComponent(session.scanId)}/findings`;
+            const findingsResponse = window.Auth && window.Auth.apiFetch
+              ? await window.Auth.apiFetch(findingsUrl)
+              : await fetch(findingsUrl, { headers });
+            if (!findingsResponse) throw new Error('CryptoScan authentication failed.');
+            const result = await findingsResponse.json();
+            if (!findingsResponse.ok) throw new Error(result.error || 'Runtime findings could not be loaded.');
+            if (typeof CryptoEngine !== 'undefined') {
+              CryptoEngine.processRealBackendFindings(
+                { id: result.repoId, name: result.repoName || 'Runtime Analysis' },
+                result.scanId,
+                result.findings || [],
+              );
+              data = CryptoEngine.getData();
+            }
+          } catch (error) {
+            runtimeLoadError = error.message || 'Runtime session could not be loaded.';
+          }
+        }
+
+        const allScans = (data.scans && data.scans.length > 0) ? data.scans : (data.activeScan && data.activeScan.findings ? [data.activeScan] : (data.repositories || []));
+        const scans = runtimeSessionId ? allScans.filter(scan => scan.scanId === runtimeScanId) : allScans;
         const hasFindings = scans.some(s => s.findings && s.findings.length > 0);
 
         if (!hasFindings) {
@@ -1720,6 +1769,13 @@
           if (activeEl) activeEl.style.display = 'none';
           if (exportBtn) exportBtn.style.display = 'none';
           if (exportJsonBtn) exportJsonBtn.style.display = 'none';
+          if (runtimeSessionId) {
+            document.getElementById('no-data-title').textContent = runtimeLoadError
+              ? 'Runtime session unavailable'
+              : (runtimeEventCount === 0 ? '0 crypto operations observed' : 'No findings from this session');
+            document.getElementById('no-data-message').textContent = runtimeLoadError
+              || (runtimeEventCount === 0 ? 'No crypto or network operations were observed during this session.' : 'Observed activity did not produce findings in the shared scanner rules.');
+          }
           return;
         }
 
@@ -2057,11 +2113,11 @@
         return 'badge-poss';
       }
       function getDetBadgeClass(m) {
-        const map = { ast: 'badge-ast', entropy: 'badge-entropy', sca: 'badge-sca', config: 'badge-config', infra: 'badge-infra', regex: 'badge-regex', manifest: 'badge-manifest', container: 'badge-container', binary: 'badge-binary', certificate: 'badge-cert' };
+        const map = { ast: 'badge-ast', entropy: 'badge-entropy', sca: 'badge-sca', config: 'badge-config', infra: 'badge-infra', regex: 'badge-regex', manifest: 'badge-manifest', container: 'badge-container', binary: 'badge-binary', certificate: 'badge-cert', runtime: 'badge-runtime' };
         return map[m] || 'badge-regex';
       }
       function getDetLabel(m) {
-        const map = { ast: 'AST', entropy: 'Entropy', sca: 'SCA', config: 'Config', infra: 'Infra', regex: 'Regex', manifest: 'Manifest', container: 'Container', binary: 'Binary', certificate: 'Certificate' };
+        const map = { ast: 'AST', entropy: 'Entropy', sca: 'SCA', config: 'Config', infra: 'Infra', regex: 'Regex', manifest: 'Manifest', container: 'Container', binary: 'Binary', certificate: 'Certificate', runtime: 'Runtime' };
         return map[m] || (m || 'Unknown').toUpperCase();
       }
 
@@ -2100,7 +2156,7 @@
         if (!panel || !items) return;
         if (allFindings.length === 0) { panel.style.display = 'none'; return; }
         panel.style.display = 'flex';
-        const colors = { ast: '#38bdf8', entropy: '#fbbf24', sca: '#a78bfa', config: '#34d399', infra: '#f97316', regex: '#94a3b8', manifest: '#f56565', container: '#a855f7', binary: '#ec4899', certificate: '#06b6d4' };
+        const colors = { ast: '#38bdf8', entropy: '#fbbf24', sca: '#a78bfa', config: '#34d399', infra: '#f97316', regex: '#94a3b8', manifest: '#f56565', container: '#a855f7', binary: '#ec4899', certificate: '#06b6d4', runtime: '#f43f5e' };
         const counts = {};
         allFindings.forEach(f => {
           const m = (f.detection_method || 'ast').toLowerCase();
@@ -2335,6 +2391,8 @@
         tbody.innerHTML = pageData.map((f, i) => {
           const sev = getSeverity(f);
           const algo = f.algorithm || (f.title || 'Unknown').split(' ')[0] || 'Unknown';
+          const sourceLabel = String(f.source || 'static').toLowerCase() === 'runtime' ? 'Runtime' : 'Static';
+          const sourceTitle = sourceLabel === 'Runtime' ? `${Number(f.count) || 1} observed calls` : 'Static scan';
           const purpose = f.usage || f.category || '-';
           const quant = isQuantum(f) ? 'Quantum-Broken' : (f.quantumStatus || 'Quantum-Safe');
           const qClass = isQuantum(f) ? 'badge-quant' : 'badge-safe';
@@ -2378,6 +2436,7 @@
           return `
       <tr class="finding-row" style="cursor:pointer;" data-index="${i}">
         <td><span class="badge ${getBadgeClass(sev)}">${sev}</span></td>
+        <td><span class="badge ${sourceLabel === 'Runtime' ? 'badge-runtime' : 'badge-ast'}" title="${sourceTitle}">${sourceLabel}</span></td>
         <td><span style="font-weight:600;color:var(--text-h)" class="code-font">${algo}</span></td>
         <td><span class="badge badge-ast" style="font-size:11px; text-transform:uppercase;">${type.replace(/_/g, ' ')}</span></td>
         <td><span class="badge ${expClass}" title="Triggered Exposure Signals: ${expSignals}">${expDisplayText}</span></td>
@@ -2618,6 +2677,13 @@
         detBadge.textContent = getDetLabel(detMethod);
         b.parentNode.appendChild(confBadge);
         b.parentNode.appendChild(detBadge);
+        if (String(f.source || '').toLowerCase() === 'runtime') {
+          const runBadge = document.createElement('span');
+          runBadge.className = 'badge badge-runtime drw-extra-badge';
+          runBadge.style.marginLeft = '6px';
+          runBadge.textContent = `Runtime (${Number(f.count) || 1} calls)`;
+          b.parentNode.appendChild(runBadge);
+        }
 
         document.getElementById('drw-desc').textContent = f.remediation || f.snippet || 'No remediation instructions available. Please update your cryptographic practices to modern standards.';
         document.getElementById('drw-impact-file').textContent = f.file || 'unknown';

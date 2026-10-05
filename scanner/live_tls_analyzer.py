@@ -92,6 +92,94 @@ class LiveTLSAnalyzer:
 
         return findings
 
+    def probe_runtime_endpoint(self, host: str, port: int, address: str) -> dict:
+        """Probe a pre-resolved public address and return only handshake metadata."""
+        accepted = []
+        selected = None
+        versions = (
+            ("TLSv1.3", ssl.TLSVersion.TLSv1_3),
+            ("TLSv1.2", ssl.TLSVersion.TLSv1_2),
+            ("TLSv1.1", ssl.TLSVersion.TLSv1_1),
+            ("TLSv1", ssl.TLSVersion.TLSv1),
+        )
+
+        for label, version in versions:
+            try:
+                context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                context.minimum_version = version
+                context.maximum_version = version
+                context.set_ciphers("ALL:@SECLEVEL=0")
+                with socket.create_connection((address, port), timeout=self.timeout) as raw_socket:
+                    with context.wrap_socket(raw_socket, server_hostname=host) as tls_socket:
+                        negotiated = tls_socket.version()
+                        cipher = tls_socket.cipher()
+                        accepted.append({
+                            "version": negotiated,
+                            "cipher": cipher[0] if cipher else "",
+                        })
+                        if selected is None or negotiated == "TLSv1.3":
+                            selected = {
+                                "version": negotiated,
+                                "cipher": cipher[0] if cipher else "",
+                                "certificate": tls_socket.getpeercert(binary_form=True),
+                            }
+            except Exception:
+                continue
+
+        result = {
+            "host": host,
+            "port": port,
+            "acceptedProtocols": [item["version"] for item in accepted],
+            "negotiatedVersion": selected["version"] if selected else None,
+            "cipherSuite": selected["cipher"] if selected else None,
+            "certificateKeyType": None,
+            "certificateKeySize": None,
+            "certificateCurve": None,
+            "signatureAlgorithm": None,
+            "expiresAt": None,
+            "ecdhe": any("ECDHE" in item["cipher"].upper() for item in accepted),
+            "probeSucceeded": bool(selected),
+        }
+        if not selected or not selected["certificate"]:
+            return result
+
+        try:
+            from cryptography import x509
+            from cryptography.hazmat.primitives.asymmetric import dsa, ec, ed25519, ed448, rsa
+
+            certificate = x509.load_der_x509_certificate(selected["certificate"])
+            public_key = certificate.public_key()
+            if isinstance(public_key, rsa.RSAPublicKey):
+                result["certificateKeyType"] = "RSA"
+                result["certificateKeySize"] = public_key.key_size
+            elif isinstance(public_key, ec.EllipticCurvePublicKey):
+                result["certificateKeyType"] = "ECDSA"
+                result["certificateKeySize"] = public_key.key_size
+                result["certificateCurve"] = public_key.curve.name
+            elif isinstance(public_key, dsa.DSAPublicKey):
+                result["certificateKeyType"] = "DSA"
+                result["certificateKeySize"] = public_key.key_size
+            elif isinstance(public_key, (ed25519.Ed25519PublicKey, ed448.Ed448PublicKey)):
+                result["certificateKeyType"] = type(public_key).__name__.replace("PublicKey", "")
+            result["signatureAlgorithm"] = certificate.signature_algorithm_oid._name
+            result["expiresAt"] = certificate.not_valid_after_utc.isoformat()
+            result["certificateFindings"] = [
+                {
+                    "algorithm": finding.algorithm,
+                    "severity": finding.severity.value,
+                    "quantumRisk": finding.quantum_risk.value,
+                    "recommendation": finding.recommendation,
+                    "category": finding.category,
+                    "description": finding.message,
+                }
+                for finding in self._check_certificate(host, selected["certificate"])
+            ]
+        except Exception:
+            pass
+        return result
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

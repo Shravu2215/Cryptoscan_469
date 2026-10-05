@@ -315,10 +315,26 @@
     /* Grid specific to states */
     .selection-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 16px;
       margin-bottom: 16px;
     }
+
+    .runtime-setup,
+    .runtime-live { display: none; border-top: 1px solid var(--border-color); padding-top: 16px; }
+    .runtime-form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+    .runtime-form label { display: block; width: 100%; color: var(--text-m); font-size: 12px; margin-bottom: 5px; }
+    .runtime-url { flex: 1 1 320px; min-width: 0; border: 1px solid var(--border-color); border-radius: var(--r-sm); background: var(--bg-card); color: var(--text-b); padding: 10px 12px; font: inherit; }
+    .runtime-extension-state { margin: 12px 0 0; color: var(--text-m); font-size: 12px; }
+    .runtime-install-note { display: none; margin-top: 8px; color: var(--red); font-size: 12px; }
+    .runtime-live-row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+    .runtime-spinner { width: 14px; height: 14px; border: 2px solid var(--border-color); border-top-color: var(--red); border-radius: 50%; display: inline-block; vertical-align: -2px; animation: runtime-spin .8s linear infinite; }
+    .runtime-live .runtime-spinner { display: none; }
+    .runtime-live[data-status="recording"] .runtime-spinner,
+    .runtime-live[data-status="analyzing"] .runtime-spinner { display: inline-block; }
+    @keyframes runtime-spin { to { transform: rotate(360deg); } }
+    .runtime-session-id { font-family: 'JetBrains Mono', monospace; overflow-wrap: anywhere; }
+    .runtime-error { display: none; color: var(--red); margin-top: 10px; font-size: 12px; }
 
     .select-box {
       border: 1px dashed var(--border-color);
@@ -852,6 +868,37 @@
                     files</button>
                   <input type="file" id="repo-upload" accept=".zip" style="display:none;">
                 </div>
+                <div class="select-box" id="runtime-box">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12h4l3-8 4 16 3-8h4" />
+                  </svg>
+                  <div>
+                    <div class="select-title">Runtime Analysis</div>
+                    <div class="select-desc">Observe cryptography while you use a website</div>
+                  </div>
+                  <button type="button" class="btn-p" onclick="showRuntimeSetup(); event.stopPropagation();">Prepare Session</button>
+                </div>
+              </div>
+              <div id="runtime-setup" class="runtime-setup">
+                <form class="runtime-form" id="runtime-prepare-form">
+                  <div style="flex:1 1 320px; min-width:0;">
+                    <label for="runtime-target-url">Target website URL</label>
+                    <input class="runtime-url" id="runtime-target-url" type="url" placeholder="https://example.org" required>
+                  </div>
+                  <button type="submit" class="btn-p" id="runtime-prepare-button">Prepare Session</button>
+                </form>
+                <div class="runtime-extension-state" id="runtime-extension-state">Checking for the CryptoScan extension…</div>
+                <div class="runtime-install-note" id="runtime-install-note">Extension not detected. Load <strong>runtime-extension</strong> as an unpacked Chrome extension, configure this exact CryptoScan origin in its popup, then return here.</div>
+                <div class="runtime-error" id="runtime-error" role="alert"></div>
+              </div>
+              <div id="runtime-live" class="runtime-live">
+                <div class="runtime-live-row">
+                  <span id="runtime-recording-indicator"><span class="runtime-spinner"></span> <span id="runtime-session-status">Session ready - open the target site.</span></span>
+                  <strong id="runtime-event-count">0 events</strong>
+                  <span>Session <code class="runtime-session-id" id="runtime-session-id"></code></span>
+                  <button type="button" class="btn-p" id="runtime-page-stop" style="background:#c6342c" onclick="stopRuntimeFromScan()">Stop &amp; Analyze</button>
+                </div>
+                <div class="runtime-error" id="runtime-stop-error" role="alert"></div>
               </div>
             </div>
             <div class="empty-state">
@@ -1652,8 +1699,244 @@
       }
 
       function getToken() {
-        return localStorage.getItem('cs_token') || localStorage.getItem('cs_auth_token') || '';
+        return (window.Auth && window.Auth.getToken && window.Auth.getToken())
+          || sessionStorage.getItem('cs_access_token')
+          || localStorage.getItem('cs_token')
+          || localStorage.getItem('cs_auth_token')
+          || '';
       }
+
+      let runtimeExtensionDetected = false;
+      let runtimePingResolver = null;
+      let runtimePollTimer = null;
+      let runtimeSession = null;
+      try { runtimeSession = JSON.parse(sessionStorage.getItem('cs_runtime_active') || 'null'); } catch (_) {}
+
+      function runtimeApiBase() {
+        return (window.Auth && window.Auth.API_BASE) || '';
+      }
+
+      function showRuntimeSetup() {
+        const panel = document.getElementById('runtime-setup');
+        panel.style.display = 'block';
+        document.getElementById('runtime-live').style.display = runtimeSession ? 'block' : 'none';
+        pingRuntimeExtension();
+      }
+
+      function renderRuntimeExtensionState(detected) {
+        runtimeExtensionDetected = Boolean(detected);
+        const state = document.getElementById('runtime-extension-state');
+        const install = document.getElementById('runtime-install-note');
+        const prepare = document.getElementById('runtime-prepare-button');
+        if (!state) return;
+        state.textContent = runtimeExtensionDetected ? 'Extension detected for this CryptoScan origin.' : 'Extension not detected.';
+        install.style.display = runtimeExtensionDetected ? 'none' : 'block';
+        prepare.disabled = !runtimeExtensionDetected;
+      }
+
+      function pingRuntimeExtension() {
+        return new Promise(resolve => {
+          if (runtimePingResolver) runtimePingResolver(false);
+          let settled = false;
+          const done = value => {
+            if (settled) return;
+            settled = true;
+            runtimePingResolver = null;
+            renderRuntimeExtensionState(value);
+            resolve(Boolean(value));
+          };
+          runtimePingResolver = done;
+          window.postMessage({ source: 'CryptoScanPage', type: 'CS_EXTENSION_PING' }, window.location.origin);
+          setTimeout(() => done(false), 900);
+        });
+      }
+
+      function runtimeMessage(message, timeoutMs = 5000) {
+        return new Promise((resolve, reject) => {
+          const timer = setTimeout(() => {
+            window.removeEventListener('message', onMessage);
+            reject(new Error('CryptoScan extension did not respond.'));
+          }, timeoutMs);
+          function onMessage(event) {
+            if (event.source !== window || event.origin !== window.location.origin || !event.data) return;
+            if (event.data.source !== 'CryptoScanExtension' || event.data.type !== message.responseType) return;
+            clearTimeout(timer);
+            window.removeEventListener('message', onMessage);
+            resolve(event.data);
+          }
+          window.addEventListener('message', onMessage);
+          window.postMessage({ source: 'CryptoScanPage', ...message }, window.location.origin);
+        });
+      }
+
+      function handleRuntimeExtensionMessage(event) {
+        if (event.source !== window || event.origin !== window.location.origin || !event.data || event.data.source !== 'CryptoScanExtension') return;
+        if (event.data.type === 'CS_EXTENSION_PONG') {
+          if (runtimePingResolver) runtimePingResolver(Boolean(event.data.installed));
+          return;
+        }
+        if (event.data.type === 'CS_SESSION_HANDOFF_RESULT' && !event.data.ok) {
+          showRuntimeError(event.data.error || 'Extension handoff failed.');
+        }
+        if (event.data.type === 'CS_SESSION_STATE' && runtimeSession && event.data.state && event.data.state.id === runtimeSession.id) {
+          const state = event.data.state;
+          const count = Number(state.eventCount) || 0;
+          document.getElementById('runtime-event-count').textContent = `${count} ${count === 1 ? 'event' : 'events'}`;
+          document.getElementById('runtime-session-status').textContent = state.status === 'recording' ? 'Recording…'
+            : state.status === 'analyzing' ? 'Analyzing…'
+              : state.status === 'stopped' ? 'Analyzed during this session.'
+                : 'Session ready - open the target site.';
+          const live = document.getElementById('runtime-live');
+          live.dataset.status = state.status;
+          document.getElementById('runtime-page-stop').disabled = !['ready', 'recording'].includes(state.status);
+        }
+        if (event.data.type === 'CS_EXTENSION_STOP_RESULT') {
+          const status = document.getElementById('runtime-session-status');
+          if (event.data.ok) status.textContent = 'Analyzed. Opening Findings…';
+          else {
+            status.textContent = 'Recording';
+            showRuntimeStopError(event.data.error || 'Extension Stop failed.');
+            document.getElementById('runtime-page-stop').disabled = false;
+          }
+        }
+      }
+      window.addEventListener('message', handleRuntimeExtensionMessage);
+
+      function showRuntimeError(message) {
+        const el = document.getElementById('runtime-error');
+        el.textContent = message || '';
+        el.style.display = message ? 'block' : 'none';
+      }
+
+      function showRuntimeStopError(message) {
+        const el = document.getElementById('runtime-stop-error');
+        el.textContent = message || '';
+        el.style.display = message ? 'block' : 'none';
+      }
+
+      async function prepareRuntimeSession(event) {
+        event.preventDefault();
+        showRuntimeError('');
+        const targetUrl = document.getElementById('runtime-target-url').value.trim();
+        let parsedTarget;
+        try { parsedTarget = new URL(targetUrl); } catch (_) {
+          showRuntimeError('Enter a valid website URL.');
+          return;
+        }
+        if (!['http:', 'https:'].includes(parsedTarget.protocol) || parsedTarget.username || parsedTarget.password) {
+          showRuntimeError('Use an http or https URL without embedded credentials.');
+          return;
+        }
+        if (!(await pingRuntimeExtension())) {
+          showRuntimeError('Install the CryptoScan Runtime Observer extension and connect this exact origin first.');
+          return;
+        }
+        const authToken = getToken();
+        if (!authToken && !(window.Auth && window.Auth.isLoggedIn && window.Auth.isLoggedIn())) {
+          showRuntimeError('Sign in to CryptoScan before preparing a session.');
+          return;
+        }
+        const button = document.getElementById('runtime-prepare-button');
+        button.disabled = true;
+        button.textContent = 'Preparing…';
+        try {
+          const apiBase = new URL(runtimeApiBase() || window.location.origin, window.location.origin).origin;
+          const result = await runtimeMessage({
+            type: 'CS_SESSION_HANDOFF',
+            responseType: 'CS_SESSION_HANDOFF_RESULT',
+            bundle: {
+              targetUrl,
+              apiBase,
+              authToken: authToken || '',
+              cryptoscanOrigin: window.location.origin,
+            },
+          }, 30000);
+          if (!result.ok) throw new Error(result.error || 'Extension could not prepare the session.');
+          runtimeSession = {
+            id: result.state.id,
+            scanId: result.state.scanId,
+            targetOrigin: result.state.targetOrigin || parsedTarget.origin,
+            cryptoscanOrigin: result.state.cryptoscanOrigin || window.location.origin,
+          };
+          sessionStorage.setItem('cs_runtime_active', JSON.stringify(runtimeSession));
+          document.getElementById('runtime-session-id').textContent = runtimeSession.id;
+          document.getElementById('runtime-event-count').textContent = '0 events';
+          document.getElementById('runtime-session-status').textContent = 'Session ready - open the target site.';
+          document.getElementById('runtime-live').style.display = 'block';
+          document.getElementById('runtime-prepare-form').style.display = 'none';
+          runtimePollTimer = setInterval(pollRuntimeSession, 1000);
+        } catch (error) {
+          showRuntimeError(error.message || 'Could not prepare the runtime session.');
+          button.disabled = false;
+          button.textContent = 'Prepare Session';
+        } finally {
+          if (!runtimeSession || !runtimePollTimer) {
+            button.disabled = !runtimeExtensionDetected;
+            button.textContent = 'Prepare Session';
+          }
+        }
+      }
+
+      async function pollRuntimeSession() {
+        if (!runtimeSession) return;
+        try {
+          const statusUrl = `${runtimeApiBase()}/api/runtime/sessions/${encodeURIComponent(runtimeSession.id)}`;
+          const response = window.Auth && window.Auth.apiFetch
+            ? await window.Auth.apiFetch(statusUrl)
+            : await fetch(statusUrl, { headers: { Authorization: `Bearer ${getToken()}` } });
+          if (!response.ok) return;
+          const status = await response.json();
+          const count = Number(status.eventCount) || 0;
+          document.getElementById('runtime-event-count').textContent = `${count} ${count === 1 ? 'event' : 'events'}`;
+          const label = document.getElementById('runtime-session-status');
+          const live = document.getElementById('runtime-live');
+          live.dataset.status = status.status;
+          label.textContent = status.status === 'recording' ? 'Recording…'
+            : status.status === 'analyzing' ? 'Analyzing…'
+              : status.status === 'stopped' ? 'Analyzed during this session.'
+                : 'Session ready - open the target site.';
+          const stop = document.getElementById('runtime-page-stop');
+          stop.disabled = !['ready', 'recording'].includes(status.status);
+          if (status.status === 'stopped') clearInterval(runtimePollTimer);
+        } catch (_) {}
+      }
+
+      async function stopRuntimeFromScan() {
+        if (!runtimeSession) return;
+        showRuntimeStopError('');
+        document.getElementById('runtime-page-stop').disabled = true;
+        document.getElementById('runtime-session-status').textContent = 'Analyzing…';
+        try {
+          await pingRuntimeExtension();
+          if (runtimeExtensionDetected) {
+            await runtimeMessage({ type: 'CS_EXTENSION_STOP', responseType: 'CS_EXTENSION_STOP_RESULT' }, 45000);
+            return;
+          }
+        } catch (_) {}
+        try {
+          const stopUrl = `${runtimeApiBase()}/api/runtime/sessions/${encodeURIComponent(runtimeSession.id)}/stop`;
+          const response = window.Auth && window.Auth.apiFetch
+            ? await window.Auth.apiFetch(stopUrl, { method: 'POST' })
+            : await fetch(stopUrl, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` } });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Could not stop the runtime session.');
+          window.location.href = `findings.html?runtimeSession=${encodeURIComponent(runtimeSession.id)}`;
+        } catch (error) {
+          showRuntimeStopError(error.message || 'Could not stop the runtime session.');
+          document.getElementById('runtime-page-stop').disabled = false;
+        }
+      }
+
+      document.getElementById('runtime-prepare-form').addEventListener('submit', prepareRuntimeSession);
+      if (runtimeSession) {
+        document.getElementById('runtime-setup').style.display = 'block';
+        document.getElementById('runtime-live').style.display = 'block';
+        document.getElementById('runtime-prepare-form').style.display = 'none';
+        document.getElementById('runtime-session-id').textContent = runtimeSession.id;
+        pollRuntimeSession();
+        runtimePollTimer = setInterval(pollRuntimeSession, 1000);
+      }
+      pingRuntimeExtension();
 
       async function startRealScan() {
         if (!selectedFile && !selectedRepoId) return;

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CryptoScan Runtime</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <header><strong>CryptoScan</strong><span>Runtime Observer</span></header>
+    <label for="origin">CryptoScan origin</label>
+    <div class="row"><input id="origin" type="url" placeholder="https://your-app.vercel.app"><button id="connect">Connect</button></div>
+    <p id="connection" class="muted">Configure the exact origin of your CryptoScan frontend.</p>
+    <section aria-live="polite">
+      <div class="state-row"><span id="state-dot"></span><strong id="state">No session</strong></div>
+      <div id="session-id" class="muted"></div>
+      <div class="count"><span id="count">0</span><span>events</span></div>
+      <div class="muted">Last flush: <span id="last-flush">Never</span></div>
+      <div id="last-error" class="error" hidden></div>
+    </section>
+    <button id="self-test" class="secondary" disabled>Self-test</button>
+    <p id="test-result" class="muted"></p>
+    <p class="note">Observation starts only after Start is pressed in the target-site widget.</p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -28,8 +28,12 @@
     try {
       if (typeof CryptoEngine !== 'undefined') {
         currentScanData = CryptoEngine.getData();
-        if (currentScanData && currentScanData.scans && currentScanData.scans.length > 0) {
-          const scan = currentScanData.scans[0];
+        const active = currentScanData && currentScanData.activeScan;
+        if (active && ((active.findings && active.findings.length > 0) || (active.results && active.results.length > 0))) {
+          allScanFindings = active.findings || active.results || [];
+        } else if (currentScanData && currentScanData.scans && currentScanData.scans.length > 0) {
+          const scanWithFindings = currentScanData.scans.find(s => (s.findings && s.findings.length > 0) || (s.results && s.results.length > 0));
+          const scan = scanWithFindings || currentScanData.scans[0];
           allScanFindings = scan.findings || scan.results || [];
         } else if (currentScanData && currentScanData.activeScan) {
           allScanFindings = currentScanData.activeScan.findings || [];
@@ -54,11 +58,11 @@
     allScanFindings.forEach(f => {
       if (f.algorithm) {
         const norm = PQCSizes.normalizeAlgo(f.algorithm);
-        scanAlgos.add(norm);
+        if (norm) scanAlgos.add(norm);
       }
     });
 
-    const combined = Array.from(new Set([...scanAlgos, ...defaultClassicalAlgos]));
+    const combined = Array.from(new Set([...scanAlgos, ...defaultClassicalAlgos])).filter(Boolean);
 
     curSelect.innerHTML = combined.map(a => {
       const isFromScan = scanAlgos.has(a);
@@ -73,11 +77,11 @@
     const replSelect = document.getElementById('pqc-sel-pqc');
     if (!curSelect || !replSelect) return;
 
-    const curAlgo = curSelect.value;
+    const curAlgo = curSelect.value || 'ECDSA P-256';
     const mode = getSelectedMode();
     const valids = PQCSizes.getValidReplacements(curAlgo, mode);
 
-    replSelect.innerHTML = valids.map(r => `<option value="${r}">${r}</option>`).join('');
+    replSelect.innerHTML = (valids && valids.length > 0 ? valids : ['ML-DSA-65', 'ML-DSA-44', 'Falcon-512']).map(r => `<option value="${r}">${r}</option>`).join('');
   }
 
   function getSelectedMode() {
@@ -99,9 +103,9 @@
 
     if (urlAlgo) {
       const curSelect = document.getElementById('pqc-sel-classical');
-      const norm = PQCSizes.normalizeAlgo(urlAlgo);
-      if (curSelect) {
-        let matchedOpt = Array.from(curSelect.options).find(o => o.value.toLowerCase() === norm.toLowerCase());
+      const norm = PQCSizes.normalizeAlgo(urlAlgo) || urlAlgo;
+      if (curSelect && norm) {
+        let matchedOpt = Array.from(curSelect.options).find(o => o.value && o.value.toLowerCase() === norm.toLowerCase());
         if (!matchedOpt) {
           const newOpt = document.createElement('option');
           newOpt.value = norm;
@@ -127,9 +131,9 @@
 
     if (urlRepl) {
       const replSelect = document.getElementById('pqc-sel-pqc');
-      const normRepl = PQCSizes.normalizeAlgo(urlRepl);
-      if (replSelect) {
-        let matchedOpt = Array.from(replSelect.options).find(o => o.value.toLowerCase() === normRepl.toLowerCase() || o.value.toLowerCase() === urlRepl.toLowerCase());
+      const normRepl = PQCSizes.normalizeAlgo(urlRepl) || urlRepl;
+      if (replSelect && normRepl) {
+        let matchedOpt = Array.from(replSelect.options).find(o => o.value && (o.value.toLowerCase() === normRepl.toLowerCase() || o.value.toLowerCase() === urlRepl.toLowerCase()));
         if (matchedOpt) {
           replSelect.value = matchedOpt.value;
         }
@@ -731,7 +735,8 @@
     // Detection badge color map
     const DETECT_COLORS = {
       AST: 'badge-safe', REGEX: 'badge-amber', MANIFEST: 'badge-amber',
-      CERTIFICATE: 'badge-crit', CONFIG: 'badge-crit', INFRA: 'badge-crit'
+      CERTIFICATE: 'badge-crit', CONFIG: 'badge-crit', INFRA: 'badge-crit',
+      RUNTIME: 'badge-crit'
     };
 
     const header = `<div style="font-size:12px; font-weight:700; color:var(--text-m); margin-bottom:8px;">${matches.length} file${matches.length !== 1 ? 's' : ''} affected</div>`;

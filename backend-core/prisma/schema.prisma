@@ -77,15 +77,23 @@ model RuntimeRun {
   id          String   @id @default(uuid())
   scanId      String?
   scan        Scan?    @relation(fields: [scanId], references: [id])
+  userId      String   @default("")
+  ingestTokenHash String @default("")
+  targetOrigin String  @default("")
+  cryptoscanOrigin String @default("")
+  status      String   @default("ready")
   language    String   // "python" | "node"
   command     String?
   environment String   @default("test") // "test" | "staging"
   startedAt   DateTime @default(now())
   finishedAt  DateTime?
+  lastEventAt DateTime?
+  stoppedAt   DateTime?
   eventCount  Int      @default(0)
   createdAt   DateTime @default(now())
 
   events RuntimeEvent[]
+  findings Finding[]
 }
 
 model RuntimeEvent {
@@ -105,6 +113,14 @@ model RuntimeEvent {
   callFile         String
   callLine         Int
   callFunction     String
+  source           String   @default("crypto")
+  keyInfo          String   @default("{}")
+  callerScript     String   @default("unknown:0")
+  hostOrigin       String   @default("")
+  scheme           String   @default("")
+  port             Int      @default(0)
+  crossOrigin      Boolean  @default(false)
+  count            Int      @default(1)
   matchedFindingId String?
   createdAt        DateTime    @default(now())
 
@@ -132,7 +148,19 @@ model Finding {
   detection         String?  @default("AST")    // display-ready detection method (AST, REGEX, ...)
   detection_method  String?  @default("ast")    // raw detection method key
   language          String?  @default("Unknown") // language display name from language registry
+  source            String   @default("static")
+  sessionId         String?
+  runtimeSession    RuntimeRun? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  operation         String?
+  callSite          String?
+  mode              String?
+  curve             String?
+  hash              String?
+  observedAt        DateTime?
+  count             Int      @default(1)
   createdAt         DateTime @default(now())
+
+  @@index([sessionId])
 }
 
 

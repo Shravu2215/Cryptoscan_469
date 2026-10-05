@@ -1,0 +1,21 @@
+* { box-sizing: border-box; }
+body { width: 320px; margin: 0; background: #f4f6f8; color: #172026; font: 13px/1.45 system-ui, sans-serif; }
+main { padding: 16px; }
+header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 18px; }
+header strong { font-size: 16px; }
+header span, .muted, .note { color: #59666f; }
+label { display: block; margin-bottom: 5px; font-weight: 600; }
+.row { display: flex; gap: 6px; }
+input { min-width: 0; flex: 1; padding: 8px; border: 1px solid #c5cdd2; border-radius: 4px; font: inherit; }
+button { border: 0; border-radius: 4px; padding: 8px 10px; background: #18735e; color: white; font: inherit; font-weight: 600; cursor: pointer; }
+button:disabled { opacity: .45; cursor: default; }
+section { margin-top: 14px; padding: 12px; border-top: 1px solid #d8dfe3; border-bottom: 1px solid #d8dfe3; }
+.state-row { display: flex; align-items: center; gap: 8px; }
+#state-dot { width: 9px; height: 9px; border-radius: 50%; background: #8a969d; }
+#state-dot.recording { background: #dd4b39; box-shadow: 0 0 0 3px #f8d8d4; }
+#session-id { margin-top: 4px; overflow-wrap: anywhere; font-family: ui-monospace, monospace; font-size: 11px; }
+.count { display: flex; align-items: baseline; gap: 5px; margin: 8px 0; }
+#count { font-size: 26px; font-weight: 700; }
+.error { margin-top: 8px; color: #ae2c20; overflow-wrap: anywhere; }
+.secondary { width: 100%; margin-top: 12px; background: #fff; color: #176451; border: 1px solid #18735e; }
+.note { margin: 12px 0 0; font-size: 11px; }

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "test": "node test/migrationSimulation.test.js && node test/cbomVersioning.test.js && node test/cbomDiff.test.js && node test/migrationAssessment.test.js && node test/signedCbomExport.test.js && node test/hndlShared.test.js",
+    "test": "node test/runtimeRoutes.test.js && node test/runtimeSessionsValidation.test.js && node test/migrationSimulation.test.js && node test/cbomVersioning.test.js && node test/cbomDiff.test.js && node test/migrationAssessment.test.js && node test/signedCbomExport.test.js && node test/hndlShared.test.js",
     "test:integration": "node test/scans.test.js",
     "postinstall": "node scripts/install-scanner.js",
     "prisma:generate": "prisma generate",

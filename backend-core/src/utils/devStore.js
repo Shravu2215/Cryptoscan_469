@@ -9,7 +9,9 @@ let storeData = {
   devRepos: [],
   devScans: [],
   devFindings: [],
-  devAnchors: []
+  devAnchors: [],
+  devRuntimeRuns: [],
+  devRuntimeEvents: []
 };
 
 function loadStore() {
@@ -41,12 +43,16 @@ const devRepos = new Map(storeData.devRepos);
 const devScans = new Map(storeData.devScans);
 const devFindings = new Map(storeData.devFindings);
 const devAnchors = new Map(storeData.devAnchors);
+const devRuntimeRuns = new Map(storeData.devRuntimeRuns || []);
+const devRuntimeEvents = new Map(storeData.devRuntimeEvents || []);
 
 function syncStore() {
   storeData.devRepos = Array.from(devRepos.entries());
   storeData.devScans = Array.from(devScans.entries());
   storeData.devFindings = Array.from(devFindings.entries());
   storeData.devAnchors = Array.from(devAnchors.entries());
+  storeData.devRuntimeRuns = Array.from(devRuntimeRuns.entries());
+  storeData.devRuntimeEvents = Array.from(devRuntimeEvents.entries());
   saveStore();
 }
 
@@ -128,11 +134,46 @@ function getAnchor(scanId) {
   return devAnchors.get(scanId);
 }
 
+function saveRuntimeRun(run) {
+  devRuntimeRuns.set(run.id, run);
+  syncStore();
+  return run;
+}
+
+function getRuntimeRun(id) {
+  return devRuntimeRuns.get(id);
+}
+
+function updateRuntimeRun(id, data) {
+  const existing = devRuntimeRuns.get(id);
+  if (!existing) return null;
+  const updated = { ...existing, ...data };
+  devRuntimeRuns.set(id, updated);
+  syncStore();
+  return updated;
+}
+
+function saveRuntimeEvent(record) {
+  devRuntimeEvents.set(record.eventId, record);
+  syncStore();
+  return record;
+}
+
+function getRuntimeEvents(runId) {
+  const events = [];
+  for (const evt of devRuntimeEvents.values()) {
+    if (evt.runId === runId) events.push(evt);
+  }
+  return events;
+}
+
 module.exports = {
   devRepos,
   devScans,
   devFindings,
   devAnchors,
+  devRuntimeRuns,
+  devRuntimeEvents,
   saveRepo,
   getRepo,
   updateRepoCriticality,
@@ -142,4 +183,9 @@ module.exports = {
   getFindings,
   saveAnchor,
   getAnchor,
+  saveRuntimeRun,
+  getRuntimeRun,
+  updateRuntimeRun,
+  saveRuntimeEvent,
+  getRuntimeEvents,
 };

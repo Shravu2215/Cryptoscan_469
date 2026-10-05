@@ -21,6 +21,13 @@ const app = express();
 
 app.set('trust proxy', 1); // behind nginx/load balancer in production
 app.use(helmet({ contentSecurityPolicy: false }));
+app.use('/api/runtime/sessions', cors({
+  origin: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CryptoScan-Token', 'X-CryptoScan-Origin'],
+  credentials: true,
+  maxAge: 600,
+}));
 app.use(cors(corsOptions()));
 app.use(express.json());
 const path = require('path');
@@ -60,7 +67,7 @@ app.use('/repos', heavyLimiter, repoRoutes);
 app.use('/scan', heavyLimiter, scanRoutes);
 app.use('/scan/:scanId/quantum-risk', quantumRiskRoutes);
 app.use('/runtime', heavyLimiter, runtimeRoutes);
-app.use('/api/runtime', heavyLimiter, runtimeRoutes);
+app.use('/api/runtime', apiLimiter, runtimeRoutes);
 
 // 404 handler
 app.use((req, res) => {
