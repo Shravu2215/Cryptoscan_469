@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CryptoTwin — Sandbox Migration Verifier | CryptoScan</title>
+  <meta name="description" content="CryptoTwin: safely test post-quantum cryptographic migrations in a sandbox before production deployment. Breach simulation, AI fix loop, and migration confidence scoring.">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script>
+    (function(){const t=localStorage.getItem('cs_theme')||'light';if(t==='dark'){document.documentElement.classList.add('dark','dark-mode');}else{document.documentElement.classList.add('light-mode');}})();
+  </script>
+  <link rel="stylesheet" href="assets/css/global.css">
+  <link rel="stylesheet" href="assets/css/visuals.css">
+  <style>
+    /* ── CryptoTwin page-specific styles ── */
+    :root {
+      --ct-purple: #8b5cf6;
+      --ct-purple-bg: rgba(139,92,246,0.12);
+      --ct-cyan: #06b6d4;
+      --ct-cyan-bg: rgba(6,182,212,0.1);
+      --ct-green: #10b981;
+      --ct-green-bg: rgba(16,185,129,0.1);
+      --ct-red: #ef4444;
+      --ct-red-bg: rgba(239,68,68,0.1);
+      --ct-amber: #f59e0b;
+      --ct-amber-bg: rgba(245,158,11,0.1);
+    }
+
+    .ct-container { padding: 28px 32px; max-width: 1440px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+    /* Header */
+    .ct-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+    .ct-header-left h1 { font-size: 22px; font-weight: 800; color: var(--text-h); letter-spacing: -0.03em; margin-bottom: 4px; }
+    .ct-header-left p  { font-size: 13px; color: var(--text-m); }
+    .ct-header-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+    /* Buttons */
+    .ct-btn-primary { display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; background: linear-gradient(135deg, #7c3aed, #6d28d9); border: none; border-radius: 8px; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; transition: opacity .15s; text-decoration: none; }
+    .ct-btn-primary:hover { opacity: .85; }
+    .ct-btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+    .ct-btn-sec { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; background: transparent; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--text-b); cursor: pointer; transition: all .15s; text-decoration: none; }
+    .ct-btn-sec:hover { background: var(--bg-card); }
+
+    /* Input Source Selector */
+    .ct-source-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 22px 24px; }
+    .ct-source-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .ct-tab { padding: 7px 16px; border: 1px solid var(--border-color); border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; background: transparent; color: var(--text-m); }
+    .ct-tab.active { background: var(--ct-purple); border-color: var(--ct-purple); color: #fff; }
+    .ct-tab-panel { display: none; }
+    .ct-tab-panel.active { display: block; }
+
+    .ct-form-row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 14px; }
+    .ct-form-group { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 180px; }
+    .ct-form-group label { font-size: 12px; font-weight: 600; color: var(--text-m); text-transform: uppercase; letter-spacing: .5px; }
+    .ct-input { padding: 8px 12px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 7px; color: var(--text-h); font-size: 13px; font-family: 'Inter', sans-serif; width: 100%; transition: border-color .15s; }
+    .ct-input:focus { outline: none; border-color: var(--ct-purple); box-shadow: 0 0 0 3px rgba(139,92,246,0.15); }
+    .ct-select { padding: 8px 12px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 7px; color: var(--text-h); font-size: 13px; font-family: 'Inter', sans-serif; width: 100%; }
+
+    .ct-upload-zone { border: 2px dashed var(--border-color); border-radius: 10px; padding: 32px; text-align: center; cursor: pointer; transition: all .2s; }
+    .ct-upload-zone:hover, .ct-upload-zone.drag-over { border-color: var(--ct-purple); background: var(--ct-purple-bg); }
+    .ct-upload-zone svg { width: 36px; height: 36px; color: var(--text-m); margin-bottom: 10px; }
+    .ct-upload-zone p { font-size: 13px; color: var(--text-m); margin-bottom: 4px; }
+    .ct-upload-zone .ct-upload-hint { font-size: 11px; color: var(--text-s); }
+    .ct-upload-error { color: var(--ct-red); font-size: 12px; margin-top: 8px; padding: 8px 12px; background: var(--ct-red-bg); border-radius: 7px; display: none; }
+    .ct-upload-success { color: var(--ct-green); font-size: 12px; margin-top: 8px; padding: 8px 12px; background: var(--ct-green-bg); border-radius: 7px; display: none; }
+
+    /* Input Summary Card */
+    .ct-summary-card { background: linear-gradient(135deg, rgba(139,92,246,0.08), rgba(6,182,212,0.06)); border: 1px solid var(--ct-purple); border-radius: 12px; padding: 18px 22px; display: none; }
+    .ct-summary-card.visible { display: block; }
+    .ct-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; }
+    .ct-summary-item { display: flex; flex-direction: column; gap: 4px; }
+    .ct-summary-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--text-m); }
+    .ct-summary-value { font-size: 14px; font-weight: 700; color: var(--text-h); font-family: 'JetBrains Mono', monospace; }
+    .ct-algo-pills { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .ct-algo-pill { padding: 2px 8px; background: var(--ct-purple-bg); border: 1px solid rgba(139,92,246,0.3); border-radius: 4px; font-size: 10px; font-weight: 600; color: var(--ct-purple); }
+
+    /* KPI Cards */
+    .ct-kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; }
+    .ct-kpi { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+    .ct-kpi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--text-m); }
+    .ct-kpi-value { font-size: 28px; font-weight: 800; color: var(--text-h); font-family: 'JetBrains Mono', monospace; line-height: 1; }
+    .ct-kpi-sub { font-size: 11px; color: var(--text-m); }
+
+    /* Pipeline Stepper */
+    .ct-pipeline { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 20px 24px; }
+    .ct-pipeline-title { font-size: 14px; font-weight: 700; color: var(--text-h); margin-bottom: 18px; }
+    .ct-stages { display: flex; gap: 0; overflow-x: auto; padding-bottom: 4px; }
+    .ct-stage { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 100px; position: relative; }
+    .ct-stage:not(:last-child)::after { content: ''; position: absolute; top: 18px; left: 60%; width: 80%; height: 2px; background: var(--border-color); z-index: 0; }
+    .ct-stage-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid var(--border-color); background: var(--bg-main); z-index: 1; transition: all .3s; }
+    .ct-stage-icon.passed  { background: var(--ct-green);  border-color: var(--ct-green);  color: #fff; }
+    .ct-stage-icon.running { background: var(--ct-purple); border-color: var(--ct-purple); color: #fff; animation: ct-pulse 1.2s infinite; }
+    .ct-stage-icon.failed  { background: var(--ct-red);    border-color: var(--ct-red);    color: #fff; }
+    .ct-stage-icon.skipped { background: var(--ct-amber);  border-color: var(--ct-amber);  color: #fff; }
+    .ct-stage-icon.pending { background: transparent; color: var(--text-s); }
+    .ct-stage-name { font-size: 10px; font-weight: 600; color: var(--text-m); text-align: center; margin-top: 8px; max-width: 80px; line-height: 1.3; }
+    @keyframes ct-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(139,92,246,.4);} 50%{box-shadow:0 0 0 8px rgba(139,92,246,0);} }
+
+    /* Breach Simulation */
+    .ct-section { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 20px 24px; }
+    .ct-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    .ct-section-title { font-size: 14px; font-weight: 700; color: var(--text-h); }
+    .ct-section-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 3px 8px; border-radius: 5px; }
+
+    .ct-path-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media(max-width:900px){.ct-path-grid{grid-template-columns:1fr;}}
+
+    .ct-path-card { border: 1px solid var(--border-color); border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: all .2s; }
+    .ct-path-card:hover { border-color: var(--ct-purple); background: var(--ct-purple-bg); }
+    .ct-path-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .ct-path-algo { font-size: 12px; font-weight: 700; color: var(--ct-purple); font-family: 'JetBrains Mono', monospace; }
+    .ct-path-status { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 5px; }
+    .ct-path-status.OPEN      { background: var(--ct-red-bg);   color: var(--ct-red);   border: 1px solid var(--ct-red); }
+    .ct-path-status.BLOCKED   { background: var(--ct-green-bg); color: var(--ct-green); border: 1px solid var(--ct-green); }
+    .ct-path-status.STILL_OPEN{ background: var(--ct-red-bg);   color: var(--ct-red);   border: 1px solid var(--ct-red); }
+    .ct-path-status.NOT_VERIFIED{ background: var(--ct-amber-bg); color: var(--ct-amber); border: 1px solid var(--ct-amber); }
+    .ct-path-steps { display: flex; flex-direction: column; gap: 4px; }
+    .ct-step { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-m); }
+    .ct-step-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-s); flex-shrink: 0; }
+    .ct-step-line { width: 1px; height: 8px; background: var(--border-color); margin-left: 2.5px; }
+    .ct-path-file { font-size: 10px; color: var(--text-s); font-family: 'JetBrains Mono', monospace; margin-top: 8px; }
+
+    /* Drawer */
+    .ct-drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; }
+    .ct-drawer-overlay.open { display: block; }
+    .ct-drawer { position: fixed; right: 0; top: 0; bottom: 0; width: 420px; background: var(--bg-card); border-left: 1px solid var(--border-color); z-index: 201; transform: translateX(100%); transition: transform .25s ease; overflow-y: auto; padding: 24px; }
+    .ct-drawer.open { transform: translateX(0); }
+    .ct-drawer-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+    .ct-drawer-close { background: none; border: none; cursor: pointer; color: var(--text-m); padding: 4px; border-radius: 6px; }
+    .ct-drawer-close:hover { background: var(--bg-main); color: var(--text-h); }
+    .ct-drawer-body { display: flex; flex-direction: column; gap: 16px; }
+    .ct-drawer-field { display: flex; flex-direction: column; gap: 6px; }
+    .ct-drawer-field label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--text-m); }
+    .ct-drawer-field span { font-size: 13px; color: var(--text-h); }
+    .ct-note-box { background: var(--ct-amber-bg); border: 1px solid rgba(245,158,11,0.25); border-radius: 8px; padding: 10px 14px; font-size: 11px; color: var(--ct-amber); font-style: italic; }
+
+    /* Tests */
+    .ct-test-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .ct-test-tab { padding: 6px 14px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; color: var(--text-m); transition: all .15s; }
+    .ct-test-tab.active { background: var(--ct-cyan); border-color: var(--ct-cyan); color: #fff; }
+
+    .ct-test-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .ct-test-table th { text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-m); border-bottom: 1px solid var(--border-color); }
+    .ct-test-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-color); color: var(--text-b); vertical-align: top; }
+    .ct-test-table tr:last-child td { border-bottom: none; }
+    .ct-test-table tr:hover td { background: rgba(139,92,246,0.04); }
+    .ct-status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 5px; font-size: 10px; font-weight: 700; }
+    .ct-status-badge.PASSED       { background: var(--ct-green-bg);  color: var(--ct-green); }
+    .ct-status-badge.FAILED       { background: var(--ct-red-bg);    color: var(--ct-red); }
+    .ct-status-badge.NOT_EXECUTED { background: var(--ct-amber-bg);  color: var(--ct-amber); }
+
+    .ct-expand-btn { background: none; border: none; color: var(--text-m); cursor: pointer; font-size: 11px; text-decoration: underline; }
+    .ct-test-log { display: none; font-size: 11px; color: var(--text-m); background: var(--bg-main); border-radius: 6px; padding: 8px; margin-top: 6px; font-family: 'JetBrains Mono', monospace; white-space: pre-wrap; word-break: break-all; }
+
+    /* AI Iterations */
+    .ct-ai-timeline { display: flex; flex-direction: column; gap: 14px; }
+    .ct-ai-attempt { border: 1px solid var(--border-color); border-radius: 10px; padding: 14px 16px; }
+    .ct-ai-attempt-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; cursor: pointer; }
+    .ct-ai-attempt-title { font-size: 13px; font-weight: 700; color: var(--text-h); }
+    .ct-ai-attempt-body { display: none; }
+    .ct-ai-attempt.open .ct-ai-attempt-body { display: block; }
+    .ct-diff { border-radius: 8px; overflow: hidden; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+    .ct-diff-before { background: rgba(239,68,68,0.1); padding: 8px 12px; border-left: 3px solid var(--ct-red); white-space: pre-wrap; word-break: break-all; }
+    .ct-diff-after  { background: rgba(16,185,129,0.1); padding: 8px 12px; border-left: 3px solid var(--ct-green); white-space: pre-wrap; word-break: break-all; }
+
+    /* Verdict */
+    .ct-verdict-card { border-radius: 16px; padding: 28px; border: 2px solid var(--border-color); }
+    .ct-verdict-card.PRODUCTION_READY     { border-color: var(--ct-green);  background: var(--ct-green-bg); }
+    .ct-verdict-card.PRODUCTION_NOT_READY { border-color: var(--ct-red);    background: var(--ct-red-bg); }
+    .ct-verdict-card.INCONCLUSIVE         { border-color: var(--ct-amber);  background: var(--ct-amber-bg); }
+    .ct-verdict-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .ct-verdict-text  { font-size: 26px; font-weight: 900; letter-spacing: -0.03em; margin-bottom: 16px; }
+    .ct-verdict-card.PRODUCTION_READY     .ct-verdict-text { color: var(--ct-green); }
+    .ct-verdict-card.PRODUCTION_NOT_READY .ct-verdict-text { color: var(--ct-red); }
+    .ct-verdict-card.INCONCLUSIVE         .ct-verdict-text { color: var(--ct-amber); }
+    .ct-confidence-bar { background: var(--bg-main); border-radius: 999px; height: 10px; margin-bottom: 16px; overflow: hidden; }
+    .ct-confidence-fill { height: 100%; border-radius: 999px; transition: width 1s ease; background: linear-gradient(90deg, #8b5cf6, #06b6d4); }
+    .ct-blockers { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+    .ct-blocker { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--text-b); background: rgba(0,0,0,0.04); border-radius: 7px; padding: 8px 12px; }
+    .ct-blocker-icon { color: var(--ct-red); flex-shrink: 0; margin-top: 1px; }
+
+    /* Approval */
+    .ct-approval-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 22px 24px; }
+    .ct-approval-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    .ct-btn-approve { padding: 9px 18px; background: var(--ct-green); border: none; border-radius: 8px; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; transition: opacity .15s; }
+    .ct-btn-approve:hover { opacity: .85; }
+    .ct-btn-reject  { padding: 9px 18px; background: var(--ct-red); border: none; border-radius: 8px; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; transition: opacity .15s; }
+    .ct-btn-reject:hover { opacity: .85; }
+    .ct-btn-revise  { padding: 9px 18px; background: var(--ct-amber); border: none; border-radius: 8px; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; transition: opacity .15s; }
+    .ct-override-input { width: 100%; padding: 8px 12px; border: 1px solid var(--ct-amber); border-radius: 7px; background: var(--bg-main); color: var(--text-h); font-size: 13px; margin-top: 12px; display: none; }
+    .ct-approval-result { display: none; padding: 14px 18px; border-radius: 10px; font-size: 13px; font-weight: 600; margin-top: 16px; }
+    .ct-approval-result.APPROVED               { background: var(--ct-green-bg); color: var(--ct-green); border: 1px solid var(--ct-green); }
+    .ct-approval-result.APPROVED_WITH_OVERRIDE { background: var(--ct-amber-bg); color: var(--ct-amber); border: 1px solid var(--ct-amber); }
+    .ct-approval-result.REJECTED               { background: var(--ct-red-bg);   color: var(--ct-red);   border: 1px solid var(--ct-red); }
+
+    /* Empty / Error / Loading states */
+    .ct-empty { text-align: center; padding: 60px 32px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    .ct-empty svg { width: 56px; height: 56px; color: var(--text-s); }
+    .ct-empty h3  { font-size: 17px; font-weight: 700; color: var(--text-h); }
+    .ct-empty p   { font-size: 13px; color: var(--text-m); max-width: 420px; line-height: 1.6; }
+
+    .ct-skeleton { height: 14px; background: linear-gradient(90deg, var(--border-color) 25%, rgba(255,255,255,0.1) 50%, var(--border-color) 75%); background-size: 200% 100%; animation: ct-shimmer 1.5s infinite; border-radius: 6px; }
+    @keyframes ct-shimmer { 0%{background-position:200% 0;} 100%{background-position:-200% 0;} }
+
+    /* Footer positioning note */
+    .ct-footer-note { text-align: center; font-size: 11px; color: var(--text-s); padding: 16px 24px; border-top: 1px solid var(--border-color); font-style: italic; line-height: 1.5; }
+
+    /* Patch log */
+    .ct-patch-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .ct-patch-table th { text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-m); border-bottom: 1px solid var(--border-color); }
+    .ct-patch-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-color); vertical-align: top; font-family: 'JetBrains Mono', monospace; color: var(--text-b); }
+    .ct-patch-status { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 700; }
+    .ct-patch-status.PATCHED                    { background: var(--ct-green-bg); color: var(--ct-green); }
+    .ct-patch-status.PATCH_GENERATED_NOT_APPLIED { background: var(--ct-amber-bg); color: var(--ct-amber); }
+    .ct-patch-status.PATCH_FILE_NOT_FOUND        { background: rgba(100,116,139,0.1); color: #94a3b8; }
+    .ct-patch-status.PATCH_READ_ERROR            { background: var(--ct-red-bg); color: var(--ct-red); }
+
+    /* Scanning animation */
+    .ct-spinner { width: 20px; height: 20px; border: 2px solid rgba(139,92,246,0.3); border-top-color: var(--ct-purple); border-radius: 50%; animation: ct-spin .8s linear infinite; display: inline-block; }
+    @keyframes ct-spin { to{transform:rotate(360deg);} }
+
+    /* running stage border glow */
+    .ct-stage-icon.running::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 1px solid rgba(139,92,246,0.4); animation: ct-ring 1.2s ease infinite; }
+    @keyframes ct-ring { 0%{transform:scale(1);opacity:1;} 100%{transform:scale(1.5);opacity:0;} }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <div id="app-sidebar" class="sb"></div>
+
+  <!-- Main wrapper -->
+  <div class="main-wrapper" style="flex:1;display:flex;flex-direction:column;min-width:0;margin-left:264px;">
+    <div id="app-topbar"></div>
+
+    <main class="ct-container" id="ct-main">
+
+      <!-- ── Header ── -->
+      <div class="ct-header">
+        <div class="ct-header-left">
+          <h1>⚗ CryptoTwin</h1>
+          <p>Digital-twin sandbox for safe, pre-production PQC migration verification</p>
+        </div>
+        <div class="ct-header-actions" id="ct-header-actions" style="display:none;">
+          <button class="ct-btn-sec" id="ct-reset-btn" style="display:none;" onclick="resetRun()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
+            Reset
+          </button>
+          <button class="ct-btn-sec" id="ct-report-btn" style="display:none;" onclick="downloadReport()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Export Report
+          </button>
+          <button class="ct-btn-primary" id="ct-run-btn" onclick="startRun()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Run CryptoTwin
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Empty state (no scan yet) ── -->
+      <div class="ct-section ct-empty" id="ct-empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        <h3>No Migration Plan Available</h3>
+        <p>CryptoTwin needs a Migration Plan to run. Go to <a href="migration-plan.html" style="color:var(--ct-purple);">Migration Plan</a> and click "Run CryptoTwin", or upload a Migration Plan JSON file below.</p>
+        <button class="ct-btn-primary" onclick="document.getElementById('ct-empty-state').style.display='none'; document.getElementById('ct-input-section').style.display='block'; document.getElementById('ct-header-actions').style.display='flex'; switchTab('upload')">
+          Upload Migration Plan
+        </button>
+      </div>
+
+      <!-- ── Input Section ── -->
+      <div id="ct-input-section" style="display:none;">
+
+        <div class="ct-source-card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <div style="font-size:14px;font-weight:700;color:var(--text-h);">Input Source</div>
+            <div class="ct-source-tabs">
+              <button class="ct-tab active" onclick="switchTab('direct')" id="tab-direct">From Active Scan</button>
+              <button class="ct-tab" onclick="switchTab('upload')" id="tab-upload">Upload File</button>
+            </div>
+          </div>
+
+          <!-- Direct tab -->
+          <div class="ct-tab-panel active" id="panel-direct">
+            <div class="ct-form-row">
+              <div class="ct-form-group">
+                <label for="ct-scan-select">Scan / Repository</label>
+                <select class="ct-select" id="ct-scan-select">
+                  <option value="">Loading scans…</option>
+                </select>
+              </div>
+              <div class="ct-form-group" style="flex:0 0 160px;">
+                <label for="ct-max-iter">Max AI Fix Iterations</label>
+                <input type="number" class="ct-input" id="ct-max-iter" min="1" max="5" value="3">
+              </div>
+            </div>
+            <p style="font-size:11px;color:var(--text-m);">Findings and migration candidates are loaded directly from the selected scan — no re-entry needed.</p>
+          </div>
+
+          <!-- Upload tab -->
+          <div class="ct-tab-panel" id="panel-upload">
+            <div class="ct-upload-zone" id="ct-upload-zone" onclick="document.getElementById('ct-file-input').click()" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" ondragleave="handleDragLeave(event)">
+              <input type="file" id="ct-file-input" accept=".json,application/json" style="display:none;" onchange="handleFileSelect(event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+              </svg>
+              <p id="ct-upload-name">Click or drag &amp; drop Migration Plan JSON</p>
+              <p class="ct-upload-hint">Accepts exported Migration Plan or CryptoTwinInput JSON (max 2 MB)</p>
+            </div>
+            <div class="ct-upload-error" id="ct-upload-error"></div>
+            <div class="ct-upload-success" id="ct-upload-success"></div>
+          </div>
+        </div>
+
+        <!-- Input Summary -->
+        <div class="ct-summary-card" id="ct-summary-card">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ct-purple);margin-bottom:14px;">Input Summary</div>
+          <div class="ct-summary-grid">
+            <div class="ct-summary-item">
+              <div class="ct-summary-label">Source</div>
+              <div class="ct-summary-value" id="summary-source">—</div>
+            </div>
+            <div class="ct-summary-item">
+              <div class="ct-summary-label">Repository</div>
+              <div class="ct-summary-value" id="summary-repo">—</div>
+            </div>
+            <div class="ct-summary-item">
+              <div class="ct-summary-label">Items</div>
+              <div class="ct-summary-value" id="summary-count">—</div>
+            </div>
+            <div class="ct-summary-item">
+              <div class="ct-summary-label">Algorithms Found</div>
+              <div class="ct-algo-pills" id="summary-algos"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── KPI Cards ── -->
+      <div class="ct-kpi-strip" id="ct-kpis" style="display:none;">
+        <div class="ct-kpi">
+          <div class="ct-kpi-label">Weaknesses In Scope</div>
+          <div class="ct-kpi-value" id="kpi-weaknesses">—</div>
+          <div class="ct-kpi-sub">from Migration Plan</div>
+        </div>
+        <div class="ct-kpi">
+          <div class="ct-kpi-label">Attack Paths</div>
+          <div class="ct-kpi-value" id="kpi-paths">—</div>
+          <div class="ct-kpi-sub" id="kpi-paths-sub">simulated</div>
+        </div>
+        <div class="ct-kpi">
+          <div class="ct-kpi-label">Tests Run</div>
+          <div class="ct-kpi-value" id="kpi-tests">—</div>
+          <div class="ct-kpi-sub" id="kpi-tests-sub">passed</div>
+        </div>
+        <div class="ct-kpi">
+          <div class="ct-kpi-label">Auto-Fixes Applied</div>
+          <div class="ct-kpi-value" id="kpi-fixes">—</div>
+          <div class="ct-kpi-sub">AI iterations</div>
+        </div>
+        <div class="ct-kpi">
+          <div class="ct-kpi-label">Confidence</div>
+          <div class="ct-kpi-value" id="kpi-confidence">—</div>
+          <div class="ct-kpi-sub">migration score</div>
+        </div>
+        <div class="ct-kpi">
+          <div class="ct-kpi-label">Verdict</div>
+          <div class="ct-kpi-value" id="kpi-verdict" style="font-size:14px;font-weight:800;">—</div>
+          <div class="ct-kpi-sub">final decision</div>
+        </div>
+      </div>
+
+      <!-- ── Pipeline Stepper ── -->
+      <div class="ct-pipeline" id="ct-pipeline" style="display:none;">
+        <div class="ct-pipeline-title">CryptoTwin Pipeline</div>
+        <div class="ct-stages" id="ct-stages-row"></div>
+      </div>
+
+      <!-- ── Breach Simulation ── -->
+      <div class="ct-section" id="ct-breach-section" style="display:none;">
+        <div class="ct-section-header">
+          <div class="ct-section-title">Breach Simulation</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-size:11px;color:var(--text-s);font-style:italic;">Simulated attack paths (model-based), not live exploits.</span>
+            <span class="ct-section-badge" style="background:var(--ct-red-bg);color:var(--ct-red);" id="breach-before-count">0 OPEN</span>
+            <span class="ct-section-badge" style="background:var(--ct-green-bg);color:var(--ct-green);" id="breach-after-count">0 BLOCKED</span>
+          </div>
+        </div>
+        <div class="ct-path-grid" id="ct-path-grid"></div>
+      </div>
+
+      <!-- ── Test Results ── -->
+      <div class="ct-section" id="ct-tests-section" style="display:none;">
+        <div class="ct-section-header">
+          <div class="ct-section-title">Test Results</div>
+          <div style="display:flex;gap:8px;">
+            <select class="ct-select" id="test-phase-filter" style="width:auto;padding:4px 10px;font-size:12px;" onchange="renderTests()">
+              <option value="all">All Phases</option>
+              <option value="Baseline (before migration)">Baseline</option>
+              <option value="Post-migration">Post-migration</option>
+            </select>
+            <select class="ct-select" id="test-status-filter" style="width:auto;padding:4px 10px;font-size:12px;" onchange="renderTests()">
+              <option value="all">All Status</option>
+              <option value="PASSED">Passed</option>
+              <option value="FAILED">Failed</option>
+              <option value="NOT_EXECUTED">Not Executed</option>
+            </select>
+          </div>
+        </div>
+        <div class="ct-test-tabs">
+          <button class="ct-test-tab active" onclick="setTestSuite('all')" id="tsuite-all">All</button>
+          <button class="ct-test-tab" onclick="setTestSuite('Functional')" id="tsuite-func">Functional</button>
+          <button class="ct-test-tab" onclick="setTestSuite('Security')" id="tsuite-sec">Security</button>
+          <button class="ct-test-tab" onclick="setTestSuite('Compatibility')" id="tsuite-compat">Compatibility</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="ct-test-table">
+            <thead>
+              <tr>
+                <th>Test Name</th>
+                <th>Suite</th>
+                <th>Phase</th>
+                <th>File</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="ct-test-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── Patch Log ── -->
+      <div class="ct-section" id="ct-patch-section" style="display:none;">
+        <div class="ct-section-header">
+          <div class="ct-section-title">Patch Log</div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="ct-patch-table">
+            <thead><tr><th>File</th><th>Status</th><th>Tag</th><th>Before</th><th>After</th></tr></thead>
+            <tbody id="ct-patch-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── AI Diagnosis Timeline ── -->
+      <div class="ct-section" id="ct-ai-section" style="display:none;">
+        <div class="ct-section-header">
+          <div class="ct-section-title">AI Diagnose &amp; Fix Timeline</div>
+        </div>
+        <div class="ct-ai-timeline" id="ct-ai-timeline"></div>
+      </div>
+
+      <!-- ── Verdict + Confidence ── -->
+      <div id="ct-verdict-section" style="display:none;">
+        <div class="ct-verdict-card" id="ct-verdict-card">
+          <div class="ct-verdict-label">Migration Verdict</div>
+          <div class="ct-verdict-text" id="ct-verdict-text">—</div>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+            <div style="flex:1;">
+              <div class="ct-confidence-bar">
+                <div class="ct-confidence-fill" id="ct-confidence-fill" style="width:0%"></div>
+              </div>
+            </div>
+            <div style="font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--text-h);min-width:56px;text-align:right;" id="ct-confidence-text">—</div>
+            <div title="Confidence = 40%×attack-paths-closed + 30%×security-tests + 20%×functional-tests + 10%×compatibility - 5%×unapplied-patches - 2%×not-executed-tests" style="cursor:help;color:var(--text-m);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            </div>
+          </div>
+          <div class="ct-blockers" id="ct-blockers-list"></div>
+        </div>
+      </div>
+
+      <!-- ── Final Approval ── -->
+      <div class="ct-approval-card" id="ct-approval-section" style="display:none;">
+        <div style="font-size:14px;font-weight:700;color:var(--text-h);margin-bottom:4px;">Final Approval</div>
+        <div style="font-size:12px;color:var(--text-m);margin-bottom:16px;">Review the verdict, confidence, and blockers above before approving production migration.</div>
+        <div id="ct-approval-summary" style="font-size:12px;color:var(--text-b);background:var(--bg-main);border-radius:8px;padding:12px 14px;margin-bottom:12px;line-height:1.7;"></div>
+        <div class="ct-approval-actions" id="ct-approval-actions">
+          <button class="ct-btn-approve" onclick="submitApproval('APPROVED')">✓ Approve</button>
+          <button class="ct-btn-reject"  onclick="submitApproval('REJECTED')">✕ Reject</button>
+          <button class="ct-btn-revise"  onclick="revise()">↩ Revise</button>
+        </div>
+        <div id="ct-override-wrap" style="display:none;">
+          <textarea class="ct-override-input" id="ct-override-reason" placeholder="Required: state the reason for approving a NOT READY / INCONCLUSIVE result (min 10 characters)…" rows="3" style="display:block;width:100%;"></textarea>
+          <div style="display:flex;gap:10px;margin-top:10px;">
+            <button class="ct-btn-approve" onclick="confirmOverrideApprove()">Confirm Override Approval</button>
+            <button class="ct-btn-sec" onclick="cancelOverride()">Cancel</button>
+          </div>
+        </div>
+        <div class="ct-approval-result" id="ct-approval-result"></div>
+      </div>
+
+      <!-- ── Footer note ── -->
+      <div class="ct-footer-note">
+        CryptoTwin does not claim to detect every security breach. It reduces cryptography-driven breach risk and verifies that a migration does not introduce new security gaps before production.
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ── Attack Path Drawer ── -->
+  <div class="ct-drawer-overlay" id="ct-drawer-overlay" onclick="closeDrawer()"></div>
+  <div class="ct-drawer" id="ct-drawer">
+    <div class="ct-drawer-header">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:var(--text-h);" id="drawer-algo-title">Attack Path</div>
+        <div style="font-size:11px;color:var(--text-m);margin-top:2px;" id="drawer-file-subtitle"></div>
+      </div>
+      <button class="ct-drawer-close" onclick="closeDrawer()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="ct-drawer-body" id="drawer-body"></div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="assets/js/auth.js"></script>
+  <script src="assets/js/engine.js"></script>
+  <script src="assets/js/shell.js"></script>
+
+  <script>
+  // ── State ─────────────────────────────────────────────────────────────────
+  let _runId       = null;
+  let _runData     = null;
+  let _pollTimer   = null;
+  let _uploadedInput = null;
+  let _activeTestSuite = 'all';
+  let _selectedScanId  = null;
+  let _awaitingOverrideApprove = false;
+
+  const API = (() => {
+    const h = window.location.hostname;
+    if (h === 'localhost' || h === '127.0.0.1') return '';
+    return 'https://cryptoscan-demo-api.onrender.com';
+  })();
+
+  async function apiFetch(url, opts) {
+    const token = (typeof Auth !== 'undefined' && Auth.getToken) ? Auth.getToken() : (sessionStorage.getItem('cs_access_token') || '');
+    const headers = Object.assign({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, (opts && opts.headers) || {});
+    const res = await fetch(API + url, Object.assign({}, opts, { headers }));
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Request failed (' + res.status + ')'); }
+    return res.json();
+  }
+
+  // ── Initialisation ────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Check URL params (from migration-plan.html shortcut)
+    const params  = new URLSearchParams(window.location.search);
+    const scanId  = params.get('scanId');
+    const source  = params.get('source');
+
+    if (scanId) {
+      _selectedScanId = scanId;
+      showInputSection();
+      await loadScans(scanId);
+      if (source === 'direct') prepareDirectInput(scanId);
+    } else {
+      await checkForActiveScan();
+    }
+  });
+
+  async function checkForActiveScan() {
+    // Check if CryptoEngine has data from a recent scan
+    let data = {};
+    try { data = (typeof CryptoEngine !== 'undefined') ? CryptoEngine.getData() : {}; } catch(_) {}
+    const scans = (data.scans && data.scans.length > 0) ? data.scans : (data.activeScan ? [data.activeScan] : []);
+    const hasFindings = scans.some(s => s.findings && s.findings.length > 0);
+
+    if (hasFindings) {
+      showInputSection();
+      await loadScans();
+      prepareFromEngine(data, scans);
+    } else {
+      document.getElementById('ct-empty-state').style.display = 'flex';
+      document.getElementById('ct-input-section').style.display = 'none';
+      await loadScans(); // still populate dropdown
+    }
+  }
+
+  async function loadScans(preferredScanId) {
+    const sel = document.getElementById('ct-scan-select');
+    try {
+      // Try to get scans from engine data
+      let data = {};
+      try { data = (typeof CryptoEngine !== 'undefined') ? CryptoEngine.getData() : {}; } catch(_) {}
+      const scans = (data.scans && data.scans.length > 0) ? data.scans :
+                    (data.activeScan ? [data.activeScan] : []);
+      const repos = data.repositories || [];
+
+      sel.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = ''; placeholder.textContent = scans.length === 0 ? 'No scans found — upload a file instead' : 'Select a scan…';
+      sel.appendChild(placeholder);
+
+      scans.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id || s.scanId || s.repoId || '';
+        const repoName = s.repoName || s.name || (repos.find(r => r.id === s.repoId) || {}).name || 'Unknown Repo';
+        const findCount = (s.findings || []).length;
+        opt.textContent = repoName + ' (' + findCount + ' findings)';
+        if (preferredScanId && (opt.value === preferredScanId || s.repoId === preferredScanId)) opt.selected = true;
+        sel.appendChild(opt);
+      });
+
+      sel.addEventListener('change', () => {
+        _selectedScanId = sel.value;
+        if (_selectedScanId) prepareDirectInput(_selectedScanId);
+        else hideSummary();
+      });
+
+      if (preferredScanId && scans.length > 0) {
+        _selectedScanId = preferredScanId;
+        prepareDirectInput(preferredScanId);
+      }
+    } catch(e) {
+      sel.innerHTML = '<option value="">Error loading scans — use upload</option>';
+    }
+  }
+
+  function showInputSection() {
+    document.getElementById('ct-empty-state').style.display = 'none';
+    document.getElementById('ct-input-section').style.display = 'block';
+    document.getElementById('ct-header-actions').style.display = 'flex';
+  }
+
+  function prepareFromEngine(data, scans) {
+    // Build normalized items from engine findings
+    const allFindings = scans.flatMap(s => (s.findings || []).map(f => ({
+      id: f.id,
+      filePath: f.file || f.filePath || 'unknown',
+      line: f.line || f.lineNumber,
+      language: f.language || 'Unknown',
+      currentAlgorithm: f.algorithm || f.title || 'Unknown',
+      usageContext: f.usage || 'other',
+      severity: f.severity || 'MEDIUM',
+      quantumVulnerable: f.quantum === 'yes' || f.is_quantum_vulnerable || false,
+      targetAlgorithm: null,
+      priority: 1,
+      effort: 'Medium',
+      dependencies: [],
+    })));
+    if (allFindings.length > 0) showSummary('direct', (scans[0] && (scans[0].repoName || scans[0].name)) || 'Active Scan', allFindings);
+  }
+
+  function prepareDirectInput(scanId) {
+    let data = {};
+    try { data = (typeof CryptoEngine !== 'undefined') ? CryptoEngine.getData() : {}; } catch(_) {}
+    const scans = (data.scans || []).concat(data.activeScan ? [data.activeScan] : []);
+    const scan  = scans.find(s => (s.id || s.scanId || s.repoId) === scanId) || scans[0];
+    if (!scan) return hideSummary();
+    const findings = (scan.findings || []).filter(f => f && (f.severity !== 'SAFE' || f.quantum === 'yes'));
+    const items = findings.map(f => ({
+      id: f.id, filePath: f.file || f.filePath || 'unknown', line: f.line || f.lineNumber,
+      language: f.language || 'Unknown', currentAlgorithm: f.algorithm || 'Unknown',
+      usageContext: f.usage || 'other', severity: f.severity || 'MEDIUM',
+      quantumVulnerable: !!(f.quantum === 'yes' || f.is_quantum_vulnerable),
+      targetAlgorithm: null, priority: 1, effort: 'Medium', dependencies: [],
+    }));
+    showSummary('direct', scan.repoName || scan.name || 'Active Scan', items);
+  }
+
+  function showSummary(source, repoName, items) {
+    const card = document.getElementById('ct-summary-card');
+    card.classList.add('visible');
+    document.getElementById('summary-source').textContent = source === 'direct' ? 'Direct (Active Scan)' : 'Uploaded File';
+    document.getElementById('summary-repo').textContent   = repoName || '—';
+    document.getElementById('summary-count').textContent  = items.length;
+    const algos = [...new Set(items.map(i => i.currentAlgorithm || i.algorithm || '').filter(Boolean))];
+    const pillsEl = document.getElementById('summary-algos');
+    pillsEl.innerHTML = algos.slice(0,10).map(a => '<span class="ct-algo-pill">' + escHtml(a) + '</span>').join('') + (algos.length > 10 ? '<span class="ct-algo-pill">+' + (algos.length - 10) + ' more</span>' : '');
+  }
+
+  function hideSummary() {
+    document.getElementById('ct-summary-card').classList.remove('visible');
+  }
+
+  // ── Tab switching ─────────────────────────────────────────────────────────
+  function switchTab(tab) {
+    ['direct','upload'].forEach(t => {
+      document.getElementById('tab-'+t).classList.toggle('active', t === tab);
+      document.getElementById('panel-'+t).classList.toggle('active', t === tab);
+    });
+    if (tab === 'upload') hideSummary();
+    else if (_selectedScanId) prepareDirectInput(_selectedScanId);
+  }
+
+  // ── File upload handling ──────────────────────────────────────────────────
+  function handleDragOver(e) { e.preventDefault(); document.getElementById('ct-upload-zone').classList.add('drag-over'); }
+  function handleDragLeave(e) { document.getElementById('ct-upload-zone').classList.remove('drag-over'); }
+  function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('ct-upload-zone').classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) validateUploadedFile(file);
+  }
+  function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (file) validateUploadedFile(file);
+  }
+
+  async function validateUploadedFile(file) {
+    const errEl = document.getElementById('ct-upload-error');
+    const okEl  = document.getElementById('ct-upload-success');
+    errEl.style.display = 'none'; okEl.style.display = 'none';
+    document.getElementById('ct-upload-name').textContent = file.name;
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const token = (typeof Auth !== 'undefined' && Auth.getToken) ? Auth.getToken() : (sessionStorage.getItem('cs_access_token') || '');
+      const res = await fetch(API + '/api/cryptotwin/validate-upload', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        errEl.textContent = data.error || 'Validation failed';
+        errEl.style.display = 'block';
+        _uploadedInput = null;
+        return;
+      }
+      _uploadedInput = data.normalizedInput;
+      okEl.textContent = 'Valid — ' + data.itemCount + ' items found. Algorithms: ' + data.algorithms.join(', ');
+      okEl.style.display = 'block';
+      showSummary('uploaded', data.repoName, _uploadedInput.items || []);
+    } catch(e) {
+      // Fallback: parse client-side if API unavailable
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        let items = parsed.items;
+        if (!items && Array.isArray(parsed.candidates)) {
+          items = parsed.candidates.map(c => ({ currentAlgorithm: c.algorithm, filePath: c.files && c.files[0] ? c.files[0] : 'unknown', usageContext: c.purpose || 'other', severity: c.severity || 'MEDIUM', targetAlgorithm: c.replacement || null }));
+        }
+        if (!items || items.length === 0) throw new Error('No items found in file');
+        _uploadedInput = Object.assign({}, parsed, { items, source: 'uploaded' });
+        okEl.textContent = 'Parsed locally — ' + items.length + ' items. (Server offline; will submit on run)';
+        okEl.style.display = 'block';
+        showSummary('uploaded', parsed.repoName || '', items);
+      } catch(pe) {
+        errEl.textContent = 'Invalid file: ' + pe.message;
+        errEl.style.display = 'block';
+        _uploadedInput = null;
+      }
+    }
+  }
+
+  // ── Start Run ─────────────────────────────────────────────────────────────
+  async function startRun() {
+    const btn = document.getElementById('ct-run-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="ct-spinner"></span> Starting…';
+
+    const activeTab = document.querySelector('.ct-tab.active')?.id;
+    const isUpload  = activeTab === 'tab-upload';
+    const maxIter   = parseInt(document.getElementById('ct-max-iter').value) || 3;
+
+    try {
+      let body;
+      if (isUpload) {
+        if (!_uploadedInput) throw new Error('Please upload and validate a Migration Plan JSON first');
+        body = { ..._uploadedInput, source: 'uploaded', maxFixIterations: maxIter };
+      } else {
+        // Build from engine data
+        let data = {};
+        try { data = (typeof CryptoEngine !== 'undefined') ? CryptoEngine.getData() : {}; } catch(_) {}
+        const scans = (data.scans || []).concat(data.activeScan ? [data.activeScan] : []);
+        const scanId = _selectedScanId || document.getElementById('ct-scan-select').value;
+        const scan   = scans.find(s => (s.id || s.scanId || s.repoId) === scanId) || scans[0];
+        if (!scan && !scanId) throw new Error('Select a scan first, or switch to the Upload tab');
+        const findings = scan ? (scan.findings || []).filter(f => f) : [];
+        const items = findings.map(f => ({
+          id: f.id, filePath: f.file || f.filePath || 'unknown', line: f.line || f.lineNumber,
+          language: f.language || 'Unknown', currentAlgorithm: f.algorithm || 'Unknown',
+          usageContext: f.usage || 'other', severity: f.severity || 'MEDIUM',
+          quantumVulnerable: !!(f.quantum === 'yes' || f.is_quantum_vulnerable),
+          targetAlgorithm: null, priority: 1, effort: 'Medium', dependencies: [],
+        }));
+        if (items.length === 0 && !scanId) throw new Error('No findings found in the selected scan. Try uploading a Migration Plan instead.');
+        body = {
+          scanId: scanId || (scan && (scan.id || scan.scanId || scan.repoId)) || undefined,
+          repoName: scan ? (scan.repoName || scan.name || '') : '',
+          source: 'direct',
+          items: items.length > 0 ? items : undefined,
+          generatedAt: new Date().toISOString(),
+          maxFixIterations: maxIter,
+        };
+      }
+
+      const result = await apiFetch('/api/cryptotwin/runs', { method: 'POST', body: JSON.stringify(body) });
+      _runId = result.runId;
+
+      // Show pipeline and start polling
+      showRunUI();
+      startPolling();
+
+    } catch(e) {
+      showToast(e.message, 'error');
+      btn.disabled = false;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Run CryptoTwin';
+    }
+  }
+
+  function showRunUI() {
+    document.getElementById('ct-input-section').style.display = 'none';
+    document.getElementById('ct-kpis').style.display         = 'grid';
+    document.getElementById('ct-pipeline').style.display     = 'block';
+    document.getElementById('ct-reset-btn').style.display    = 'inline-flex';
+    const runBtn = document.getElementById('ct-run-btn');
+    runBtn.disabled = true;
+    runBtn.innerHTML = '<span class="ct-spinner"></span> Running…';
+  }
+
+  // ── Polling ───────────────────────────────────────────────────────────────
+  function startPolling() {
+    if (_pollTimer) clearInterval(_pollTimer);
+    _pollTimer = setInterval(pollRun, 2500);
+    pollRun();
+  }
+
+  async function pollRun() {
+    if (!_runId) return;
+    try {
+      const data = await apiFetch('/api/cryptotwin/runs/' + _runId);
+      _runData = data;
+      updateUI(data);
+      if (data.status === 'DONE' || data.status === 'FAILED') {
+        clearInterval(_pollTimer);
+        _pollTimer = null;
+        finalizeUI(data);
+      }
+    } catch(e) {
+      // Network error — keep polling
+    }
+  }
+
+  // ── UI Update ─────────────────────────────────────────────────────────────
+  function updateUI(data) {
+    renderStages(data.stages || []);
+    updateKPIs(data);
+  }
+
+  function renderStages(stages) {
+    const container = document.getElementById('ct-stages-row');
+    const ICONS = {
+      passed:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px;height:16px;"><path d="M5 13l4 4L19 7"/></svg>',
+      running: '<span class="ct-spinner" style="width:14px;height:14px;border-width:2px;"></span>',
+      failed:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px;height:16px;"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+      skipped: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px;height:16px;"><path d="M9 18l6-6-6-6"/></svg>',
+      pending: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><circle cx="12" cy="12" r="9"/></svg>',
+    };
+    container.innerHTML = stages.map(s => `
+      <div class="ct-stage">
+        <div class="ct-stage-icon ${s.status || 'pending'}" style="position:relative;">${ICONS[s.status] || ICONS.pending}</div>
+        <div class="ct-stage-name">${escHtml(s.name)}</div>
+      </div>
+    `).join('');
+  }
+
+  function updateKPIs(data) {
+    const inputSummary = data.inputSummary || {};
+    const tests        = data.tests || [];
+    const paths        = data.attackPaths || [];
+    const aiIter       = data.aiIterations || [];
+
+    document.getElementById('kpi-weaknesses').textContent = inputSummary.itemCount != null ? inputSummary.itemCount : '—';
+    document.getElementById('kpi-paths').textContent      = paths.length || '—';
+    document.getElementById('kpi-paths-sub').textContent  = paths.filter(p => p.statusAfter === 'BLOCKED').length + ' blocked';
+
+    const postTests = tests.filter(t => t.phase && t.phase.includes('Post'));
+    const passed    = postTests.filter(t => t.status === 'PASSED').length;
+    document.getElementById('kpi-tests').textContent     = postTests.length || '—';
+    document.getElementById('kpi-tests-sub').textContent = passed + ' passed';
+
+    const fixes = aiIter.filter(a => a.status === 'FIXED').length;
+    document.getElementById('kpi-fixes').textContent = aiIter.length > 0 ? (fixes + '/' + aiIter.length) : '—';
+
+    if (data.confidence != null) {
+      document.getElementById('kpi-confidence').textContent = data.confidence + '%';
+    }
+    if (data.verdict) {
+      const vLabel = { PRODUCTION_READY: 'READY ✓', PRODUCTION_NOT_READY: 'NOT READY ✗', INCONCLUSIVE: 'INCONCLUSIVE ?' };
+      document.getElementById('kpi-verdict').textContent = vLabel[data.verdict] || data.verdict;
+      const vColor = { PRODUCTION_READY: 'var(--ct-green)', PRODUCTION_NOT_READY: 'var(--ct-red)', INCONCLUSIVE: 'var(--ct-amber)' };
+      document.getElementById('kpi-verdict').style.color = vColor[data.verdict] || '';
+    }
+  }
+
+  function finalizeUI(data) {
+    const runBtn = document.getElementById('ct-run-btn');
+    runBtn.disabled = false;
+    runBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Run CryptoTwin';
+
+    if (data.status === 'DONE') {
+      document.getElementById('ct-breach-section').style.display = 'block';
+      document.getElementById('ct-tests-section').style.display  = 'block';
+      document.getElementById('ct-patch-section').style.display  = 'block';
+      document.getElementById('ct-ai-section').style.display     = (data.aiIterations && data.aiIterations.length > 0) ? 'block' : 'none';
+      document.getElementById('ct-verdict-section').style.display = 'block';
+      document.getElementById('ct-approval-section').style.display = 'block';
+      document.getElementById('ct-report-btn').style.display = 'inline-flex';
+
+      renderBreachPaths(data.attackPaths || []);
+      renderTests();
+      renderPatchLog(data.patchLog || []);
+      renderAiTimeline(data.aiIterations || []);
+      renderVerdict(data);
+      renderApproval(data);
+    } else if (data.status === 'FAILED') {
+      showToast('CryptoTwin run failed: ' + (data.errorMessage || 'Unknown error'), 'error');
+    }
+  }
+
+  // ── Breach Simulation ─────────────────────────────────────────────────────
+  function renderBreachPaths(paths) {
+    const grid = document.getElementById('ct-path-grid');
+    const open    = paths.filter(p => p.statusBefore === 'OPEN').length;
+    const blocked = paths.filter(p => p.statusAfter  === 'BLOCKED').length;
+    document.getElementById('breach-before-count').textContent = open + ' OPEN';
+    document.getElementById('breach-after-count').textContent  = blocked + ' BLOCKED';
+
+    if (paths.length === 0) { grid.innerHTML = '<div style="font-size:13px;color:var(--text-m);">No attack paths generated.</div>'; return; }
+
+    grid.innerHTML = paths.map((p, i) => `
+      <div class="ct-path-card" onclick="openDrawer(${i})" tabindex="0" aria-label="Attack path: ${escHtml(p.algorithm)}">
+        <div class="ct-path-header">
+          <div class="ct-path-algo">${escHtml(p.algorithm)}</div>
+          <div class="ct-path-status ${p.statusAfter}">${p.statusAfter.replace('_', ' ')}</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <span class="ct-status-badge ${p.severity}" style="font-size:9px;padding:2px 6px;">${p.severity}</span>
+          <span style="font-size:10px;color:var(--text-m);">${escHtml(p.context)}</span>
+        </div>
+        <div class="ct-path-steps">
+          ${(p.steps || []).slice(0,5).map((s, si, arr) => `
+            <div class="ct-step"><div class="ct-step-dot"></div><div>${escHtml(s)}</div></div>
+            ${si < arr.length-1 ? '<div class="ct-step-line"></div>' : ''}
+          `).join('')}
+          ${p.steps && p.steps.length > 5 ? '<div style="font-size:10px;color:var(--text-s);margin-top:4px;">+' + (p.steps.length-5) + ' more steps…</div>' : ''}
+        </div>
+        <div class="ct-path-file">${escHtml(p.filePath)}${p.lineNumber ? ':' + p.lineNumber : ''}</div>
+      </div>
+    `).join('');
+  }
+
+  // ── Drawer ────────────────────────────────────────────────────────────────
+  function openDrawer(pathIndex) {
+    if (!_runData || !_runData.attackPaths) return;
+    const p = _runData.attackPaths[pathIndex];
+    if (!p) return;
+    document.getElementById('drawer-algo-title').textContent    = p.algorithm + ' — ' + p.context;
+    document.getElementById('drawer-file-subtitle').textContent = p.filePath + (p.lineNumber ? ':' + p.lineNumber : '');
+    document.getElementById('drawer-body').innerHTML = `
+      <div class="ct-drawer-field"><label>Status Before</label><span class="ct-path-status ${p.statusBefore}" style="display:inline-flex;">${p.statusBefore}</span></div>
+      <div class="ct-drawer-field"><label>Status After Migration</label><span class="ct-path-status ${p.statusAfter}" style="display:inline-flex;">${p.statusAfter.replace('_',' ')}</span></div>
+      <div class="ct-drawer-field"><label>Algorithm</label><span style="font-family:'JetBrains Mono',monospace;">${escHtml(p.algorithm)}</span></div>
+      <div class="ct-drawer-field"><label>Proposed Replacement</label><span style="font-family:'JetBrains Mono',monospace;">${escHtml(p.proposedReplacement || '—')}</span></div>
+      <div class="ct-drawer-field"><label>Why It Matters</label><span>${escHtml(p.whyItMatters || '')}</span></div>
+      <div class="ct-drawer-field"><label>Attack Steps</label>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
+          ${(p.steps || []).map((s, i) => '<div style="display:flex;align-items:flex-start;gap:8px;"><div style="min-width:20px;height:20px;border-radius:50%;background:var(--ct-purple-bg);border:1px solid rgba(139,92,246,0.3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--ct-purple);">' + (i+1) + '</div><div style="font-size:12px;color:var(--text-b);padding-top:2px;">' + escHtml(s) + '</div></div>').join('')}
+        </div>
+      </div>
+      <div class="ct-note-box">${escHtml(p.note || 'Simulated attack path (model-based), not a live exploit.')}</div>
+    `;
+    document.getElementById('ct-drawer-overlay').classList.add('open');
+    document.getElementById('ct-drawer').classList.add('open');
+  }
+
+  function closeDrawer() {
+    document.getElementById('ct-drawer-overlay').classList.remove('open');
+    document.getElementById('ct-drawer').classList.remove('open');
+  }
+
+  // ── Tests ─────────────────────────────────────────────────────────────────
+  function setTestSuite(suite) {
+    _activeTestSuite = suite;
+    ['all','func','sec','compat'].forEach(t => document.getElementById('tsuite-'+t).classList.remove('active'));
+    const map = { all:'all', Functional:'func', Security:'sec', Compatibility:'compat' };
+    document.getElementById('tsuite-' + (map[suite] || 'all')).classList.add('active');
+    renderTests();
+  }
+
+  function renderTests() {
+    if (!_runData) return;
+    const tbody      = document.getElementById('ct-test-tbody');
+    const phaseF     = document.getElementById('test-phase-filter').value;
+    const statusF    = document.getElementById('test-status-filter').value;
+    let tests        = (_runData.tests || []);
+    if (_activeTestSuite !== 'all') tests = tests.filter(t => t.suite === _activeTestSuite);
+    if (phaseF !== 'all')  tests = tests.filter(t => t.phase === phaseF);
+    if (statusF !== 'all') tests = tests.filter(t => t.status === statusF);
+
+    if (tests.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-m);">No tests match the filter.</td></tr>'; return; }
+
+    tbody.innerHTML = tests.map((t, i) => `
+      <tr>
+        <td style="max-width:300px;"><div style="font-weight:600;color:var(--text-h);font-size:12px;word-break:break-word;">${escHtml(t.name)}</div><div style="font-size:11px;color:var(--text-m);margin-top:2px;">${escHtml(t.reason || '')}</div>${t.log ? '<button class="ct-expand-btn" onclick="toggleLog(this)">Show log</button><pre class="ct-test-log">' + escHtml(t.log) + '</pre>' : ''}</td>
+        <td><span class="ct-status-badge ${t.suite}" style="font-size:10px;background:var(--ct-cyan-bg);color:var(--ct-cyan);padding:2px 8px;">${t.suite}</span></td>
+        <td style="font-size:11px;white-space:nowrap;">${escHtml(t.phase || '')}</td>
+        <td style="font-size:11px;font-family:'JetBrains Mono',monospace;max-width:200px;word-break:break-all;">${escHtml(t.file || '')}</td>
+        <td><span class="ct-status-badge ${t.status}">${t.status.replace('_',' ')}</span></td>
+        <td></td>
+      </tr>
+    `).join('');
+  }
+
+  function toggleLog(btn) {
+    const log = btn.nextElementSibling;
+    if (!log) return;
+    const visible = log.style.display === 'block';
+    log.style.display = visible ? 'none' : 'block';
+    btn.textContent = visible ? 'Show log' : 'Hide log';
+  }
+
+  // ── Patch Log ─────────────────────────────────────────────────────────────
+  function renderPatchLog(patches) {
+    const tbody = document.getElementById('ct-patch-tbody');
+    if (patches.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-m);">No patches in log.</td></tr>'; return; }
+    tbody.innerHTML = patches.map(p => `
+      <tr>
+        <td style="word-break:break-all;">${escHtml(p.filePath)}</td>
+        <td><span class="ct-patch-status ${p.status}">${p.status.replace(/_/g,' ')}</span></td>
+        <td>${escHtml(p.tag || '')}</td>
+        <td style="max-width:200px;word-break:break-all;color:var(--ct-red);font-size:11px;">${escHtml(p.before || '')}</td>
+        <td style="max-width:200px;word-break:break-all;color:var(--ct-green);font-size:11px;">${escHtml(p.after || '')}</td>
+      </tr>
+    `).join('');
+  }
+
+  // ── AI Timeline ───────────────────────────────────────────────────────────
+  function renderAiTimeline(iterations) {
+    const container = document.getElementById('ct-ai-timeline');
+    if (iterations.length === 0) {
+      container.innerHTML = '<div style="font-size:13px;color:var(--text-m);">No AI fix attempts were made.</div>';
+      return;
+    }
+    const STATUS_COLOR = { FIXED:'var(--ct-green)', LLM_UNAVAILABLE:'var(--ct-amber)', LLM_ERROR:'var(--ct-red)', PARSE_ERROR:'var(--ct-red)', PATCH_NOT_APPLIED:'var(--ct-amber)', ATTEMPTED:'var(--text-m)', WRITE_ERROR:'var(--ct-red)', FILE_NOT_FOUND:'var(--ct-red)' };
+    container.innerHTML = iterations.map((a, i) => `
+      <div class="ct-ai-attempt" id="ai-attempt-${i}">
+        <div class="ct-ai-attempt-header" onclick="toggleAttempt(${i})">
+          <div class="ct-ai-attempt-title">Attempt ${a.iteration}: ${escHtml(a.testName || '')}</div>
+          <span style="font-size:11px;font-weight:700;color:${STATUS_COLOR[a.status]||'var(--text-m)'};">${a.status.replace(/_/g,' ')}</span>
+        </div>
+        <div class="ct-ai-attempt-body">
+          ${a.rootCause ? '<div style="margin-bottom:12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-m);margin-bottom:4px;">Root Cause</div><div style="font-size:12px;color:var(--text-b);background:var(--bg-main);padding:10px;border-radius:7px;">' + escHtml(a.rootCause) + '</div></div>' : ''}
+          ${a.reason ? '<div style="margin-bottom:12px;font-size:12px;color:var(--ct-amber);">' + escHtml(a.reason) + '</div>' : ''}
+          ${a.error  ? '<div style="margin-bottom:12px;font-size:12px;color:var(--ct-red);">Error: ' + escHtml(a.error) + '</div>' : ''}
+          ${(a.before && a.after) ? `<div class="ct-diff"><div class="ct-diff-before">- ${escHtml(a.before)}</div><div class="ct-diff-after">+ ${escHtml(a.after)}</div></div>` : ''}
+          ${a.confidence != null ? '<div style="font-size:11px;color:var(--text-m);margin-top:8px;">AI confidence: ' + a.confidence + '%</div>' : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function toggleAttempt(i) {
+    const el = document.getElementById('ai-attempt-' + i);
+    if (el) el.classList.toggle('open');
+  }
+
+  // ── Verdict ───────────────────────────────────────────────────────────────
+  function renderVerdict(data) {
+    const card = document.getElementById('ct-verdict-card');
+    const v = data.verdict || 'INCONCLUSIVE';
+    card.className = 'ct-verdict-card ' + v;
+
+    const vMap = { PRODUCTION_READY: 'Production Ready', PRODUCTION_NOT_READY: 'Production NOT Ready', INCONCLUSIVE: 'Inconclusive' };
+    document.getElementById('ct-verdict-text').textContent = vMap[v] || v;
+
+    const conf = data.confidence || 0;
+    document.getElementById('ct-confidence-text').textContent = conf + '%';
+    setTimeout(() => { document.getElementById('ct-confidence-fill').style.width = conf + '%'; }, 100);
+
+    const blockers = data.blockers || [];
+    const bList    = document.getElementById('ct-blockers-list');
+    bList.innerHTML = blockers.length === 0
+      ? '<div style="font-size:12px;color:var(--ct-green);">No blockers — all checks passed.</div>'
+      : blockers.map(b => `<div class="ct-blocker"><svg class="ct-blocker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>${escHtml(b)}</div>`).join('');
+  }
+
+  // ── Approval ──────────────────────────────────────────────────────────────
+  function renderApproval(data) {
+    const v    = data.verdict || 'INCONCLUSIVE';
+    const conf = data.confidence || 0;
+    const blockers = (data.blockers || []).join('; ');
+    const paths    = (data.attackPaths || []);
+    const blocked  = paths.filter(p => p.statusAfter === 'BLOCKED').length;
+    const tests    = (data.tests || []).filter(t => t.phase && t.phase.includes('Post'));
+    const passed   = tests.filter(t => t.status === 'PASSED').length;
+    document.getElementById('ct-approval-summary').innerHTML = `
+      <strong>Verdict:</strong> ${v.replace(/_/g,' ')} &nbsp;|&nbsp; <strong>Confidence:</strong> ${conf}%<br>
+      <strong>Attack paths blocked:</strong> ${blocked}/${paths.length} &nbsp;|&nbsp; <strong>Tests passed:</strong> ${passed}/${tests.length}<br>
+      ${blockers ? '<strong>Blockers:</strong> ' + escHtml(blockers) : '<span style="color:var(--ct-green);">No blockers</span>'}
+    `;
+    if (data.approval) {
+      // Already approved — show result
+      const resultEl = document.getElementById('ct-approval-result');
+      resultEl.className = 'ct-approval-result ' + data.approval;
+      resultEl.style.display = 'block';
+      resultEl.textContent = 'Approval recorded: ' + data.approval.replace(/_/g,' ') + (data.approvalNote ? ' — ' + data.approvalNote : '');
+      document.getElementById('ct-approval-actions').style.display = 'none';
+    }
+  }
+
+  async function submitApproval(action) {
+    if (!_runId) return;
+    if (action === 'APPROVED' && _runData && (_runData.verdict === 'PRODUCTION_NOT_READY' || _runData.verdict === 'INCONCLUSIVE')) {
+      // Require override
+      _awaitingOverrideApprove = true;
+      document.getElementById('ct-override-wrap').style.display = 'block';
+      document.getElementById('ct-override-reason').style.display = 'block';
+      document.getElementById('ct-approval-actions').style.display = 'none';
+      return;
+    }
+    await doApproval(action, '', '');
+  }
+
+  async function confirmOverrideApprove() {
+    const reason = document.getElementById('ct-override-reason').value.trim();
+    if (reason.length < 10) { showToast('Override reason must be at least 10 characters', 'error'); return; }
+    await doApproval('APPROVED', '', reason);
+  }
+
+  function cancelOverride() {
+    document.getElementById('ct-override-wrap').style.display = 'none';
+    document.getElementById('ct-approval-actions').style.display = 'flex';
+  }
+
+  function revise() {
+    const blockers = (_runData && _runData.blockers || []).join('; ');
+    window.location.href = 'migration-plan.html' + (blockers ? '#' + encodeURIComponent(blockers) : '');
+  }
+
+  async function doApproval(action, note, overrideReason) {
+    try {
+      const result = await apiFetch('/api/cryptotwin/runs/' + _runId + '/approval', {
+        method: 'POST',
+        body: JSON.stringify({ action, note, overrideReason }),
+      });
+      const resultEl = document.getElementById('ct-approval-result');
+      resultEl.className = 'ct-approval-result ' + result.approval;
+      resultEl.textContent = 'Approval recorded: ' + result.approval.replace(/_/g,' ');
+      resultEl.style.display = 'block';
+      document.getElementById('ct-approval-actions').style.display = 'none';
+      document.getElementById('ct-override-wrap').style.display = 'none';
+      showToast('Approval recorded successfully', 'success');
+    } catch(e) {
+      showToast('Failed to record approval: ' + e.message, 'error');
+    }
+  }
+
+  // ── Reset ─────────────────────────────────────────────────────────────────
+  async function resetRun() {
+    if (!_runId) { location.reload(); return; }
+    if (!confirm('Reset this CryptoTwin run? Results will be cleared.')) return;
+    try {
+      await apiFetch('/api/cryptotwin/runs/' + _runId + '/reset', { method: 'POST' });
+    } catch(_) {}
+    // Reset UI
+    _runId = null; _runData = null; _uploadedInput = null;
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    location.reload();
+  }
+
+  // ── Download Report ───────────────────────────────────────────────────────
+  async function downloadReport() {
+    if (!_runId) return;
+    try {
+      const token = (typeof Auth !== 'undefined' && Auth.getToken) ? Auth.getToken() : (sessionStorage.getItem('cs_access_token') || '');
+      const res   = await fetch(API + '/api/cryptotwin/runs/' + _runId + '/report?format=json', { headers: { 'Authorization': 'Bearer ' + token } });
+      if (!res.ok) throw new Error('Failed to fetch report');
+      const blob  = await res.blob();
+      const url   = URL.createObjectURL(blob);
+      const a     = document.createElement('a');
+      a.href = url; a.download = 'cryptotwin-report-' + _runId.slice(0,8) + '.json'; a.click();
+      URL.revokeObjectURL(url);
+    } catch(e) {
+      showToast('Failed to download report: ' + e.message, 'error');
+    }
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function showToast(msg, type) {
+    const t = document.createElement('div');
+    t.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;padding:12px 18px;border-radius:9px;font-size:13px;font-weight:600;max-width:360px;box-shadow:0 8px 24px rgba(0,0,0,.2);transition:opacity .3s;' + (type === 'error' ? 'background:#ef4444;color:#fff;' : 'background:#10b981;color:#fff;');
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 4000);
+  }
+  </script>
+</body>
+</html>
