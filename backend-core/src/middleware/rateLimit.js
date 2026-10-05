@@ -30,7 +30,18 @@ const apiLimiter = rateLimit({
   limit: parseInt(process.env.RATE_LIMIT_API_MAX || (isDev ? 10000 : 600)),
   standardHeaders: true,
   legacyHeaders: false,
+  skip: req => req.path.startsWith('/api/runtime/'),
   store: buildStore('rl:api:'),
+});
+
+// Runtime sessions need regular status and event-ingest requests; keep them
+// independent from ordinary API traffic while retaining a bounded per-IP limit.
+const runtimeApiLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_RUNTIME_WINDOW || 15) * 60 * 1000,
+  limit: parseInt(process.env.RATE_LIMIT_RUNTIME_MAX || (isDev ? 10000 : 3000)),
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: buildStore('rl:runtime-api:'),
 });
 
 // Moderate limit for heavy endpoints (uploads, scans)
@@ -61,4 +72,4 @@ const authLimiter = rateLimit({
   message: { error: 'Too many auth attempts, please try again later' },
 });
 
-module.exports = { apiLimiter, heavyLimiter, authLimiter };
+module.exports = { apiLimiter, runtimeApiLimiter, heavyLimiter, authLimiter };
