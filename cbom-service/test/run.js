@@ -75,8 +75,8 @@ async function main() {
 
   console.log('5. Mosca\'s Inequality (X + Y > Z)');
   const { calculateMoscaInequality } = require('../src/services/hndlEngine');
-  const moscaResult = calculateMoscaInequality(2.5, 10.0, 7.0);
-  assert(moscaResult.moscaInequalityHolds === true, 'X (2.5) + Y (10) > Z (7) holds true');
+  const moscaResult = calculateMoscaInequality(10.0, 2.5, 7.0);
+  assert(moscaResult.moscaInequalityHolds === true, 'X (10) + Y (2.5) > Z (7) holds true');
   assert(moscaResult.moscaRisk === 'HIGH', 'Mosca risk is HIGH when X + Y > Z');
   assert(moscaResult.formulaReadout.includes('2.5y migration') && moscaResult.formulaReadout.includes('10y lifetime'), 'Formula readout includes X, Y, Z numbers');
 
