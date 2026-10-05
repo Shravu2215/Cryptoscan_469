@@ -24,8 +24,12 @@ function render(state) {
 async function refresh() {
   const response = await send({ type: 'CS_GET_STATE' });
   if (response.ok) render(response.state);
+}
+
+async function loadConfig() {
   const config = await chrome.storage.local.get('cryptoscanOrigin');
-  $('#origin').value = config.cryptoscanOrigin || '';
+  const originInput = $('#origin');
+  if (document.activeElement !== originInput) originInput.value = config.cryptoscanOrigin || '';
   $('#connection').textContent = config.cryptoscanOrigin
     ? `Connected to ${config.cryptoscanOrigin}`
     : 'Configure the exact origin of your CryptoScan frontend.';
@@ -37,6 +41,7 @@ $('#connect').addEventListener('click', async () => {
   const response = await send({ type: 'CS_CONFIGURE_ORIGIN', origin: $('#origin').value.trim() });
   button.disabled = false;
   $('#connection').textContent = response.ok ? `Connected to ${response.origin}` : (response.error || 'Could not register CryptoScan origin.');
+  if (response.ok) $('#origin').value = response.origin;
   await refresh();
 });
 
@@ -52,5 +57,6 @@ $('#self-test').addEventListener('click', async () => {
   button.disabled = !response.ok || !response.observed;
 });
 
+loadConfig();
 refresh();
 setInterval(refresh, 1000);

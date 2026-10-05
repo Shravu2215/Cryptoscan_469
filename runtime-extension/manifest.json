@@ -19,6 +19,7 @@
         "http://localhost:*/*",
         "http://127.0.0.1/*",
         "http://127.0.0.1:*/*",
+        "https://agentic-ai-mocha-pi.vercel.app/*",
         "https://*.vercel.app/*",
         "https://*.onrender.com/*"
       ],
