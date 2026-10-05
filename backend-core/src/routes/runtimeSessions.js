@@ -3,7 +3,8 @@
 const crypto = require('crypto');
 const cors = require('cors');
 const express = require('express');
-const { requireAuth } = require('../middleware/auth');
+const { verifyAccessToken } = require('../utils/tokenService');
+const { isJtiDenylisted } = require('../utils/redisClient');
 const prisma = require('../utils/prismaClient');
 const { classifyEvents, probePublicTls } = require('../services/runtimeAnalysis');
 const {
@@ -42,8 +43,23 @@ function hashToken(value) {
   return crypto.createHash('sha256').update(value).digest();
 }
 
+async function strictAuth(req, res, next) {
+  const authorization = req.headers.authorization || '';
+  if (!authorization.startsWith('Bearer ')) return res.status(401).json({ error: 'Authentication required.' });
+  try {
+    const payload = verifyAccessToken(authorization.slice(7));
+    if (!payload || !payload.id || (payload.jti && await isJtiDenylisted(payload.jti))) {
+      return res.status(401).json({ error: 'Invalid or revoked access token.' });
+    }
+    req.user = { id: payload.id, email: payload.email, role: payload.role || 'Developer' };
+    return next();
+  } catch (_) {
+    return res.status(401).json({ error: 'Invalid or expired access token.' });
+  }
+}
+
 function optionalAuth(req, res, next) {
-  return req.headers.authorization ? requireAuth(req, res, next) : next();
+  return req.headers.authorization ? strictAuth(req, res, next) : next();
 }
 
 function safeOrigin(value, protocols = ['http:', 'https:']) {
@@ -143,11 +159,12 @@ function verifyIngestToken(run, token) {
 }
 
 async function findSession(id) {
+  const shadow = getRuntimeRun(id) || null;
   try {
     const run = await prisma.runtimeRun.findUnique({ where: { id } });
-    if (run) return run;
+    if (run) return shadow && shadow.status === 'stopped' && run.status !== 'stopped' ? shadow : run;
   } catch (_) {}
-  return getRuntimeRun(id) || null;
+  return shadow;
 }
 
 async function findAuthorizedSession(req, res) {
@@ -225,6 +242,13 @@ async function storeAggregates(runId, events) {
         });
       }
     });
+    const shadowRun = getRuntimeRun(runId);
+    if (shadowRun) {
+      shadowRun.eventCount = (shadowRun.eventCount || 0) + increment;
+      shadowRun.lastEventAt = latestEventAt;
+      updateRuntimeRun(runId, shadowRun);
+    }
+    for (const event of events) saveRuntimeEvent(eventRecord(runId, event));
   } catch (dbErr) {
     if (dbErr.status) throw dbErr;
     const run = getRuntimeRun(runId);
@@ -306,12 +330,12 @@ function tlsProbeEvents(run, probe) {
     events.push({ ...base, algorithm: probe.signatureAlgorithm, operation: 'signature', keyInfo: {}, timestamp: new Date().toISOString() });
   }
   if (probe.ecdhe) {
-    events.push({ ...base, algorithm: 'ECDH', operation: 'key_exchange', keyInfo: {}, timestamp: new Date().toISOString() });
+    events.push({ ...base, algorithm: 'ECDHE', operation: 'key_exchange', keyInfo: {}, timestamp: new Date().toISOString() });
   }
   return events.map(event => ({ ...event, keyInfoJson: JSON.stringify(event.keyInfo), count: 1 }));
 }
 
-router.post('/sessions', optionalAuth, async (req, res, next) => {
+router.post('/sessions', strictAuth, async (req, res, next) => {
   try {
     if (!req.body || Object.keys(req.body).some(key => key !== 'targetUrl') || typeof req.body.targetUrl !== 'string') {
       return res.status(400).json({ error: 'Provide only targetUrl.' });
@@ -384,6 +408,35 @@ router.post('/sessions', optionalAuth, async (req, res, next) => {
         eventCount: 0,
       });
     }
+    const localRepoId = 'repo-runtime-' + id.slice(0, 8);
+    saveRepo({
+      id: localRepoId,
+      name: repoData.name,
+      filePath: repoData.filePath,
+      uploadedBy: userId,
+      businessCriticality: 'Not tagged',
+    });
+    saveScan({
+      id: run.scanId,
+      repoId: localRepoId,
+      repoName: repoData.name,
+      status: 'RUNNING',
+      createdAt: startedAt,
+    });
+    saveRuntimeRun({
+      id,
+      scanId: run.scanId,
+      userId,
+      ingestTokenHash: hashToken(ingestToken).toString('hex'),
+      targetOrigin,
+      cryptoscanOrigin,
+      status: 'ready',
+      language: 'browser',
+      command: null,
+      environment: 'browser',
+      startedAt,
+      eventCount: 0,
+    });
     const ingestUrl = `${req.protocol}://${req.get('host')}/api/runtime/sessions/${id}/events`;
     return res.status(201).json({ id, ingestToken, startedAt: run.startedAt, scanId: run.scanId, targetOrigin, cryptoscanOrigin, ingestUrl });
   } catch (error) {
@@ -445,11 +498,11 @@ router.post('/sessions/:id/events', async (req, res, next) => {
 
 router.get('/sessions/:id', optionalAuth, sendStatus);
 
-router.get('/sessions/:id/findings', ingestCors, async (req, res, next) => {
+router.get('/sessions/:id/findings', optionalAuth, async (req, res, next) => {
   try {
     const run = await findSession(req.params.id);
-    if (!run || !verifyIngestToken(run, req.get('x-cryptoscan-token'))) {
-      return res.status(401).json({ error: 'Invalid runtime session token.' });
+    if (!run || !(verifyIngestToken(run, req.get('x-cryptoscan-token')) || (req.user && req.user.id === run.userId))) {
+      return res.status(401).json({ error: 'Runtime session authorization required.' });
     }
     if (run.status !== 'stopped') return res.status(409).json({ error: 'Runtime analysis has not stopped.' });
     let scan;
@@ -486,7 +539,7 @@ router.get('/sessions/:id/findings', ingestCors, async (req, res, next) => {
 async function sendStatus(req, res, next) {
   try {
     const run = await findSession(req.params.id);
-    if (!run || !(verifyIngestToken(run, req.get('x-cryptoscan-token')) || (req.user && req.user.id === run.userId) || !req.user)) {
+    if (!run || !(verifyIngestToken(run, req.get('x-cryptoscan-token')) || (req.user && req.user.id === run.userId))) {
       return res.status(401).json({ error: 'Runtime session authorization required.' });
     }
     return res.json({
@@ -506,7 +559,7 @@ async function sendStatus(req, res, next) {
 router.post('/sessions/:id/stop', optionalAuth, async (req, res, next) => {
   try {
     const initial = await findSession(req.params.id);
-    if (!initial || !(verifyIngestToken(initial, req.get('x-cryptoscan-token')) || (req.user && req.user.id === initial.userId) || !req.user)) {
+    if (!initial || !(verifyIngestToken(initial, req.get('x-cryptoscan-token')) || (req.user && req.user.id === initial.userId))) {
       return res.status(401).json({ error: 'Runtime session authorization required.' });
     }
     if (initial.status === 'stopped') return res.json({ id: initial.id, scanId: initial.scanId, status: 'stopped', eventCount: initial.eventCount });
@@ -523,6 +576,7 @@ router.post('/sessions/:id/stop', optionalAuth, async (req, res, next) => {
       try { probe = await probePublicTls(initial.targetOrigin); } catch (_) {}
       const tlsEvents = probe && probe.probeSucceeded ? tlsProbeEvents(initial, probe) : [];
       if (tlsEvents.length) {
+        let tlsStoredInPrisma = false;
         try {
           await prisma.$transaction(async tx => {
             for (const event of tlsEvents) {
@@ -530,10 +584,14 @@ router.post('/sessions/:id/stop', optionalAuth, async (req, res, next) => {
               await tx.runtimeEvent.upsert({ where: { eventId: record.eventId }, create: record, update: { count: { increment: event.count } } });
             }
           });
+          tlsStoredInPrisma = true;
         } catch (_) {
           for (const event of tlsEvents) {
             saveRuntimeEvent(eventRecord(initial.id, event));
           }
+        }
+        if (tlsStoredInPrisma) {
+          for (const event of tlsEvents) saveRuntimeEvent(eventRecord(initial.id, event));
         }
       }
 
@@ -599,6 +657,10 @@ router.post('/sessions/:id/stop', optionalAuth, async (req, res, next) => {
         });
       } catch (dbErr) {
         console.warn('PostgreSQL unavailable during runtime stop, using devStore:', dbErr.message);
+        try {
+          await prisma.runtimeRun.update({ where: { id: initial.id }, data: { status: 'stopped', stoppedAt, finishedAt: stoppedAt } });
+          await prisma.scan.update({ where: { id: initial.scanId }, data: { status: 'COMPLETED', completedAt: stoppedAt } });
+        } catch (_) {}
       }
       saveFindings(initial.scanId, findings);
       updateRuntimeRun(initial.id, { status: 'stopped', stoppedAt, finishedAt: stoppedAt });

@@ -26,7 +26,11 @@
           return;
         }
         if (data.type === 'CS_SESSION_HANDOFF') {
-          const response = await send({ type: 'CS_HANDOFF', bundle: data.bundle });
+          const authToken = sessionStorage.getItem('cs_access_token')
+            || localStorage.getItem('cs_token')
+            || localStorage.getItem('cs_auth_token')
+            || '';
+          const response = await send({ type: 'CS_HANDOFF', bundle: { ...data.bundle, authToken } });
           reply({ type: 'CS_SESSION_HANDOFF_RESULT', ...response });
           return;
         }

@@ -276,13 +276,14 @@ async function stopSession() {
   await loadState();
   if (!runtimeState || !['ready', 'recording'].includes(runtimeState.status)) return { ok: false, error: 'No active runtime session.' };
   ensureTimers();
-  if (runtimeState.status === 'recording' && runtimeState.targetTabId !== null) {
-    await chrome.scripting.executeScript({
-      target: { tabId: runtimeState.targetTabId, allFrames: true },
+  if (runtimeState.status === 'recording') {
+    const targetTabs = await chrome.tabs.query({}).then(tabs => tabs.filter(tab => normalizeOrigin(tab.url) === runtimeState.targetOrigin));
+    await Promise.all(targetTabs.map(tab => chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
       world: 'MAIN',
       func: () => window.postMessage({ source: 'CryptoScanExtension', type: 'CS_HOOK_FLUSH' }, location.origin),
-    }).catch(() => {});
-    await new Promise(resolve => setTimeout(resolve, 120));
+    }).catch(() => {})));
+    await new Promise(resolve => setTimeout(resolve, 250));
   }
   if (runtimeState.pendingEvents.length && !(await flushEvents(true))) {
     return { ok: false, error: runtimeState.lastError || 'Could not flush pending events.' };
@@ -335,7 +336,7 @@ async function receiveHandoff(bundle, sender) {
         Authorization: `Bearer ${bundle.authToken}`,
         'X-CryptoScan-Origin': cryptoscanOrigin,
       },
-      body: JSON.stringify({ targetUrl: target.href }),
+      body: JSON.stringify({ targetUrl: target.origin }),
     });
   } catch (_) {
     return { ok: false, error: 'Could not reach the CryptoScan backend from the extension.' };

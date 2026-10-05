@@ -71,12 +71,10 @@ function isPublicAddress(address) {
   if (version === 6) {
     const normalized = address.toLowerCase();
     if (normalized.startsWith('::ffff:')) return isPublicAddress(normalized.slice(7));
-    return !(
-      normalized === '::' || normalized === '::1' ||
-      normalized.startsWith('fc') || normalized.startsWith('fd') ||
-      /^fe[89ab]/.test(normalized) || normalized.startsWith('ff') ||
-      normalized.startsWith('2001:db8:')
-    );
+    const firstHextet = Number.parseInt(normalized.split(':')[0] || '0', 16);
+    return firstHextet >= 0x2000 && firstHextet <= 0x3fff
+      && !normalized.startsWith('2001:db8:')
+      && !normalized.startsWith('2001:10:');
   }
   return false;
 }

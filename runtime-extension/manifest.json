@@ -5,6 +5,10 @@
   "description": "Observe cryptographic operations and transport metadata during a user-started website session.",
   "permissions": ["storage", "scripting", "tabs", "activeTab"],
   "host_permissions": ["<all_urls>"],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
   "background": {
     "service_worker": "background.js"
   },
@@ -13,18 +17,6 @@
     "default_popup": "popup.html"
   },
   "content_scripts": [
-    {
-      "matches": [
-        "http://localhost/*",
-        "http://localhost:*/*",
-        "http://127.0.0.1/*",
-        "http://127.0.0.1:*/*",
-        "https://*.vercel.app/*",
-        "https://*.onrender.com/*"
-      ],
-      "js": ["frontend-bridge.js"],
-      "run_at": "document_start"
-    },
     {
       "matches": ["<all_urls>"],
       "js": ["target-content.js"],
