@@ -23,7 +23,12 @@ class AppShell {
 
     // Determine current page to set active nav item
     const path = window.location.pathname;
-    const page = path.split('/').pop() || 'dashboard.html';
+    let page = path.split('/').pop() || 'dashboard.html';
+    // Handle clean URLs (no .html extension) — add .html suffix so matching works
+    if (page && !page.includes('.') && page !== '') {
+      page = page + '.html';
+    }
+    if (!page || page === '.html' || page === '') page = 'dashboard.html';
     
     // Inject CSS
     if (!document.querySelector('link[href*="global.css"]')) {
@@ -74,6 +79,7 @@ class AppShell {
         { name: 'Quantum Threat Model', url: 'quantum-threat-model.html', icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m9-9H3m15.36-6.36L5.64 18.36m12.72 0L5.64 5.64"/>' },
         { name: 'Migration Plan', url: 'migration-plan.html', icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>' },
         { name: 'CryptoTwin', url: 'cryptotwin.html', icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 4v5c0 4.42-2.79 8.5-7 10-4.21-1.5-7-5.58-7-10V7l7-4zm0 7l4 2.5L12 16l-4-3.5L12 10zm0-6l-5 3v4.2c0 3.14 1.87 6.02 5 7.3 3.13-1.28 5-4.16 5-7.3V9l-5-3z"/>' },
+        { name: 'CryptoShield', url: 'cryptoshield.html', icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>' },
         { name: 'PQC Simulator', url: 'pqc-simulator.html', icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>' },
         { name: 'Migration Scheduler', url: 'migration-scheduler.html', icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>' },
         { name: 'Verification', url: 'verification.html', icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>' }
@@ -87,7 +93,7 @@ class AppShell {
     navItems.forEach(group => {
       navHtml += `<div class="sb-nav-group"><div class="sb-nav-group-title">${group.group}</div>`;
       group.items.forEach(item => {
-        const isActive = (pageName === item.url || (pageName === '' && item.url === 'dashboard.html')) ? 'active' : '';
+        const isActive = (page === item.url || (page === '' && item.url === 'dashboard.html')) ? 'active' : '';
         navHtml += `
           <a href="${item.url}" class="sb-nav-item nav-item ${isActive}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${item.icon}</svg>
@@ -142,6 +148,7 @@ class AppShell {
       'risk-analysis.html': 'Risk Analysis',
       'migration-plan.html': 'Migration Plan',
       'cryptotwin.html': 'CryptoTwin',
+      'cryptoshield.html': 'CryptoShield',
       'pqc-simulator.html': 'PQC Impact Simulator',
       'verification.html': 'Verification',
       'profile.html': 'Profile'

@@ -151,12 +151,96 @@ function getRunsForScan(scanId) {
   return list;
 }
 
+const devShieldAssets = new Map(storeData.devShieldAssets || []);
+const devShieldPolicies = new Map(storeData.devShieldPolicies || []);
+const devShieldEvents = new Map(storeData.devShieldEvents || []);
+const devShieldPlans = new Map(storeData.devShieldPlans || []);
+const devShieldAudits = storeData.devShieldAudits || [];
+
+function syncShieldStore() {
+  storeData.devShieldAssets = Array.from(devShieldAssets.entries());
+  storeData.devShieldPolicies = Array.from(devShieldPolicies.entries());
+  storeData.devShieldEvents = Array.from(devShieldEvents.entries());
+  storeData.devShieldPlans = Array.from(devShieldPlans.entries());
+  storeData.devShieldAudits = devShieldAudits;
+  saveStore();
+}
+
+function saveShieldAsset(asset) {
+  devShieldAssets.set(asset.assetId, asset);
+  syncShieldStore();
+  return asset;
+}
+
+function getShieldAsset(assetId) {
+  return devShieldAssets.get(assetId);
+}
+
+function getShieldAssets() {
+  return Array.from(devShieldAssets.values());
+}
+
+function saveShieldPolicy(policy) {
+  devShieldPolicies.set(policy.id, policy);
+  syncShieldStore();
+  return policy;
+}
+
+function getShieldPolicies(assetId) {
+  const list = Array.from(devShieldPolicies.values());
+  return assetId ? list.filter(p => p.assetId === assetId) : list;
+}
+
+function saveShieldEvent(event) {
+  devShieldEvents.set(event.eventId, event);
+  syncShieldStore();
+  return event;
+}
+
+function getShieldEvents() {
+  return Array.from(devShieldEvents.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+
+function saveShieldPlan(plan) {
+  devShieldPlans.set(plan.id, plan);
+  syncShieldStore();
+  return plan;
+}
+
+function getShieldPlan(planId) {
+  return devShieldPlans.get(planId);
+}
+
+function getShieldPlans() {
+  return Array.from(devShieldPlans.values());
+}
+
+function addShieldAudit(audit) {
+  const item = {
+    id: `audit-${Date.now()}-${Math.floor(Math.random()*1000)}`,
+    timestamp: new Date().toISOString(),
+    ...audit
+  };
+  devShieldAudits.unshift(item);
+  syncShieldStore();
+  return item;
+}
+
+function getShieldAudits() {
+  return devShieldAudits;
+}
+
 module.exports = {
   devRepos,
   devScans,
   devFindings,
   devAnchors,
   devRuns,
+  devShieldAssets,
+  devShieldPolicies,
+  devShieldEvents,
+  devShieldPlans,
+  devShieldAudits,
   saveRepo,
   getRepo,
   updateRepoCriticality,
@@ -168,5 +252,17 @@ module.exports = {
   getAnchor,
   saveRun,
   getRun,
-  getRunsForScan
+  getRunsForScan,
+  saveShieldAsset,
+  getShieldAsset,
+  getShieldAssets,
+  saveShieldPolicy,
+  getShieldPolicies,
+  saveShieldEvent,
+  getShieldEvents,
+  saveShieldPlan,
+  getShieldPlan,
+  getShieldPlans,
+  addShieldAudit,
+  getShieldAudits
 };

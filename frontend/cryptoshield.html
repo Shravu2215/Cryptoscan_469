@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CryptoShield — CryptoScan</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script>
+    function initTheme() {
+      if (localStorage.getItem('cs_theme') === 'dark') {
+        document.documentElement.classList.add('dark', 'dark-mode');
+        document.documentElement.classList.remove('light-mode');
+      } else {
+        document.documentElement.classList.add('light-mode');
+        document.documentElement.classList.remove('dark', 'dark-mode');
+      }
+    }
+    initTheme();
+  </script>
+  <link rel="stylesheet" href="assets/css/global.css">
+  <link rel="stylesheet" href="assets/css/visuals.css">
+  <link rel="stylesheet" href="assets/css/cryptoshield.css">
+</head>
+<body>
+
+  <!-- App Shell Sidebar -->
+  <div id="app-sidebar" class="sb"></div>
+
+  <!-- Main Content Area -->
+  <div class="main-wrapper" style="flex:1; display:flex; flex-direction:column; min-width:0; margin-left:264px;">
+    <!-- Topbar -->
+    <div id="app-topbar"></div>
+
+    <!-- Main Container -->
+    <main class="cs-container">
+
+      <!-- Header -->
+      <div class="cs-header">
+        <div>
+          <div class="cs-header-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:28px; height:28px; color:var(--cs-purple);">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+            CryptoShield
+          </div>
+          <div class="cs-header-subtitle">Cryptographic Access Control & Misuse Detection</div>
+          <div class="cs-disclaimer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px; color:var(--cs-purple); flex-shrink:0;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            CryptoScan finds crypto assets & risks. CryptoShield controls access permissions & detects unauthorized usage attempts. CryptoTwin safely tests recovery in sandbox before human approval.
+          </div>
+        </div>
+
+        <div style="display:flex; gap:12px;">
+          <button id="cs-btn-sim-modal" class="ct-btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+            </svg>
+            Simulate Crypto Access
+          </button>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="cs-nav-tabs">
+        <button class="cs-nav-tab active" data-tab="dashboard">Dashboard</button>
+        <button class="cs-nav-tab" data-tab="assets">Protected Assets</button>
+        <button class="cs-nav-tab" data-tab="policies">Access Policies</button>
+        <button class="cs-nav-tab" data-tab="events">Security Events</button>
+        <button class="cs-nav-tab" data-tab="alerts">Alerts</button>
+        <button class="cs-nav-tab" data-tab="plans">Recovery Plans</button>
+        <button class="cs-nav-tab" data-tab="audit">Audit Trail</button>
+      </div>
+
+      <!-- Tab Content Views -->
+
+      <!-- TAB 1: DASHBOARD -->
+      <div id="tab-view-dashboard" class="cs-tab-panel">
+        <div class="cs-kpi-grid">
+          <div class="cs-kpi-card">
+            <span class="cs-kpi-lbl">Protected Assets</span>
+            <div class="cs-kpi-val" id="dash-assets-count">0</div>
+          </div>
+          <div class="cs-kpi-card">
+            <span class="cs-kpi-lbl">Critical Assets</span>
+            <div class="cs-kpi-val" id="dash-critical-count">0</div>
+          </div>
+          <div class="cs-kpi-card">
+            <span class="cs-kpi-lbl">Unauthorized Attempts</span>
+            <div class="cs-kpi-val" id="dash-blocked-count" style="color:var(--cs-red);">0</div>
+          </div>
+          <div class="cs-kpi-card">
+            <span class="cs-kpi-lbl">Active Policies</span>
+            <div class="cs-kpi-val" id="dash-policies-count">0</div>
+          </div>
+          <div class="cs-kpi-card" style="grid-column: span 2;">
+            <span class="cs-kpi-lbl">Security Status</span>
+            <div style="margin-top:4px;">
+              <span id="dash-status-pill" class="cs-pill cs-pill-protected">ALL SYSTEMS PROTECTED</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: PROTECTED ASSETS -->
+      <div id="tab-view-assets" class="cs-tab-panel" style="display:none;">
+        <div class="cs-panel">
+          <div style="font-size:16px; font-weight:800; color:var(--text-h); margin-bottom:16px;">Registered Cryptographic Asset Identities</div>
+          <div style="overflow-x:auto;">
+            <table class="ct-table">
+              <thead>
+                <tr>
+                  <th>Asset ID</th>
+                  <th>Type</th>
+                  <th>Application</th>
+                  <th>Environment</th>
+                  <th>SHA-256 Fingerprint</th>
+                  <th>Criticality</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="cs-assets-tbody">
+                <tr><td colspan="8" style="text-align:center; padding:20px;">Loading assets...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: ACCESS POLICIES -->
+      <div id="tab-view-policies" class="cs-tab-panel" style="display:none;">
+        <div class="cs-panel">
+          <div style="font-size:16px; font-weight:800; color:var(--text-h); margin-bottom:16px;">Create New Access Policy</div>
+          <form id="cs-form-policy" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:24px;">
+            <div>
+              <label style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Asset ID</label>
+              <select id="pol-asset-id" class="ct-scan-select" style="width:100%; margin-top:4px;"></select>
+            </div>
+            <div>
+              <label style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Allowed Application</label>
+              <input type="text" id="pol-allowed-app" class="ct-scan-select" placeholder="e.g. Payment Service" style="width:100%; margin-top:4px;" required>
+            </div>
+            <div>
+              <label style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Environment</label>
+              <select id="pol-env" class="ct-scan-select" style="width:100%; margin-top:4px;">
+                <option value="production">production</option>
+                <option value="staging">staging</option>
+                <option value="dev">dev</option>
+              </select>
+            </div>
+            <div style="grid-column: span 2;">
+              <label style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Allowed Operations</label>
+              <div style="display:flex; gap:16px; margin-top:8px;">
+                <label><input type="checkbox" name="op" value="SIGN" checked> SIGN</label>
+                <label><input type="checkbox" name="op" value="VERIFY" checked> VERIFY</label>
+                <label><input type="checkbox" name="op" value="ENCRYPT"> ENCRYPT</label>
+                <label><input type="checkbox" name="op" value="DECRYPT"> DECRYPT</label>
+              </div>
+            </div>
+            <div style="grid-column: 1 / -1; display:flex; justify-content:flex-end;">
+              <button type="submit" class="ct-btn-primary">Save Access Policy</button>
+            </div>
+          </form>
+
+          <div style="font-size:16px; font-weight:800; color:var(--text-h); margin-bottom:12px;">Active Access Policies</div>
+          <div style="overflow-x:auto;">
+            <table class="ct-table">
+              <thead>
+                <tr>
+                  <th>Policy ID</th>
+                  <th>Target Asset</th>
+                  <th>Allowed Service</th>
+                  <th>Operations</th>
+                  <th>Environment</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="cs-policies-tbody">
+                <tr><td colspan="6" style="text-align:center; padding:20px;">Loading policies...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: SECURITY EVENTS -->
+      <div id="tab-view-events" class="cs-tab-panel" style="display:none;">
+        <div class="cs-panel">
+          <div style="font-size:16px; font-weight:800; color:var(--text-h); margin-bottom:16px;">Security Access Events</div>
+          <div style="overflow-x:auto;">
+            <table class="ct-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Asset ID</th>
+                  <th>Requesting App</th>
+                  <th>Operation</th>
+                  <th>Environment</th>
+                  <th>Decision</th>
+                  <th>Severity</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="cs-events-tbody">
+                <tr><td colspan="8" style="text-align:center; padding:20px;">Loading security events...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: ALERTS -->
+      <div id="tab-view-alerts" class="cs-tab-panel" style="display:none;">
+        <div class="cs-panel">
+          <div style="font-size:16px; font-weight:800; color:var(--text-h); margin-bottom:16px;">Crypto-Only Misuse Alerts</div>
+          <div id="cs-alerts-list" style="display:flex; flex-direction:column; gap:16px;">
+            <div style="text-align:center; padding:20px; color:var(--text-m);">No active alerts.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 6: RECOVERY PLANS & BLAST RADIUS -->
+      <div id="tab-view-plans" class="cs-tab-panel" style="display:none;">
+        <div class="cs-panel">
+          <div style="font-size:16px; font-weight:800; color:var(--text-h); margin-bottom:16px;">Security Recovery Plans & CryptoTwin Testing</div>
+          <div id="cs-plans-list" style="display:flex; flex-direction:column; gap:20px;">
+            <div style="text-align:center; padding:20px; color:var(--text-m);">No recovery plans generated. Run access simulations or investigate alerts to trigger recovery.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 7: AUDIT TRAIL -->
+      <div id="tab-view-audit" class="cs-tab-panel" style="display:none;">
+        <div class="cs-panel">
+          <div style="font-size:16px; font-weight:800; color:var(--text-h); margin-bottom:16px;">CryptoShield Immutable Audit Log</div>
+          <div style="overflow-x:auto;">
+            <table class="ct-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Action</th>
+                  <th>User / Actor</th>
+                  <th>Asset ID</th>
+                  <th>Result</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="cs-audit-tbody">
+                <tr><td colspan="6" style="text-align:center; padding:20px;">Loading audit trail...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- SIMULATE ACCESS MODAL -->
+  <div class="cs-modal-overlay" id="cs-modal-overlay">
+    <div class="cs-modal">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="font-size:18px; font-weight:800; color:var(--text-h);">Simulate Crypto Access Attempt</div>
+        <button id="cs-modal-close" style="background:none; border:none; color:var(--text-m); cursor:pointer; font-weight:700; font-size:18px;">✕</button>
+      </div>
+      <div style="font-size:12px; color:var(--text-m); background:var(--bg-card); padding:8px 12px; border-radius:var(--r-sm); border:1px solid var(--border-color);">
+        Security Event Simulation — Not a live banking network monitor.
+      </div>
+      <form id="cs-form-sim" style="display:flex; flex-direction:column; gap:16px;">
+        <div>
+          <label style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Target Asset ID</label>
+          <select id="sim-asset-id" class="ct-scan-select" style="width:100%; margin-top:4px;" required></select>
+        </div>
+        <div>
+          <label style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Requesting Application</label>
+          <select id="sim-app-name" class="ct-scan-select" style="width:100%; margin-top:4px;">
+            <option value="Payment Service">Payment Service</option>
+            <option value="Authentication Service">Authentication Service</option>
+            <option value="Notification Service">Notification Service</option>
+            <option value="Unknown Service">Unknown Service (Untrusted)</option>
+            <option value="Developer Tool">Developer Tool</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Requested Operation</label>
+          <select id="sim-op-name" class="ct-scan-select" style="width:100%; margin-top:4px;">
+            <option value="SIGN">SIGN</option>
+            <option value="VERIFY">VERIFY</option>
+            <option value="ENCRYPT">ENCRYPT</option>
+            <option value="DECRYPT">DECRYPT</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Environment</label>
+          <select id="sim-env-name" class="ct-scan-select" style="width:100%; margin-top:4px;">
+            <option value="production">production</option>
+            <option value="staging">staging</option>
+            <option value="dev">dev</option>
+          </select>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:8px;">
+          <button type="submit" class="ct-btn-primary">Evaluate Access Policy</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- JavaScript Dependencies -->
+  <script src="assets/js/shell.js"></script>
+  <script src="assets/js/visuals.js"></script>
+  <script src="assets/js/cryptoshield.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      new AppShell();
+    });
+  </script>
+
+</body>
+</html>

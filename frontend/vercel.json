@@ -22,6 +22,8 @@
     { "source": "/migration-plan.html", "destination": "/migration-plan.html" },
     { "source": "/cryptotwin", "destination": "/cryptotwin.html" },
     { "source": "/cryptotwin.html", "destination": "/cryptotwin.html" },
+    { "source": "/cryptoshield", "destination": "/cryptoshield.html" },
+    { "source": "/cryptoshield.html", "destination": "/cryptoshield.html" },
     { "source": "/quantum-threat-model", "destination": "/quantum-threat-model.html" },
     { "source": "/quantum-threat-model.html", "destination": "/quantum-threat-model.html" },
     { "source": "/pqc-simulator", "destination": "/pqc-simulator.html" },

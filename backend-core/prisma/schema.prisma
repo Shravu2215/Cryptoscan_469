@@ -302,3 +302,82 @@ model CryptoTwinRun {
   @@index([scanId])
 }
 
+model CryptoShieldAsset {
+  id              String   @id @default(uuid())
+  assetId         String   @unique
+  assetType       String   // PRIVATE_KEY, CERTIFICATE, API_CREDENTIAL, TOKEN_SIGNER
+  fingerprint     String   // One-way SHA-256 fingerprint (shortened preview e.g. 8f3a...9bd)
+  algorithm       String   // RSA-2048, ECDSA-P256, AES-256-GCM
+  application     String   // Payment Service, Auth Service
+  environment     String   @default("production") // production, staging, dev
+  owner           String   @default("SecOps Team")
+  sourceFile      String?
+  sourceLine      Int?
+  criticality     String   @default("HIGH") // CRITICAL, HIGH, MEDIUM, LOW
+  allowedServices Json     // Array of allowed service names
+  status          String   @default("PROTECTED") // PROTECTED, SUSPECTED_MISUSE, BLOCKED
+  createdAt       DateTime @default(now())
+
+  policies CryptoShieldPolicy[]
+  events   CryptoShieldEvent[]
+}
+
+model CryptoShieldPolicy {
+  id                String            @id @default(uuid())
+  assetId           String
+  asset             CryptoShieldAsset @relation(fields: [assetId], references: [assetId], onDelete: Cascade)
+  allowedService    String
+  allowedOperations Json              // Array: ["SIGN", "VERIFY", "ENCRYPT", "DECRYPT"]
+  environment       String            @default("production")
+  status            String            @default("ACTIVE") // ACTIVE, DISABLED
+  createdAt         DateTime          @default(now())
+
+  @@index([assetId])
+}
+
+model CryptoShieldEvent {
+  id                    String             @id @default(uuid())
+  eventId               String             @unique
+  timestamp             DateTime           @default(now())
+  assetId               String
+  asset                 CryptoShieldAsset  @relation(fields: [assetId], references: [assetId], onDelete: Cascade)
+  requestingApplication String
+  requestedOperation    String             // SIGN, VERIFY, ENCRYPT, DECRYPT
+  environment           String
+  decision              String             // ALLOWED, BLOCKED
+  reason                String
+  severity              String             // CRITICAL, HIGH, MEDIUM, LOW
+  createdAt             DateTime           @default(now())
+
+  @@index([assetId])
+}
+
+model CryptoShieldRecoveryPlan {
+  id                   String   @id @default(uuid())
+  assetId              String
+  eventId              String?
+  issue                String
+  potentialImpact      String
+  recommendedAction    String
+  cryptoTwinValidation Json?    // Result of CryptoTwin test recovery simulation
+  approvalStatus       String   @default("PENDING") // PENDING, APPROVED, DECLINED
+  approvedBy           String?
+  approvedAt           DateTime?
+  overrideReason       String?
+  createdAt            DateTime @default(now())
+
+  @@index([assetId])
+}
+
+model CryptoShieldAuditLog {
+  id        String   @id @default(uuid())
+  timestamp DateTime @default(now())
+  action    String
+  user      String
+  assetId   String?
+  result    String
+  details   String?
+  createdAt DateTime @default(now())
+}
+
+
