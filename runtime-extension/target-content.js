@@ -44,6 +44,7 @@
     function render() {
       if (!root) return;
       const status = stoppingLocally ? 'analyzing' : state.status;
+      host.hidden = !state.targetOrigin || state.targetOrigin !== location.origin;
       label.textContent = status === 'recording' ? 'Recording…'
         : status === 'ready' ? 'Ready'
           : status === 'analyzing' ? 'Analyzing…'
@@ -67,7 +68,7 @@
       }
       host = document.createElement('div');
       host.id = 'cryptoscan-runtime-observer';
-      host.style.cssText = 'all:initial;position:fixed;right:18px;bottom:18px;z-index:2147483647;';
+      host.style.cssText = 'all:initial;position:fixed;left:18px;top:calc(50% - 33px);z-index:2147483647;';
       const shadow = host.attachShadow({ mode: 'closed' });
       shadow.innerHTML = `
         <style>
@@ -102,7 +103,7 @@
           <div class="panel-head"><span>CryptoScan Runtime</span><span class="status-dot"></span></div>
           <div class="state">Ready</div>
           <div class="count">0 events</div>
-          <div class="actions"><button class="action start">Start</button><button class="action stop">Stop</button></div>
+          <div class="actions"><button class="action start">Start Scanner</button><button class="action stop">Stop Scanner</button></div>
           <div class="error"></div>
         </section>`;
       document.documentElement.appendChild(host);
@@ -155,8 +156,7 @@
         const top = Math.max(0, Math.min(window.innerHeight - host.offsetHeight, drag.top + event.clientY - drag.y));
         host.style.left = `${left}px`;
         host.style.top = `${top}px`;
-        host.style.right = 'auto';
-        host.style.bottom = 'auto';
+        host.style.transform = 'none';
       };
       const endDrag = () => { drag = null; };
       root.panelHead.addEventListener('pointerdown', beginDrag);

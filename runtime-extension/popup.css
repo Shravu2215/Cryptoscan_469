@@ -4,15 +4,11 @@ main { padding: 16px; }
 header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 18px; }
 header strong { font-size: 16px; }
 header span, .muted, .note { color: #59666f; }
-details { margin-top: 12px; }
-summary { cursor: pointer; font-weight: 600; }
-details label { margin-top: 10px; }
 label { display: block; margin-bottom: 5px; font-weight: 600; }
 .row { display: flex; gap: 6px; }
 input { min-width: 0; flex: 1; padding: 8px; border: 1px solid #c5cdd2; border-radius: 4px; font: inherit; }
 button { border: 0; border-radius: 4px; padding: 8px 10px; background: #18735e; color: white; font: inherit; font-weight: 600; cursor: pointer; }
 button:disabled { opacity: .45; cursor: default; }
-.target-button { width: 100%; background: #18735e; }
 section { margin-top: 14px; padding: 12px; border-top: 1px solid #d8dfe3; border-bottom: 1px solid #d8dfe3; }
 .state-row { display: flex; align-items: center; gap: 8px; }
 #state-dot { width: 9px; height: 9px; border-radius: 50%; background: #8a969d; }

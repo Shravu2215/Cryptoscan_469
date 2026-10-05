@@ -310,7 +310,9 @@ async function stopSession() {
 
 async function openFindings(scanId) {
   const url = `${runtimeState.cryptoscanOrigin}/findings.html?runtimeSession=${encodeURIComponent(runtimeState.id)}`;
-  const existing = runtimeState.cryptoscanTabId === undefined ? null : await chrome.tabs.get(runtimeState.cryptoscanTabId).catch(() => null);
+  const existing = runtimeState.targetTabId === null || runtimeState.targetTabId === undefined
+    ? null
+    : await chrome.tabs.get(runtimeState.targetTabId).catch(() => null);
   if (existing) await chrome.tabs.update(existing.id, { url, active: true });
   else await chrome.tabs.create({ url, active: true });
 }
