@@ -1316,8 +1316,8 @@
               style="width:48px;height:48px;color:var(--text-s);margin-bottom:8px">
               <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <div style="font-size:18px; font-weight:600; color:var(--text-h);">No scan results yet</div>
-            <div class="empty-msg">Run a repository scan to discover cryptographic findings.</div>
+            <div id="no-data-title" style="font-size:18px; font-weight:600; color:var(--text-h);">No scan results yet</div>
+            <div class="empty-msg" id="no-data-message">Run a repository scan to discover cryptographic findings.</div>
             <button class="btn-p" style="margin-top:16px;" onclick="window.location.href='scan.html'">Start
               Scan</button>
           </div>
@@ -1424,6 +1424,7 @@
                     <thead>
                       <tr>
                         <th>Risk</th>
+                        <th>Source</th>
                         <th>Algorithm</th>
                         <th>Type</th>
                         <th title="Internal: code/system only accessible inside the company (admin tools, batch jobs). External: code/system directly reachable from the internet (public API, login page) — external findings carry higher risk.">Exposure</th>
@@ -1706,13 +1707,41 @@
       }
 
       async function init() {
-        const data = (typeof CryptoEngine !== 'undefined') ? CryptoEngine.getData() : {};
+        let data = (typeof CryptoEngine !== 'undefined') ? CryptoEngine.getData() : {};
         const noDataEl = document.getElementById('view-no-data');
         const activeEl = document.getElementById('view-active');
         const exportBtn = document.getElementById('btn-export');
         const exportJsonBtn = document.getElementById('btn-export-json');
+        const runtimeMode = getUrlParam('runtime') === '1';
+        const runtimeScanId = getUrlParam('scanId');
+        let runtimeLoadError = '';
 
-        const scans = (data.scans && data.scans.length > 0) ? data.scans : (data.activeScan && data.activeScan.findings ? [data.activeScan] : (data.repositories || []));
+        if (runtimeMode && runtimeScanId) {
+          try {
+            const localHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const apiBase = (window.Auth && window.Auth.API_BASE) || (localHost ? 'http://localhost:3000' : 'https://cryptoscan-demo-api.onrender.com');
+            const token = (window.Auth && window.Auth.getToken && window.Auth.getToken())
+              || sessionStorage.getItem('cs_access_token') || localStorage.getItem('cs_token') || localStorage.getItem('cs_auth_token');
+            const response = await fetch(`${apiBase}/scan/${encodeURIComponent(runtimeScanId)}/findings`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Runtime findings could not be loaded.');
+            if (typeof CryptoEngine !== 'undefined') {
+              CryptoEngine.processRealBackendFindings(
+                { id: result.repoId, name: result.repoName || 'Runtime Analysis' },
+                result.scanId,
+                result.findings || [],
+              );
+              data = CryptoEngine.getData();
+            }
+          } catch (err) {
+            runtimeLoadError = err.message || 'Runtime findings could not be loaded.';
+          }
+        }
+
+        const allScans = (data.scans && data.scans.length > 0) ? data.scans : (data.activeScan && data.activeScan.findings ? [data.activeScan] : (data.repositories || []));
+        const scans = runtimeMode ? allScans.filter(s => s.scanId === runtimeScanId) : allScans;
         const hasFindings = scans.some(s => s.findings && s.findings.length > 0);
 
         if (!hasFindings) {
@@ -1720,6 +1749,14 @@
           if (activeEl) activeEl.style.display = 'none';
           if (exportBtn) exportBtn.style.display = 'none';
           if (exportJsonBtn) exportJsonBtn.style.display = 'none';
+          if (runtimeMode) {
+            const eventCount = Number(getUrlParam('eventCount'));
+            document.getElementById('no-data-title').textContent = runtimeLoadError
+              ? 'Runtime results unavailable'
+              : (eventCount === 0 ? '0 crypto operations observed' : `${Number.isFinite(eventCount) ? eventCount : 0} crypto operations observed`);
+            document.getElementById('no-data-message').textContent = runtimeLoadError
+              || (eventCount === 0 ? 'No cryptographic API calls were observed during this runtime session.' : 'The observed runtime operations did not produce findings.');
+          }
           return;
         }
 
@@ -1946,6 +1983,7 @@
         if (sev === 'CRITICAL') return 'badge-crit';
         if (sev === 'HIGH') return 'badge-high';
         if (sev === 'MEDIUM') return 'badge-med';
+        if (sev === 'WARNING') return 'badge-med';
         return 'badge-low';
       }
 
@@ -2335,6 +2373,8 @@
         tbody.innerHTML = pageData.map((f, i) => {
           const sev = getSeverity(f);
           const algo = f.algorithm || (f.title || 'Unknown').split(' ')[0] || 'Unknown';
+          const sourceLabel = String(f.source || 'static').toLowerCase() === 'runtime' ? 'Runtime' : 'Static';
+          const sourceTitle = sourceLabel === 'Runtime' ? `${Number(f.count) || 1} observed calls` : 'Static scan';
           const purpose = f.usage || f.category || '-';
           const quant = isQuantum(f) ? 'Quantum-Broken' : (f.quantumStatus || 'Quantum-Safe');
           const qClass = isQuantum(f) ? 'badge-quant' : 'badge-safe';
@@ -2378,6 +2418,7 @@
           return `
       <tr class="finding-row" style="cursor:pointer;" data-index="${i}">
         <td><span class="badge ${getBadgeClass(sev)}">${sev}</span></td>
+        <td><span class="badge badge-ast" title="${sourceTitle}">${sourceLabel}</span></td>
         <td><span style="font-weight:600;color:var(--text-h)" class="code-font">${algo}</span></td>
         <td><span class="badge badge-ast" style="font-size:11px; text-transform:uppercase;">${type.replace(/_/g, ' ')}</span></td>
         <td><span class="badge ${expClass}" title="Triggered Exposure Signals: ${expSignals}">${expDisplayText}</span></td>

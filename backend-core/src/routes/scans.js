@@ -343,6 +343,8 @@ router.get('/:scanId/findings', requireAuth, async (req, res) => {
 
     return res.json({
       scanId,
+      repoId: scan.repoId,
+      repoName: scan.repo?.name || scan.repoName || 'Runtime Analysis',
       status: scan.status,
       findings: enrichedFindings,
       businessCriticality,
@@ -374,9 +376,14 @@ router.get('/:scanId/cbom', requireAuth, async (req, res) => {
       file: f.filePath,
       line: f.lineNumber,
       algorithm: f.algorithm,
+      mode: f.mode,
       severity: f.severity,
       quantumStatus: f.quantumStatus,
       usage: f.usage,
+      operation: f.operation,
+      source: f.source,
+      count: f.count,
+      callSite: f.callSite,
       recommendation: f.recommendation,
       status: f.status,
       language: f.language || 'Unknown',

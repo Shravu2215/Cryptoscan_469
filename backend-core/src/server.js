@@ -13,6 +13,7 @@ const repoRoutes = require('./routes/repos');
 const scanRoutes = require('./routes/scans');
 const quantumRiskRoutes = require('./routes/quantumRisk');
 const runtimeRoutes = require('./routes/runtime');
+const runtimeSessionRoutes = require('./routes/runtimeSessions');
 const { auditMiddleware } = require('./services/auditLog');
 const { corsOptions } = require('./config/cors');
 const { apiLimiter, heavyLimiter, authLimiter } = require('./middleware/rateLimit');
@@ -21,6 +22,12 @@ const app = express();
 
 app.set('trust proxy', 1); // behind nginx/load balancer in production
 app.use(helmet({ contentSecurityPolicy: false }));
+app.use('/api/runtime/sessions', cors({
+  origin: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'X-CryptoScan-Token', 'Authorization'],
+  maxAge: 600,
+}));
 app.use(cors(corsOptions()));
 app.use(express.json());
 const path = require('path');
@@ -59,6 +66,7 @@ app.use('/api/auth', authLimiter, authRoutes);
 app.use('/repos', heavyLimiter, repoRoutes);
 app.use('/scan', heavyLimiter, scanRoutes);
 app.use('/scan/:scanId/quantum-risk', quantumRiskRoutes);
+app.use('/api/runtime/sessions', runtimeSessionRoutes);
 app.use('/runtime', heavyLimiter, runtimeRoutes);
 app.use('/api/runtime', heavyLimiter, runtimeRoutes);
 
