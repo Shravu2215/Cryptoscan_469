@@ -4,9 +4,9 @@ const assert = require('assert');
 const cryptoTwinEngine = require('../src/services/cryptoTwinEngine');
 const cryptoTwinRoutes = require('../src/routes/cryptoTwin');
 
-console.log('--- Testing CryptoTwin Engine & Routes ---');
+console.log('--- Testing CryptoTwin Per-Migration Engine & Routes ---');
 
-// 1. Check Route Exports & Endpoints
+// 1. Check Route Endpoints
 const routePaths = cryptoTwinRoutes.stack
   .filter(layer => layer.route)
   .map(layer => ({ path: layer.route.path, methods: Object.keys(layer.route.methods) }));
@@ -14,67 +14,54 @@ const routePaths = cryptoTwinRoutes.stack
 assert(routePaths.some(r => r.path === '/runs' && r.methods.includes('post')), 'POST /runs endpoint should exist');
 assert(routePaths.some(r => r.path === '/runs' && r.methods.includes('get')), 'GET /runs endpoint should exist');
 assert(routePaths.some(r => r.path === '/runs/:id' && r.methods.includes('get')), 'GET /runs/:id endpoint should exist');
-assert(routePaths.some(r => r.path === '/runs/:id/reset' && r.methods.includes('post')), 'POST /runs/:id/reset endpoint should exist');
 assert(routePaths.some(r => r.path === '/runs/:id/approval' && r.methods.includes('post')), 'POST /runs/:id/approval endpoint should exist');
-assert(routePaths.some(r => r.path === '/runs/:id/report' && r.methods.includes('get')), 'GET /runs/:id/report endpoint should exist');
 console.log('✓ All CryptoTwin route paths verified.');
 
-// 2. Check Attack Path Generation
-const sampleItems = [
-  {
-    id: 'f1',
-    filePath: 'src/auth.js',
-    line: 42,
-    currentAlgorithm: 'RSA-2048',
-    usageContext: 'jwt',
-    severity: 'HIGH',
-    quantumVulnerable: true
-  },
-  {
-    id: 'f2',
-    filePath: 'src/hash.js',
-    line: 12,
-    currentAlgorithm: 'MD5',
-    usageContext: 'hashing',
-    severity: 'CRITICAL',
-    quantumVulnerable: false
-  }
-];
+// 2. Check Migration Type Classification & Specific Attack Paths
+const hardcodedPath = cryptoTwinEngine.buildSpecificAttackPath({ currentAlgorithm: 'Hardcoded secret', usageContext: 'secret' });
+assert.strictEqual(hardcodedPath.migrationType, 'secret-handling');
+assert(hardcodedPath.proposedReplacement.includes('Environment Variable'), 'Secret handling replacement must suggest Env Var/KMS, never SHA-256');
 
-const attackPaths = sampleItems.map(item => cryptoTwinEngine.buildAttackPath(item));
-assert.strictEqual(attackPaths.length, 2);
-assert(attackPaths[0].steps.some(s => s.toLowerCase().includes('rsa') || s.toLowerCase().includes('jwt')), 'RSA JWT attack path should have relevant steps');
-assert(attackPaths[1].steps.some(s => s.toLowerCase().includes('md5') || s.toLowerCase().includes('collision')), 'MD5 attack path should have collision steps');
-console.log('✓ Attack path generation verified.');
+const rsaPath = cryptoTwinEngine.buildSpecificAttackPath({ currentAlgorithm: 'RSA-2048', usageContext: 'jwt' });
+assert.strictEqual(rsaPath.migrationType, 'pqc-replacement');
+assert(rsaPath.proposedReplacement.includes('ML-DSA'), 'RSA JWT replacement must suggest ML-DSA');
 
-// 3. Check Verdict Computation
-const readyVerdict = cryptoTwinEngine.computeVerdict(
-  [{ statusAfter: 'BLOCKED' }],
-  [{ status: 'PASSED', severity: 'HIGH' }],
-  [{ status: 'PATCHED' }]
-);
-assert.strictEqual(readyVerdict.verdict, 'PRODUCTION_READY');
-assert(readyVerdict.confidence >= 80, 'All passed/blocked should yield high confidence score');
+const md5Path = cryptoTwinEngine.buildSpecificAttackPath({ currentAlgorithm: 'MD5', usageContext: 'hashing' });
+assert.strictEqual(md5Path.migrationType, 'hash-upgrade');
+assert(md5Path.proposedReplacement.includes('SHA-256'), 'MD5 replacement must suggest SHA-256');
+console.log('✓ Migration classification and specific attack paths verified.');
 
-const notReadyVerdict = cryptoTwinEngine.computeVerdict(
-  [{ statusAfter: 'STILL_OPEN' }],
-  [{ status: 'FAILED', type: 'SECURITY' }],
-  [{ status: 'PATCH_GENERATED_NOT_APPLIED' }]
-);
-assert.strictEqual(notReadyVerdict.verdict, 'PRODUCTION_NOT_READY');
-console.log('✓ Verdict derivation and confidence computation verified (Score: ' + readyVerdict.confidence + '%).');
+// 3. Check Input Normalization & Safe Item Exclusion
+const norm = cryptoTwinEngine.normaliseInput({
+  items: [
+    { currentAlgorithm: 'RSA-2048', severity: 'HIGH' },
+    { currentAlgorithm: 'MD5', severity: 'CRITICAL' },
+    { currentAlgorithm: 'AES-256-GCM', severity: 'SAFE' }
+  ]
+});
+assert.strictEqual(norm.inScope.length, 2, '2 items should be in active migration scope');
+assert.strictEqual(norm.safeExcluded.length, 1, '1 safe item (AES-256-GCM) should be excluded from scope');
+console.log('✓ Input normalization and safe item exclusion verified.');
 
-// 4. Check End-to-End Engine Run
+// 4. Check End-to-End Per-Migration Execution & Readiness Computation
 (async () => {
-  const runRecord = await cryptoTwinEngine.runCryptoTwin({
-    scanId: 'scan-123',
-    repoName: 'test-repo',
-    source: 'direct',
-    items: sampleItems
+  const result = await cryptoTwinEngine.runCryptoTwin({
+    items: [
+      { id: 'm1', filePath: 'src/auth.js', line: 42, currentAlgorithm: 'RSA-2048', usageContext: 'jwt', severity: 'HIGH' },
+      { id: 'm2', filePath: 'src/digest.js', line: 12, currentAlgorithm: 'MD5', usageContext: 'hashing', severity: 'CRITICAL' },
+      { id: 'm3', filePath: 'src/cipher.js', line: 88, currentAlgorithm: 'AES-256-GCM', severity: 'SAFE' }
+    ]
   });
-  assert(runRecord.stages.length >= 6, 'Run record should contain stage pipeline');
-  assert(runRecord.verdict, 'Verdict should be populated');
-  assert(typeof runRecord.confidence === 'number', 'Confidence score should be numeric');
-  console.log('✓ End-to-end engine execution verified (Verdict: ' + runRecord.verdict + ', Confidence: ' + runRecord.confidence + '%).');
+
+  assert.strictEqual(result.summary.inScopeCount, 2);
+  assert.strictEqual(result.summary.excludedCount, 1);
+  assert(result.migrations.length === 2, 'Should process 2 in-scope migrations');
+  assert(typeof result.summary.readinessBefore === 'number', 'Readiness before should be percentage');
+  assert(typeof result.summary.readinessAfter === 'number', 'Readiness after should be percentage');
+
+  // Check application generator
+  const appBuild = cryptoTwinEngine.generateUpdatedApplication(null, ['m1', 'm2'], result.migrations);
+  assert(appBuild.diffText !== undefined, 'Generated application must produce diff text');
+  console.log('✓ End-to-end per-migration engine execution verified (Readiness: ' + result.summary.readinessBefore + '% -> ' + result.summary.readinessAfter + '%).');
   console.log('--- CryptoTwin Unit Tests Passed Successfully ---');
 })();
