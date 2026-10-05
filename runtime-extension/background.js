@@ -468,6 +468,7 @@ chrome.runtime.onConnect.addListener(port => {
   });
   port.onMessage.addListener(message => { handlePortMessage(port, message).catch(noteError); });
   port.onDisconnect.addListener(() => {
+    void chrome.runtime.lastError;
     ports.delete(port);
     clearTimersIfIdle();
   });

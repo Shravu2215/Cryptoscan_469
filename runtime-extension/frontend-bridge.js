@@ -3,11 +3,20 @@
     if (globalThis.__cryptoscanFrontendBridgeInstalled) return;
     globalThis.__cryptoscanFrontendBridgeInstalled = true;
     const reply = payload => window.postMessage({ source: 'CryptoScanExtension', ...payload }, location.origin);
-    const port = chrome.runtime.connect({ name: 'cs-frontend' });
-    port.onMessage.addListener(message => {
-      if (message.type === 'CS_STATE') reply({ type: 'CS_SESSION_STATE', state: message.state });
-    });
-    port.postMessage({ type: 'CS_FRONTEND_READY' });
+    let port = null;
+    const connectPort = () => {
+      if (port) return;
+      port = chrome.runtime.connect({ name: 'cs-frontend' });
+      port.onMessage.addListener(message => {
+        if (message.type === 'CS_STATE') reply({ type: 'CS_SESSION_STATE', state: message.state });
+      });
+      port.onDisconnect.addListener(() => {
+        void chrome.runtime.lastError;
+        port = null;
+      });
+      port.postMessage({ type: 'CS_FRONTEND_READY' });
+    };
+    connectPort();
     const send = message => new Promise(resolve => {
       chrome.runtime.sendMessage(message, response => {
         const error = chrome.runtime.lastError;
@@ -35,6 +44,11 @@
           reply({ type: 'CS_EXTENSION_STOP_RESULT', ...response });
         }
       } catch (_) {}
+    });
+    window.addEventListener('pageshow', event => {
+      if (!event.persisted) return;
+      connectPort();
+      window.postMessage({ source: 'CryptoScanPage', type: 'CS_EXTENSION_PING' }, location.origin);
     });
     console.log('[CryptoScan] frontend bridge ready', { origin: location.origin });
   } catch (_) {}

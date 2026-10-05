@@ -1801,6 +1801,9 @@
         }
       }
       window.addEventListener('message', handleRuntimeExtensionMessage);
+      window.addEventListener('pageshow', event => {
+        if (event.persisted) pingRuntimeExtension();
+      });
 
       function showRuntimeError(message) {
         const el = document.getElementById('runtime-error');

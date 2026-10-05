@@ -1,6 +1,6 @@
 (() => {
   try {
-    const port = chrome.runtime.connect({ name: 'cs-target' });
+    let port = null;
     let state = { status: 'idle', eventCount: 0 };
     let host = null;
     let root = null;
@@ -10,6 +10,26 @@
     let stopButton = null;
     let panel = null;
     let stoppingLocally = false;
+
+    function connectPort() {
+      if (port) return;
+      port = chrome.runtime.connect({ name: 'cs-target' });
+      port.onMessage.addListener(message => {
+        try {
+          if (message.type === 'CS_STATE') updateState(message.state);
+          if (message.type === 'CS_ACTION_RESULT') {
+            stoppingLocally = false;
+            if (!message.ok && root) root.showError(message.error || 'Runtime action failed.');
+            else if (root) root.showError('');
+          }
+        } catch (_) {}
+      });
+      port.onDisconnect.addListener(() => {
+        void chrome.runtime.lastError;
+        port = null;
+      });
+      port.postMessage({ type: 'CS_TARGET_READY' });
+    }
 
     function sendHookState() {
       try {
@@ -106,10 +126,14 @@
       };
       root.bubble.addEventListener('click', () => panel.classList.toggle('open'));
       root.panelHead.addEventListener('click', () => panel.classList.toggle('open'));
-      startButton.addEventListener('click', () => port.postMessage({ type: 'CS_START' }));
+      startButton.addEventListener('click', () => {
+        if (!port) connectPort();
+        port.postMessage({ type: 'CS_START' });
+      });
       stopButton.addEventListener('click', () => {
         stoppingLocally = true;
         render();
+        if (!port) connectPort();
         port.postMessage({ type: 'CS_STOP' });
       });
       const showError = message => {
@@ -157,16 +181,7 @@
       }
     }
 
-    port.onMessage.addListener(message => {
-      try {
-        if (message.type === 'CS_STATE') updateState(message.state);
-        if (message.type === 'CS_ACTION_RESULT') {
-          stoppingLocally = false;
-          if (!message.ok && root) root.showError(message.error || 'Runtime action failed.');
-          else if (root) root.showError('');
-        }
-      } catch (_) {}
-    });
+    connectPort();
 
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (!message || message.type !== 'CS_FLUSH_HOOKS') return;
@@ -181,11 +196,14 @@
         if (event.source !== window || event.origin !== location.origin || !event.data) return;
         if (event.data.source !== 'CryptoScanMainHook' || event.data.type !== 'CS_EVENTS' || !Array.isArray(event.data.events)) return;
         if (!['recording', 'analyzing'].includes(state.status) || !state.targetOrigin) return;
+        if (!port) connectPort();
         port.postMessage({ type: 'CS_EVENTS', events: event.data.events });
       } catch (_) {}
     });
 
-    port.postMessage({ type: 'CS_TARGET_READY' });
+    window.addEventListener('pageshow', event => {
+      if (event.persisted) connectPort();
+    });
     chrome.runtime.sendMessage({ type: 'CS_GET_STATE' }, response => {
       if (chrome.runtime.lastError) return;
       if (response && response.state) updateState(response.state);
