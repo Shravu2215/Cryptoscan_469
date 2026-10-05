@@ -56,7 +56,7 @@ function _memSet(user)  { _memUsers.set(user.email.toLowerCase().trim(), user); 
 /** Returns true when err is a Prisma DB-connectivity error (not a logic error). */
 function _isDbError(err) {
   return (
-    err.code === 'P1001' || err.code === 'P1002' ||
+    err.code === 'P1000' || err.code === 'P1001' || err.code === 'P1002' ||
     err.code === 'P1008' || err.code === 'P1017' ||
     (err.message && (
       err.message.includes('postgres') ||

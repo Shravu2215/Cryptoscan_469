@@ -154,7 +154,7 @@
       if (root) {
         root.bubbleState();
         render();
-      }
+      } else sendHookState();
     }
 
     port.onMessage.addListener(message => {
@@ -164,6 +164,7 @@
           stoppingLocally = false;
           if (!message.ok && root) root.showError(message.error || 'Runtime action failed.');
           else if (root) root.showError('');
+          render();
         }
       } catch (_) {}
     });

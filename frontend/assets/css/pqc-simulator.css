@@ -1,3 +1,13 @@
+:root {
+  --purple: #7c3aed;
+  --purple-bg: rgba(124, 58, 237, 0.12);
+}
+
+:root.dark-mode, :root.dark, html.dark-mode, html.dark {
+  --purple: #a78bfa;
+  --purple-bg: rgba(139, 92, 246, 0.25);
+}
+
 /* ============================================================
    Before vs After Reveal Panel
    ============================================================ */
@@ -337,9 +347,9 @@
 }
 
 .pqc-seg-btn.active {
-  background: var(--purple);
-  color: #fff;
-  box-shadow: 0 2px 6px rgba(139,92,246,0.3);
+  background: var(--purple-bg);
+  color: var(--purple);
+  box-shadow: 0 2px 6px rgba(139,92,246,0.2);
 }
 
 .btn-primary-sim {

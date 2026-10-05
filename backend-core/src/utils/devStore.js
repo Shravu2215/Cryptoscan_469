@@ -154,9 +154,12 @@ function updateRuntimeRun(id, data) {
 }
 
 function saveRuntimeEvent(record) {
-  devRuntimeEvents.set(record.eventId, record);
+  const existing = devRuntimeEvents.get(record.eventId);
+  devRuntimeEvents.set(record.eventId, existing
+    ? { ...existing, ...record, count: (Number(existing.count) || 0) + (Number(record.count) || 0) }
+    : record);
   syncStore();
-  return record;
+  return devRuntimeEvents.get(record.eventId);
 }
 
 function getRuntimeEvents(runId) {

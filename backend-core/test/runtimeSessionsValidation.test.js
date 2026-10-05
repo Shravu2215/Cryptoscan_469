@@ -44,6 +44,11 @@ assert.strictEqual(pythonCallsite.callerScript, 'python://app/main.py:27');
 assert.strictEqual(isPublicAddress('93.184.216.34'), true);
 assert.strictEqual(isPublicAddress('127.0.0.1'), false);
 assert.strictEqual(isPublicAddress('10.0.0.2'), false);
+assert.strictEqual(isPublicAddress('2606:4700:4700::1111'), true);
 assert.strictEqual(isPublicAddress('::1'), false);
+assert.strictEqual(isPublicAddress('fc00::1'), false);
+assert.strictEqual(isPublicAddress('fe80::1'), false);
+assert.strictEqual(isPublicAddress('2001:db8::1'), false);
+assert.strictEqual(isPublicAddress('::ffff:127.0.0.1'), false);
 
 console.log('Runtime session validation and public-address tests passed.');

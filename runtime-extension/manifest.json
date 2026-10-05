@@ -14,18 +14,6 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "http://localhost/*",
-        "http://localhost:*/*",
-        "http://127.0.0.1/*",
-        "http://127.0.0.1:*/*",
-        "https://*.vercel.app/*",
-        "https://*.onrender.com/*"
-      ],
-      "js": ["frontend-bridge.js"],
-      "run_at": "document_start"
-    },
-    {
       "matches": ["<all_urls>"],
       "js": ["target-content.js"],
       "run_at": "document_start",

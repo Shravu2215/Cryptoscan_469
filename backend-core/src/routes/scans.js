@@ -312,6 +312,11 @@ router.get('/:scanId/findings', requireAuth, async (req, res) => {
       findings = getFindings(scanId);
     }
 
+    if (scan && (!findings || findings.length === 0)) {
+      const storedFindings = getFindings(scanId);
+      if (storedFindings.length) findings = storedFindings;
+    }
+
     if (!scan) return res.status(404).json({ error: 'Scan not found' });
 
     // Live-join businessCriticality from the current repo record.

@@ -4,7 +4,6 @@
     const detectedLibraries = new Set();
     let active = false;
     let firstEventLogged = false;
-    let initialOriginLogged = false;
 
     function safeOrigin(value) {
       try {
@@ -362,15 +361,7 @@
         const data = event.data;
         if (!data || data.source !== 'CryptoScanExtension') return;
         if (data.type === 'CS_HOOK_STATE') {
-          const wasActive = active;
           active = Boolean(data.recording);
-          if (active && !wasActive && !initialOriginLogged) {
-            initialOriginLogged = true;
-            try {
-              const currentOrigin = networkMetadata(location.href);
-              if (currentOrigin) record('network', 'NETWORK', 'network', {}, 'unknown:0', currentOrigin);
-            } catch (_) {}
-          }
           if (!active) flush(true);
         }
         if (data.type === 'CS_HOOK_FLUSH') flush(true);
