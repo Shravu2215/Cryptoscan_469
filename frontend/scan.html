@@ -1871,7 +1871,7 @@
           document.getElementById('runtime-session-status').textContent = 'Session ready - target site opened. Start the scanner there.';
           document.getElementById('runtime-live').style.display = 'block';
           document.getElementById('runtime-prepare-form').style.display = 'none';
-          runtimePollTimer = setInterval(pollRuntimeSession, 1000);
+          runtimePollTimer = setInterval(pollRuntimeSession, 5000);
         } catch (error) {
           showRuntimeError(error.message || 'Could not prepare the runtime session.');
           button.disabled = false;
@@ -1941,7 +1941,7 @@
         document.getElementById('runtime-prepare-form').style.display = 'none';
         document.getElementById('runtime-session-id').textContent = runtimeSession.id;
         pollRuntimeSession();
-        runtimePollTimer = setInterval(pollRuntimeSession, 1000);
+        runtimePollTimer = setInterval(pollRuntimeSession, 5000);
       }
       pingRuntimeExtension();
 

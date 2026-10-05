@@ -67,7 +67,7 @@ app.use('/repos', heavyLimiter, repoRoutes);
 app.use('/scan', heavyLimiter, scanRoutes);
 app.use('/scan/:scanId/quantum-risk', quantumRiskRoutes);
 app.use('/runtime', heavyLimiter, runtimeRoutes);
-app.use('/api/runtime', apiLimiter, runtimeRoutes);
+app.use('/api/runtime', runtimeRoutes);
 
 // 404 handler
 app.use((req, res) => {

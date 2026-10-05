@@ -176,7 +176,7 @@ async function authorizedFetch(url, options = {}) {
 
 function ensureTimers() {
   if (!flushTimer) flushTimer = setInterval(() => { flushEvents().catch(noteError); }, 1000);
-  if (!statusTimer) statusTimer = setInterval(() => { pollStatus().catch(noteError); }, 1000);
+  if (!statusTimer) statusTimer = setInterval(() => { pollStatus().catch(noteError); }, 10000);
 }
 
 function clearTimersIfIdle() {
