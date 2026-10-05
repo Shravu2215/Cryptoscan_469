@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CryptoTwin — CryptoScan</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script>
+    function initTheme() {
+      if (localStorage.getItem('cs_theme') === 'dark') {
+        document.documentElement.classList.add('dark', 'dark-mode');
+        document.documentElement.classList.remove('light-mode');
+      } else {
+        document.documentElement.classList.add('light-mode');
+        document.documentElement.classList.remove('dark', 'dark-mode');
+      }
+    }
+    initTheme();
+  </script>
+  <link rel="stylesheet" href="assets/css/global.css">
+  <link rel="stylesheet" href="assets/css/visuals.css">
+  <link rel="stylesheet" href="assets/css/cryptotwin.css">
+</head>
+<body>
+
+  <!-- App Shell Sidebar -->
+  <div id="app-sidebar" class="sb"></div>
+
+  <!-- Main Content Area -->
+  <div class="main-wrapper" style="flex:1; display:flex; flex-direction:column; min-width:0; margin-left:264px;">
+    <!-- Topbar -->
+    <div id="app-topbar"></div>
+
+    <!-- Main Container -->
+    <main class="ct-container">
+
+      <!-- 4.1 Header -->
+      <div class="ct-header">
+        <div class="ct-header-title-wrap">
+          <div class="ct-header-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:28px; height:28px; color:var(--ct-purple);">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 4v5c0 4.42-2.79 8.5-7 10-4.21-1.5-7-5.58-7-10V7l7-4zm0 7l4 2.5L12 16l-4-3.5L12 10zm0-6l-5 3v4.2c0 3.14 1.87 6.02 5 7.3 3.13-1.28 5-4.16 5-7.3V9l-5-3z"/>
+            </svg>
+            CryptoTwin
+          </div>
+          <div class="ct-header-subtitle">Safe sandbox fire-drill for your PQC migration</div>
+          <div class="ct-disclaimer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px; color:var(--ct-purple); flex-shrink:0;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            CryptoTwin does not claim to detect every security breach. It reduces the chance of cryptography-driven breaches, and verifies that a migration does not introduce new security gaps before production.
+          </div>
+        </div>
+
+        <div class="ct-controls-row">
+          <select id="ct-scan-select" class="ct-scan-select">
+            <option value="" disabled selected>Loading scans...</option>
+          </select>
+          <button id="ct-btn-run" class="ct-btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Run CryptoTwin Fire Drill
+          </button>
+          <button id="ct-btn-reset" class="ct-btn-secondary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Reset Twin
+          </button>
+        </div>
+      </div>
+
+      <!-- 4.2 Top KPI Cards -->
+      <div class="ct-kpi-grid">
+        <div class="ct-kpi-card">
+          <span class="ct-kpi-lbl">Weaknesses in Scope</span>
+          <div class="ct-kpi-val" id="kpi-weaknesses-count">0</div>
+        </div>
+        <div class="ct-kpi-card">
+          <span class="ct-kpi-lbl">Attack Paths Simulated</span>
+          <div class="ct-kpi-val" id="kpi-attack-paths-count">0</div>
+        </div>
+        <div class="ct-kpi-card">
+          <span class="ct-kpi-lbl">Tests Run</span>
+          <div class="ct-kpi-val" id="kpi-tests-run-count">0</div>
+        </div>
+        <div class="ct-kpi-card">
+          <span class="ct-kpi-lbl">Tests Passed</span>
+          <div class="ct-kpi-val" id="kpi-tests-passed-count">0</div>
+        </div>
+        <div class="ct-kpi-card">
+          <span class="ct-kpi-lbl">Auto-Fixes Applied</span>
+          <div class="ct-kpi-val" id="kpi-fixes-applied-count">0</div>
+        </div>
+        <div class="ct-kpi-card">
+          <span class="ct-kpi-lbl">
+            Migration Confidence %
+            <span class="ct-tooltip-icon" title="Formula: 40% Closed Attack Paths + 30% Security Tests Passed + 20% Functional Tests Passed + 10% Compatibility - Penalties for unapplied patches">?</span>
+          </span>
+          <div class="ct-kpi-val" id="kpi-confidence-pct">-- %</div>
+        </div>
+        <div class="ct-kpi-card" style="grid-column: span 2;">
+          <span class="ct-kpi-lbl">Final Verdict</span>
+          <div style="margin-top: 4px;">
+            <span id="ct-verdict-badge" class="ct-verdict-badge verdict-not-run">NOT RUN</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4.3 Pipeline Stepper -->
+      <div class="ct-stepper-card">
+        <div class="ct-stepper" id="ct-pipeline-stepper">
+          <div class="ct-step-line"></div>
+          <!-- 9 Stages dynamically rendered -->
+          <div class="ct-step-item pending" data-stage="weakness-found">
+            <div class="ct-step-node">1</div>
+            <div class="ct-step-lbl">Weaknesses Found</div>
+          </div>
+          <div class="ct-step-item pending" data-stage="risk-analysis">
+            <div class="ct-step-node">2</div>
+            <div class="ct-step-lbl">Risk Analysis</div>
+          </div>
+          <div class="ct-step-item pending" data-stage="migration-rec">
+            <div class="ct-step-node">3</div>
+            <div class="ct-step-lbl">Migration Rec.</div>
+          </div>
+          <div class="ct-step-item pending" data-stage="twin-created">
+            <div class="ct-step-node">4</div>
+            <div class="ct-step-lbl">Twin Created</div>
+          </div>
+          <div class="ct-step-item pending" data-stage="migration-applied">
+            <div class="ct-step-node">5</div>
+            <div class="ct-step-lbl">Migration Applied</div>
+          </div>
+          <div class="ct-step-item pending" data-stage="tests-running">
+            <div class="ct-step-node">6</div>
+            <div class="ct-step-lbl">Tests Running</div>
+          </div>
+          <div class="ct-step-item pending" data-stage="ai-diagnose">
+            <div class="ct-step-node">7</div>
+            <div class="ct-step-lbl">AI Diagnose & Fix</div>
+          </div>
+          <div class="ct-step-item pending" data-stage="retest">
+            <div class="ct-step-node">8</div>
+            <div class="ct-step-lbl">Retest</div>
+          </div>
+          <div class="ct-step-item pending" data-stage="verdict">
+            <div class="ct-step-node">9</div>
+            <div class="ct-step-lbl">Verdict</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4.4 Breach Simulation Panel -->
+      <div class="ct-panel">
+        <div class="ct-panel-hd">
+          <div>
+            <div class="ct-panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px; height:20px; color:var(--ct-purple);">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+              Breach Simulation (Attack Path Impact)
+            </div>
+            <div class="ct-panel-subtitle">Simulated attack path (model-based), not a live exploit. Click any node to inspect file details and proposed replacements.</div>
+          </div>
+        </div>
+
+        <div class="ct-sim-columns">
+          <!-- BEFORE Migration Column -->
+          <div class="ct-sim-column">
+            <div class="ct-sim-col-title" style="color:var(--ct-red);">
+              <span>BEFORE MIGRATION (Vulnerable Chain)</span>
+              <span class="ct-status-pill pill-failed">EXPOSED</span>
+            </div>
+            <div class="ct-chain-list" id="ct-chain-before">
+              <div style="color:var(--text-m); font-size:13px; text-align:center; padding:20px;">No fire drill run yet. Select a scan and click "Run CryptoTwin Fire Drill".</div>
+            </div>
+          </div>
+
+          <!-- AFTER Migration Column -->
+          <div class="ct-sim-column">
+            <div class="ct-sim-col-title" style="color:var(--ct-green);">
+              <span>AFTER MIGRATION (Closed & Protected)</span>
+              <span class="ct-status-pill pill-passed">MITIGATED</span>
+            </div>
+            <div class="ct-chain-list" id="ct-chain-after">
+              <div style="color:var(--text-m); font-size:13px; text-align:center; padding:20px;">No fire drill run yet. Select a scan and click "Run CryptoTwin Fire Drill".</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4.5 Test Results Panel -->
+      <div class="ct-panel">
+        <div class="ct-panel-hd">
+          <div>
+            <div class="ct-panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px; height:20px; color:var(--ct-purple);">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              Functional, Security & Compatibility Test Suite
+            </div>
+            <div class="ct-panel-subtitle">Automated tests executed inside the temporary twin sandbox before and after migration</div>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <select id="ct-test-filter" class="ct-scan-select" style="min-width: 140px; padding: 6px 10px;">
+              <option value="ALL">All Statuses</option>
+              <option value="PASSED">Passed</option>
+              <option value="FAILED">Failed</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="ct-tab-bar">
+          <button class="ct-tab-btn active" data-tab="ALL">All Suites</button>
+          <button class="ct-tab-btn" data-tab="FUNCTIONAL">Functional</button>
+          <button class="ct-tab-btn" data-tab="SECURITY">Security</button>
+          <button class="ct-tab-btn" data-tab="COMPATIBILITY">Compatibility</button>
+        </div>
+
+        <div style="overflow-x:auto;">
+          <table class="ct-table">
+            <thead>
+              <tr>
+                <th>Test Name</th>
+                <th>Category</th>
+                <th>Phase</th>
+                <th>Status</th>
+                <th>Duration</th>
+                <th>Details / Reason</th>
+              </tr>
+            </thead>
+            <tbody id="ct-test-table-body">
+              <tr>
+                <td colspan="6" style="text-align:center; color:var(--text-m); padding:24px;">
+                  No test results yet. Run a CryptoTwin fire drill to execute tests.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 4.6 AI Diagnosis & Auto-Fix Panel -->
+      <div class="ct-panel">
+        <div class="ct-panel-hd">
+          <div>
+            <div class="ct-panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px; height:20px; color:var(--ct-purple);">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+              AI Agent Diagnosis & Auto-Fix Loop
+            </div>
+            <div class="ct-panel-subtitle">Automatic failure diagnosis, patch generation, and iterative retesting in sandbox twin</div>
+          </div>
+        </div>
+
+        <div class="ct-timeline" id="ct-ai-timeline">
+          <div style="color:var(--text-m); font-size:13px; text-align:center; padding:20px; background:var(--bg-main); border-radius:var(--r-md);">
+            AI loop timeline will appear here during/after fire drill execution.
+          </div>
+        </div>
+      </div>
+
+      <!-- 4.7 Final Report Card -->
+      <div class="ct-report-card">
+        <div class="ct-report-hd">
+          <div>
+            <div style="font-size:18px; font-weight:800; color:var(--text-h);">CryptoTwin Fire Drill Summary</div>
+            <div style="font-size:13px; color:var(--text-m); margin-top:2px;" id="ct-report-sub">Run pending or completed</div>
+          </div>
+          <div style="display:flex; gap:12px;">
+            <button id="ct-btn-export" class="ct-btn-secondary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Export Report (JSON)
+            </button>
+            <button id="ct-btn-add-migration" class="ct-btn-primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+              </svg>
+              Add to Migration Plan
+            </button>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-top:12px;">
+          <div style="background:var(--bg-main); padding:16px; border-radius:var(--r-md); border:1px solid var(--border-color);">
+            <div style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Blockers Remaining</div>
+            <div style="font-size:22px; font-weight:800; color:var(--text-h); margin-top:4px;" id="ct-report-blockers">0</div>
+          </div>
+          <div style="background:var(--bg-main); padding:16px; border-radius:var(--r-md); border:1px solid var(--border-color);">
+            <div style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Attack Paths Closed</div>
+            <div style="font-size:22px; font-weight:800; color:var(--text-h); margin-top:4px;" id="ct-report-closed-paths">0 / 0</div>
+          </div>
+          <div style="background:var(--bg-main); padding:16px; border-radius:var(--r-md); border:1px solid var(--border-color);">
+            <div style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Confidence Score</div>
+            <div style="font-size:22px; font-weight:800; color:var(--ct-purple); margin-top:4px;" id="ct-report-confidence">-- %</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Judge Line Footer Note -->
+      <footer style="margin-top:20px; text-align:center; font-size:12px; color:var(--text-s); padding:16px; border-top:1px solid var(--border-light);">
+        We don't claim to detect every security breach. We prevent cryptography-driven breaches: CryptoTwin makes a safe copy of the application, simulates the migration and the relevant attack paths, tests the security controls, and verifies the fix doesn't introduce new vulnerabilities before production.
+      </footer>
+
+    </main>
+  </div>
+
+  <!-- Side Drawer Modal -->
+  <div class="ct-drawer-overlay" id="ct-drawer-overlay"></div>
+  <div class="ct-drawer" id="ct-drawer">
+    <div class="ct-drawer-hd">
+      <div style="font-size:16px; font-weight:700; color:var(--text-h);" id="drawer-title">Attack Path Node Details</div>
+      <button id="ct-drawer-close" style="background:none; border:none; color:var(--text-m); cursor:pointer;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px; height:20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="ct-drawer-body" id="drawer-body">
+      <!-- Dynamically filled -->
+    </div>
+  </div>
+
+  <!-- JavaScript Dependencies -->
+  <script src="assets/js/shell.js"></script>
+  <script src="assets/js/visuals.js"></script>
+  <script src="assets/js/cryptotwin.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      new AppShell();
+    });
+  </script>
+
+</body>
+</html>

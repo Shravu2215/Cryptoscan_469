@@ -20,6 +20,8 @@
     { "source": "/risk-analysis.html", "destination": "/risk-analysis.html" },
     { "source": "/migration-plan", "destination": "/migration-plan.html" },
     { "source": "/migration-plan.html", "destination": "/migration-plan.html" },
+    { "source": "/cryptotwin", "destination": "/cryptotwin.html" },
+    { "source": "/cryptotwin.html", "destination": "/cryptotwin.html" },
     { "source": "/quantum-threat-model", "destination": "/quantum-threat-model.html" },
     { "source": "/quantum-threat-model.html", "destination": "/quantum-threat-model.html" },
     { "source": "/pqc-simulator", "destination": "/pqc-simulator.html" },

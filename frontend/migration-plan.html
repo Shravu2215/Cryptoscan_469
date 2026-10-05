@@ -1056,11 +1056,17 @@
                       threat horizon). Click a category to filter recommendations below.</div>
                   </div>
                 </div>
-                <div id="mosca-filter-indicator" style="display:none; align-items:center; gap:8px;">
-                  <span style="font-size:12px; color:var(--text-m);">Filtered by: <strong id="mosca-active-filter-name"
-                      style="color:var(--text-h);">-</strong></span>
-                  <button class="btn-sec" style="padding:4px 10px; font-size:11px;" onclick="clearMoscaFilter()">Clear
-                    Filter</button>
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <button class="view-details-btn" style="background:var(--purple-bg); color:var(--purple); border-color:rgba(139,92,246,0.4);" onclick="const s = new URLSearchParams(window.location.search).get('scanId') || ''; window.location.href='cryptotwin.html' + (s ? '?scanId=' + s : '');">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 4v5c0 4.42-2.79 8.5-7 10-4.21-1.5-7-5.58-7-10V7l7-4zm0 7l4 2.5L12 16l-4-3.5L12 10z"/></svg>
+                    Run CryptoTwin
+                  </button>
+                  <div id="mosca-filter-indicator" style="display:none; align-items:center; gap:8px;">
+                    <span style="font-size:12px; color:var(--text-m);">Filtered by: <strong id="mosca-active-filter-name"
+                        style="color:var(--text-h);">-</strong></span>
+                    <button class="btn-sec" style="padding:4px 10px; font-size:11px;" onclick="clearMoscaFilter()">Clear
+                      Filter</button>
+                  </div>
                 </div>
               </div>
               <div class="mosca-grid">

@@ -279,3 +279,26 @@ model FileManifestEntry {
   @@index([scanId])
   @@index([scanId, filePath])
 }
+
+model CryptoTwinRun {
+  id                  String   @id @default(uuid())
+  scanId              String
+  status              String   @default("RUNNING") // RUNNING, COMPLETED, FAILED
+  verdict             String   @default("NOT RUN") // PRODUCTION READY, PRODUCTION NOT READY, NOT RUN
+  migrationConfidence Float    @default(0)
+  weaknessCount       Int      @default(0)
+  testsRun            Int      @default(0)
+  testsPassed         Int      @default(0)
+  fixesApplied        Int      @default(0)
+  remainingBlockers   Int      @default(0)
+  attackPaths         Json?
+  stages              Json?
+  tests               Json?
+  patches             Json?
+  aiIterations        Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([scanId])
+}
+

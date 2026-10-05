@@ -9,7 +9,8 @@ let storeData = {
   devRepos: [],
   devScans: [],
   devFindings: [],
-  devAnchors: []
+  devAnchors: [],
+  devRuns: []
 };
 
 function loadStore() {
@@ -41,12 +42,14 @@ const devRepos = new Map(storeData.devRepos);
 const devScans = new Map(storeData.devScans);
 const devFindings = new Map(storeData.devFindings);
 const devAnchors = new Map(storeData.devAnchors);
+const devRuns = new Map(storeData.devRuns || []);
 
 function syncStore() {
   storeData.devRepos = Array.from(devRepos.entries());
   storeData.devScans = Array.from(devScans.entries());
   storeData.devFindings = Array.from(devFindings.entries());
   storeData.devAnchors = Array.from(devAnchors.entries());
+  storeData.devRuns = Array.from(devRuns.entries());
   saveStore();
 }
 
@@ -128,11 +131,32 @@ function getAnchor(scanId) {
   return devAnchors.get(scanId);
 }
 
+function saveRun(run) {
+  devRuns.set(run.id, run);
+  syncStore();
+  return run;
+}
+
+function getRun(runId) {
+  return devRuns.get(runId);
+}
+
+function getRunsForScan(scanId) {
+  const list = [];
+  for (const r of devRuns.values()) {
+    if (!scanId || r.scanId === scanId) {
+      list.push(r);
+    }
+  }
+  return list;
+}
+
 module.exports = {
   devRepos,
   devScans,
   devFindings,
   devAnchors,
+  devRuns,
   saveRepo,
   getRepo,
   updateRepoCriticality,
@@ -142,4 +166,7 @@ module.exports = {
   getFindings,
   saveAnchor,
   getAnchor,
+  saveRun,
+  getRun,
+  getRunsForScan
 };

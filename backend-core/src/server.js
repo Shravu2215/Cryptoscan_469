@@ -13,6 +13,7 @@ const repoRoutes = require('./routes/repos');
 const scanRoutes = require('./routes/scans');
 const quantumRiskRoutes = require('./routes/quantumRisk');
 const runtimeRoutes = require('./routes/runtime');
+const cryptotwinRoutes = require('./routes/cryptotwin');
 const { auditMiddleware } = require('./services/auditLog');
 const { corsOptions } = require('./config/cors');
 const { apiLimiter, heavyLimiter, authLimiter } = require('./middleware/rateLimit');
@@ -61,6 +62,8 @@ app.use('/scan', heavyLimiter, scanRoutes);
 app.use('/scan/:scanId/quantum-risk', quantumRiskRoutes);
 app.use('/runtime', heavyLimiter, runtimeRoutes);
 app.use('/api/runtime', heavyLimiter, runtimeRoutes);
+app.use('/api/cryptotwin', heavyLimiter, cryptotwinRoutes);
+app.use('/cryptotwin', heavyLimiter, cryptotwinRoutes);
 
 // 404 handler
 app.use((req, res) => {
