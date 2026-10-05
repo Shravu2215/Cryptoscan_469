@@ -1823,30 +1823,44 @@
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = 'Bearer ' + token;
 
-        // Step A: Create / confirm the anchor for this scan
+        // Helper: fetch with timeout so Render cold-start never blocks the UI
+        const fetchWithTimeout = (url, opts, ms = 5000) => {
+          const ctrl = new AbortController();
+          const tid = setTimeout(() => ctrl.abort(), ms);
+          return fetch(url, { ...opts, signal: ctrl.signal })
+            .catch(() => null)
+            .finally(() => clearTimeout(tid));
+        };
+
+        // Step A: Create / confirm the anchor for this scan (5s timeout)
         // The backend is idempotent — if anchor already exists it won't overwrite it.
         try {
-          const anchorRes = await fetch(`${API_BASE}/scan/${activeScan.scanId}/anchor`, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({
-              repoId: activeScan.repoId,
-              repoName: activeScan.repoName,
-              findings: activeScan.findings || activeScan.cbom || [],
-              cbom: activeScan.cbom || activeScan.findings || []
-            })
-          }).catch(() => null);
+          const anchorRes = await fetchWithTimeout(
+            `${API_BASE}/scan/${activeScan.scanId}/anchor`,
+            {
+              method: 'POST',
+              headers: headers,
+              body: JSON.stringify({
+                repoId: activeScan.repoId,
+                repoName: activeScan.repoName,
+                findings: activeScan.findings || activeScan.cbom || [],
+                cbom: activeScan.cbom || activeScan.findings || []
+              })
+            },
+            5000
+          );
           if (anchorRes && anchorRes.ok) {
             anchorResult = await anchorRes.json().catch(() => null);
           }
         } catch (_) {}
 
-        // Step B: Verify against the stored anchor
+        // Step B: Verify against the stored anchor (5s timeout)
         try {
-          const verifyRes = await fetch(`${API_BASE}/scan/${activeScan.scanId}/verify`, {
-            method: 'GET',
-            headers: headers
-          }).catch(() => null);
+          const verifyRes = await fetchWithTimeout(
+            `${API_BASE}/scan/${activeScan.scanId}/verify`,
+            { method: 'GET', headers: headers },
+            5000
+          );
           if (verifyRes && verifyRes.ok) {
             verifyResult = await verifyRes.json().catch(() => null);
           }
