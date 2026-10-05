@@ -1726,7 +1726,11 @@
         if (runtimeSessionId) {
           document.getElementById('findings-subtitle').textContent = 'Observed during this session. Findings reflect activity seen while the target site was in use.';
           try {
-            const apiBase = (window.Auth && window.Auth.API_BASE) || '';
+            const configuredBase = window.Auth && window.Auth.API_BASE;
+            const hostname = window.location.hostname;
+            const apiBase = configuredBase || (hostname === 'localhost' || hostname === '127.0.0.1'
+              ? window.location.origin
+              : 'https://cryptoscan-demo-api.onrender.com');
             const token = (window.Auth && window.Auth.getToken && window.Auth.getToken())
               || sessionStorage.getItem('cs_access_token') || localStorage.getItem('cs_token') || localStorage.getItem('cs_auth_token');
             const headers = token ? { Authorization: `Bearer ${token}` } : {};

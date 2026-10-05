@@ -326,10 +326,14 @@ async function receiveHandoff(bundle, sender) {
   if (!apiBase || !['http:', 'https:'].includes(target.protocol) || target.username || target.password) return { ok: false, error: 'Invalid session URL or API origin.' };
   if (typeof bundle.authToken !== 'string' || bundle.authToken.length < 16 || bundle.authToken.length > 4096) return { ok: false, error: 'CryptoScan authentication is missing.' };
   let createResponse;
+  let created = {};
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
   try {
     createResponse = await fetch(`${apiBase}/api/runtime/sessions`, {
       method: 'POST',
       credentials: 'omit',
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${bundle.authToken}`,
@@ -337,11 +341,24 @@ async function receiveHandoff(bundle, sender) {
       },
       body: JSON.stringify({ targetUrl: target.href }),
     });
-  } catch (_) {
-    return { ok: false, error: 'Could not reach the CryptoScan backend from the extension.' };
+    const body = await createResponse.text();
+    try { created = JSON.parse(body); } catch (_) {}
+  } catch (error) {
+    return {
+      ok: false,
+      error: error && error.name === 'AbortError'
+        ? 'Runtime backend timed out while preparing the session. Check that the backend service is running, then retry.'
+        : 'Could not reach the CryptoScan backend from the extension.',
+    };
+  } finally {
+    clearTimeout(timeout);
   }
-  const created = await createResponse.json().catch(() => ({}));
-  if (!createResponse.ok) return { ok: false, error: created.error || `Session prepare failed (HTTP ${createResponse.status}).` };
+  if (!createResponse.ok) {
+    const message = createResponse.status === 503
+      ? 'Runtime backend is unavailable (HTTP 503). Start or deploy the CryptoScan backend service, then retry.'
+      : `Session prepare failed (HTTP ${createResponse.status}).`;
+    return { ok: false, error: created.error || message };
+  }
   const targetOrigin = normalizeOrigin(created.targetOrigin);
   const cryptoscanSessionOrigin = normalizeOrigin(created.cryptoscanOrigin);
   const ingest = (() => { try { return new URL(created.ingestUrl); } catch (_) { return null; } })();

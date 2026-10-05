@@ -1713,7 +1713,11 @@
       try { runtimeSession = JSON.parse(sessionStorage.getItem('cs_runtime_active') || 'null'); } catch (_) {}
 
       function runtimeApiBase() {
-        return (window.Auth && window.Auth.API_BASE) || '';
+        const configuredBase = window.Auth && window.Auth.API_BASE;
+        if (configuredBase) return configuredBase;
+        const hostname = window.location.hostname;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') return window.location.origin;
+        return 'https://cryptoscan-demo-api.onrender.com';
       }
 
       function showRuntimeSetup() {

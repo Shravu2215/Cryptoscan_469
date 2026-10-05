@@ -43,7 +43,15 @@
           const response = await send({ type: 'CS_STOP' });
           reply({ type: 'CS_EXTENSION_STOP_RESULT', ...response });
         }
-      } catch (_) {}
+      } catch (error) {
+        if (event.data && event.data.source === 'CryptoScanPage' && event.data.type === 'CS_SESSION_HANDOFF') {
+          reply({
+            type: 'CS_SESSION_HANDOFF_RESULT',
+            ok: false,
+            error: error && error.message ? error.message : 'Extension handoff failed unexpectedly.',
+          });
+        }
+      }
     });
     window.addEventListener('pageshow', event => {
       if (!event.persisted) return;
