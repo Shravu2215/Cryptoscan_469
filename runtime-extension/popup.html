@@ -11,6 +11,7 @@
     <header><strong>CryptoScan</strong><span>Runtime Observer</span></header>
     <label for="origin">CryptoScan origin</label>
     <div class="row"><input id="origin" type="url" placeholder="https://your-app.vercel.app"><button id="connect">Connect</button></div>
+    <button id="connect-current-tab" class="secondary">Use current tab as CryptoScan origin</button>
     <p id="connection" class="muted">Configure the exact origin of your CryptoScan frontend.</p>
     <section aria-live="polite">
       <div class="state-row"><span id="state-dot"></span><strong id="state">No session</strong></div>
@@ -21,7 +22,7 @@
     </section>
     <button id="self-test" class="secondary" disabled>Self-test</button>
     <p id="test-result" class="muted"></p>
-    <p class="note">Observation starts only after Start is pressed in the target-site widget.</p>
+    <p class="note">Connect this extension to the CryptoScan dashboard tab. Enter the site to observe in the dashboard's Target website URL field.</p>
   </main>
   <script src="popup.js"></script>
 </body>

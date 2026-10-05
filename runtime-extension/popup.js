@@ -35,14 +35,33 @@ async function loadConfig() {
     : 'Configure the exact origin of your CryptoScan frontend.';
 }
 
-$('#connect').addEventListener('click', async () => {
+async function configureOrigin(origin) {
   const button = $('#connect');
   button.disabled = true;
-  const response = await send({ type: 'CS_CONFIGURE_ORIGIN', origin: $('#origin').value.trim() });
+  const currentTabButton = $('#connect-current-tab');
+  currentTabButton.disabled = true;
+  const response = await send({ type: 'CS_CONFIGURE_ORIGIN', origin });
   button.disabled = false;
+  currentTabButton.disabled = false;
   $('#connection').textContent = response.ok ? `Connected to ${response.origin}` : (response.error || 'Could not register CryptoScan origin.');
   if (response.ok) $('#origin').value = response.origin;
   await refresh();
+}
+
+$('#connect').addEventListener('click', () => configureOrigin($('#origin').value.trim()));
+
+$('#connect-current-tab').addEventListener('click', async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  let origin;
+  try {
+    const url = new URL(tab && tab.url);
+    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('unsupported page');
+    origin = url.origin;
+  } catch (_) {
+    $('#connection').textContent = 'Open the CryptoScan dashboard in this tab, then try again.';
+    return;
+  }
+  await configureOrigin(origin);
 });
 
 $('#self-test').addEventListener('click', async () => {

@@ -1,6 +1,6 @@
 # CryptoScan Runtime Observer (MV3)
 
-Load `runtime-extension/` as an unpacked extension from `chrome://extensions` with Developer mode enabled. Open the extension popup and enter the exact CryptoScan frontend origin (for example, your deployed `https://<your-vercel-domain>` origin), then select **Connect**. This dynamically registers the CryptoScan page bridge for that exact origin; no Vercel wildcard is assumed.
+Load `runtime-extension/` as an unpacked extension from `chrome://extensions` with Developer mode enabled. Open the CryptoScan dashboard, open the extension popup, and select **Use current tab as CryptoScan origin**. Alternatively, enter the exact dashboard origin manually and select **Connect**. Do not enter the target website here; enter that separately in CryptoScan's **Target website URL** field. This dynamically registers the CryptoScan page bridge for the dashboard origin.
 
 The extension uses `<all_urls>` host permission because the observer must run on arbitrary user-selected target sites and the backend origin is supplied by each prepared session. All backend event/status/stop requests are made by the service worker. The target page receives only the isolated content widget and a main-world hook that emits metadata while the session is recording.
 
