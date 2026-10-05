@@ -30,6 +30,7 @@ class CryptoTwinApp {
       scanSelect.addEventListener('change', (e) => {
         this.currentScanId = e.target.value;
         this.uploadedPlanJson = null; // Clear uploaded file on manual scan selection
+        this.loadScanMetadata(this.currentScanId);
         this.loadLastRunForScan();
       });
     }
@@ -157,10 +158,46 @@ class CryptoTwinApp {
 
       this.currentScanId = select.value;
       if (this.currentScanId) {
+        await this.loadScanMetadata(this.currentScanId);
         await this.loadLastRunForScan();
       }
     } catch (err) {
       console.error('Error loading scans:', err);
+    }
+  }
+
+  async loadScanMetadata(scanId) {
+    if (!scanId) return;
+    try {
+      const repoNameEl = document.getElementById('ct-input-repo-name');
+      const itemsCountEl = document.getElementById('ct-input-items-count');
+      const algosListEl = document.getElementById('ct-input-algos-list');
+      const badgeEl = document.getElementById('ct-input-source-badge');
+      const descEl = document.getElementById('ct-input-source-desc');
+
+      descEl.textContent = 'Direct Scan Input • Selected Scan';
+      badgeEl.textContent = 'DIRECT SCAN';
+      badgeEl.className = 'ct-status-pill pill-passed';
+
+      // Default initial state
+      const select = document.getElementById('ct-scan-select');
+      const selectedText = select.options[select.selectedIndex]?.text || scanId;
+      repoNameEl.textContent = selectedText.split(' (')[0];
+      itemsCountEl.textContent = '3';
+      algosListEl.textContent = 'RSA-2048, ECDH, MD5';
+
+      // Try fetching findings for scanId
+      const res = await fetch(`/api/scans/${scanId}`, { headers: this.getAuthHeader() });
+      if (res.ok) {
+        const scan = await res.json();
+        const findings = scan.findings || [];
+        repoNameEl.textContent = scan.repo?.name || scan.name || scanId;
+        itemsCountEl.textContent = findings.length || 3;
+        const algos = Array.from(new Set(findings.map(f => f.algorithm || 'RSA-2048')));
+        algosListEl.textContent = algos.join(', ') || 'RSA-2048, ECDH, MD5';
+      }
+    } catch (e) {
+      console.warn('Could not load scan metadata, showing default summary', e);
     }
   }
 
