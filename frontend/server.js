@@ -31,7 +31,7 @@ const server = http.createServer((req, res) => {
   let reqPath = req.url.split('?')[0].split('#')[0];
 
   // Proxy backend API routes to backend-core (port 3000)
-  if (reqPath.startsWith('/auth') || reqPath.startsWith('/api') || reqPath.startsWith('/repos') || reqPath === '/scan' || reqPath.startsWith('/scan/') || reqPath === '/health' || reqPath === '/version') {
+  if (reqPath.startsWith('/auth') || reqPath.startsWith('/api') || reqPath.startsWith('/repos') || reqPath.startsWith('/scan') || reqPath === '/health' || reqPath === '/version') {
     const proxyReq = http.request({
       hostname: 'localhost',
       port: 3000,

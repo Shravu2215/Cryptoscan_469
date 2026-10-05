@@ -315,63 +315,10 @@
     /* Grid specific to states */
     .selection-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: 1fr 1fr;
       gap: 16px;
       margin-bottom: 16px;
     }
-
-    .runtime-session-panel {
-      display: none;
-      border-top: 1px solid var(--border-color);
-      padding-top: 16px;
-    }
-
-    .runtime-session-meta {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-bottom: 14px;
-    }
-
-    .runtime-recording {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--text-h);
-      font-weight: 600;
-    }
-
-    .runtime-spinner {
-      width: 14px;
-      height: 14px;
-      border: 2px solid var(--border-color);
-      border-top-color: var(--red);
-      border-radius: 50%;
-      animation: runtime-spin .8s linear infinite;
-    }
-
-    @keyframes runtime-spin { to { transform: rotate(360deg); } }
-
-    .runtime-snippets {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .runtime-snippet pre {
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      background: var(--bg-main);
-      border: 1px solid var(--border-color);
-      border-radius: var(--r-sm);
-      padding: 10px;
-      color: var(--text-b);
-      font: 11px/1.5 'JetBrains Mono', monospace;
-      margin-top: 8px;
-    }
-
-    .runtime-error { color: var(--red); margin: 10px 0; }
 
     .select-box {
       border: 1px dashed var(--border-color);
@@ -443,7 +390,6 @@
       .selection-grid {
         grid-template-columns: 1fr;
       }
-      .runtime-snippets { grid-template-columns: 1fr; }
     }
 
     .empty-state {
@@ -905,37 +851,6 @@
                     onclick="document.getElementById('repo-upload').click(); event.stopPropagation();">Browse
                     files</button>
                   <input type="file" id="repo-upload" accept=".zip" style="display:none;">
-                </div>
-                <div class="select-box" id="runtime-box">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12h4l3-8 4 16 3-8h4" />
-                  </svg>
-                  <div>
-                    <div class="select-title">Runtime Analysis</div>
-                    <div class="select-desc">Observe crypto while your website runs</div>
-                  </div>
-                  <button type="button" class="btn-p" id="runtime-start-btn" onclick="startRuntimeSession()">Start Runtime Session</button>
-                </div>
-              </div>
-              <div class="runtime-session-panel" id="runtime-session-panel">
-                <div class="runtime-session-meta">
-                  <span class="runtime-recording"><span class="runtime-spinner" id="runtime-spinner"></span><span id="runtime-status">Recording…</span></span>
-                  <span id="runtime-event-count">0 crypto events</span>
-                  <span>Session <code id="runtime-session-id"></code></span>
-                  <button type="button" class="btn-p" id="runtime-stop-btn" style="background:#dc2626" onclick="stopRuntimeSession()">Stop &amp; Analyze</button>
-                </div>
-                <div class="runtime-error" id="runtime-error" role="alert" style="display:none"></div>
-                <div class="runtime-snippets">
-                  <div class="runtime-snippet">
-                    <strong>Browser</strong>
-                    <button type="button" class="btn-sec" onclick="copyRuntimeSnippet('runtime-browser-snippet', this)">Copy</button>
-                    <pre id="runtime-browser-snippet"></pre>
-                  </div>
-                  <div class="runtime-snippet">
-                    <strong>Python / FastAPI</strong>
-                    <button type="button" class="btn-sec" onclick="copyRuntimeSnippet('runtime-python-snippet', this)">Copy</button>
-                    <pre id="runtime-python-snippet"></pre>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1738,115 +1653,6 @@
 
       function getToken() {
         return localStorage.getItem('cs_token') || localStorage.getItem('cs_auth_token') || '';
-      }
-
-      let runtimeSession = null;
-      let runtimePollTimer = null;
-
-      function runtimeApiBase() {
-        const localHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        return (window.Auth && window.Auth.API_BASE) || (localHost ? 'http://localhost:3000' : 'https://cryptoscan-demo-api.onrender.com');
-      }
-
-      function runtimeAuthHeaders() {
-        const token = (window.Auth && window.Auth.getToken && window.Auth.getToken())
-          || sessionStorage.getItem('cs_access_token') || getToken();
-        return token ? { Authorization: `Bearer ${token}` } : null;
-      }
-
-      async function startRuntimeSession() {
-        const headers = runtimeAuthHeaders();
-        const error = document.getElementById('runtime-error');
-        error.style.display = 'none';
-        if (!headers) {
-          error.textContent = 'Sign in before starting a runtime session.';
-          error.style.display = 'block';
-          return;
-        }
-        const button = document.getElementById('runtime-start-btn');
-        button.disabled = true;
-        button.textContent = 'Starting…';
-        try {
-          const response = await fetch(`${runtimeApiBase()}/api/runtime/sessions`, {
-            method: 'POST',
-            headers: { ...headers, 'Content-Type': 'application/json' },
-            body: JSON.stringify({}),
-          });
-          const session = await response.json();
-          if (!response.ok) throw new Error(session.error || 'Could not start runtime session.');
-          runtimeSession = session;
-          const browserSnippet = `<script src="${runtimeApiBase()}/agent/cryptoscan-agent.js" data-session="${session.id}" data-ingest="${session.ingestUrl}" data-token="${session.ingestToken}"><\/script>`;
-          const pythonSnippet = `import cryptoscan_agent\ncryptoscan_agent.start("${session.id}", "${session.ingestUrl}", "${session.ingestToken}")`;
-          document.getElementById('runtime-browser-snippet').textContent = browserSnippet;
-          document.getElementById('runtime-python-snippet').textContent = pythonSnippet;
-          document.getElementById('runtime-session-id').textContent = session.id;
-          document.getElementById('runtime-event-count').textContent = '0 crypto events';
-          document.getElementById('runtime-session-panel').style.display = 'block';
-          button.style.display = 'none';
-          runtimePollTimer = setInterval(pollRuntimeSession, 1000);
-        } catch (err) {
-          error.textContent = err.message || 'Could not start runtime session.';
-          error.style.display = 'block';
-          button.disabled = false;
-          button.textContent = 'Start Runtime Session';
-        }
-      }
-
-      async function pollRuntimeSession() {
-        if (!runtimeSession) return;
-        try {
-          const response = await fetch(`${runtimeApiBase()}/api/runtime/sessions/${encodeURIComponent(runtimeSession.id)}`, {
-            headers: runtimeAuthHeaders() || {},
-          });
-          if (!response.ok) return;
-          const status = await response.json();
-          const count = Number(status.eventCount) || 0;
-          document.getElementById('runtime-event-count').textContent = `${count} crypto ${count === 1 ? 'event' : 'events'}`;
-        } catch (_) {}
-      }
-
-      async function stopRuntimeSession() {
-        if (!runtimeSession) return;
-        const stopButton = document.getElementById('runtime-stop-btn');
-        stopButton.disabled = true;
-        stopButton.textContent = 'Analyzing…';
-        document.getElementById('runtime-status').textContent = 'Analyzing…';
-        document.getElementById('runtime-spinner').style.display = 'inline-block';
-        clearInterval(runtimePollTimer);
-        try {
-          const response = await fetch(`${runtimeApiBase()}/api/runtime/sessions/${encodeURIComponent(runtimeSession.id)}/stop`, {
-            method: 'POST',
-            headers: runtimeAuthHeaders() || {},
-          });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || 'Could not analyze runtime session.');
-          window.location.href = `findings.html?runtime=1&scanId=${encodeURIComponent(result.scanId)}&eventCount=${encodeURIComponent(result.eventCount)}`;
-        } catch (err) {
-          const error = document.getElementById('runtime-error');
-          error.textContent = err.message || 'Could not analyze runtime session.';
-          error.style.display = 'block';
-          document.getElementById('runtime-status').textContent = 'Recording';
-          stopButton.disabled = false;
-          stopButton.textContent = 'Stop & Analyze';
-          runtimePollTimer = setInterval(pollRuntimeSession, 1000);
-        }
-      }
-
-      async function copyRuntimeSnippet(elementId, button) {
-        const text = document.getElementById(elementId).textContent;
-        try {
-          await navigator.clipboard.writeText(text);
-        } catch (_) {
-          const input = document.createElement('textarea');
-          input.value = text;
-          document.body.appendChild(input);
-          input.select();
-          document.execCommand('copy');
-          input.remove();
-        }
-        const original = button.textContent;
-        button.textContent = 'Copied';
-        setTimeout(() => { button.textContent = original; }, 1200);
       }
 
       async function startRealScan() {

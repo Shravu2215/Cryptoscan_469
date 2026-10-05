@@ -70,37 +70,7 @@ model Scan {
   anchor      Anchor?
   cbomVersion CbomVersion?
   runtimeRuns RuntimeRun[]
-  runtimeSession RuntimeSession?
   fileManifest FileManifestEntry[]
-}
-
-model RuntimeSession {
-  id              String   @id @default(uuid())
-  userId          String
-  scanId          String   @unique
-  scan            Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
-  ingestTokenHash String
-  status          String   @default("recording")
-  startedAt       DateTime @default(now())
-  stoppedAt       DateTime?
-  eventCount      Int      @default(0)
-  events          RuntimeObservedEvent[]
-}
-
-model RuntimeObservedEvent {
-  id        String   @id @default(uuid())
-  sessionId String
-  session   RuntimeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  algorithm String
-  operation String
-  keyInfo   String
-  callSite  String
-  language  String   @default("JavaScript")
-  count     Int      @default(1)
-  timestamp DateTime @default(now())
-
-  @@unique([sessionId, algorithm, operation, keyInfo, callSite])
-  @@index([sessionId, algorithm])
 }
 
 model RuntimeRun {
@@ -162,14 +132,6 @@ model Finding {
   detection         String?  @default("AST")    // display-ready detection method (AST, REGEX, ...)
   detection_method  String?  @default("ast")    // raw detection method key
   language          String?  @default("Unknown") // language display name from language registry
-  source            String   @default("static")
-  operation         String?
-  callSite          String?
-  mode              String?
-  curve             String?
-  hash              String?
-  observedAt        DateTime?
-  count             Int      @default(1)
   createdAt         DateTime @default(now())
 }
 
