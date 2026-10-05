@@ -2,28 +2,45 @@
 
 /**
  * CryptoTwin REST API Routes
- * Endpoints for creating runs, fetching status, streaming progress events,
- * resetting twin sandboxes, and exporting reports.
+ * Endpoints for starting fire drills (direct scan or uploaded plan),
+ * querying run progress, fetching events stream, resetting sandboxes,
+ * uploading Migration Plan JSON files, and handling Final Approval workflows.
  */
 
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
-const { startTwinRun, getTwinRun, getTwinRunsForScan, resetTwinRun } = require('../services/cryptotwinEngine');
+const { startTwinRun, getTwinRun, getTwinRunsForScan, resetTwinRun, handleRunApproval } = require('../services/cryptotwinEngine');
+const { validateAndParseUploadInput } = require('../services/cryptotwinContract');
 
 // POST /api/cryptotwin/runs — Create and start a fire drill
 router.post('/runs', requireAuth, async (req, res) => {
   try {
-    const { scanId, maxFixIterations } = req.body || {};
-    if (!scanId) {
-      return res.status(400).json({ error: 'scanId is required' });
+    const { scanId, uploadedPlanJson, maxFixIterations } = req.body || {};
+    if (!scanId && !uploadedPlanJson) {
+      return res.status(400).json({ error: 'Either scanId or uploadedPlanJson must be provided.' });
     }
 
-    const run = await startTwinRun(scanId, maxFixIterations || 3);
+    const run = await startTwinRun(scanId, uploadedPlanJson, maxFixIterations || 3);
     res.status(201).json(run);
   } catch (err) {
     console.error('Error in POST /api/cryptotwin/runs:', err);
-    res.status(500).json({ error: err.message || 'Failed to start CryptoTwin run' });
+    res.status(400).json({ error: err.message || 'Failed to start CryptoTwin run' });
+  }
+});
+
+// POST /api/cryptotwin/upload-plan — Validate uploaded Migration Plan JSON file
+router.post('/upload-plan', requireAuth, async (req, res) => {
+  try {
+    const { jsonContent } = req.body || {};
+    if (!jsonContent) {
+      return res.status(400).json({ error: 'No JSON content received in upload request.' });
+    }
+
+    const parsedInput = validateAndParseUploadInput(jsonContent);
+    res.json({ success: true, input: parsedInput });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Invalid Migration Plan JSON file.' });
   }
 });
 
@@ -79,6 +96,22 @@ router.get('/runs/:runId/events', requireAuth, (req, res) => {
   req.on('close', () => clearInterval(interval));
 });
 
+// POST /api/cryptotwin/runs/:runId/approve — Approve, Reject, or Revise a run
+router.post('/runs/:runId/approve', requireAuth, async (req, res) => {
+  try {
+    const { runId } = req.params;
+    const { action, overrideReason, reviewer } = req.body || {};
+    if (!action) {
+      return res.status(400).json({ error: 'Approval action (APPROVE, REJECT, REVISE) is required.' });
+    }
+
+    const updatedRun = handleRunApproval(runId, action, overrideReason, reviewer || 'Security Analyst');
+    res.json(updatedRun);
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Failed to process approval action' });
+  }
+});
+
 // POST /api/cryptotwin/runs/:runId/reset — Reset Twin Sandbox
 router.post('/runs/:runId/reset', requireAuth, async (req, res) => {
   try {
@@ -90,7 +123,7 @@ router.post('/runs/:runId/reset', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/cryptotwin/runs/:runId/report — Export Report as JSON or PDF
+// GET /api/cryptotwin/runs/:runId/report — Export Report as JSON
 router.get('/runs/:runId/report', requireAuth, async (req, res) => {
   try {
     const { runId } = req.params;
@@ -101,15 +134,9 @@ router.get('/runs/:runId/report', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Run not found' });
     }
 
-    if (format === 'json') {
-      res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', `attachment; filename=CryptoTwin_Report_${runId}.json`);
-      return res.send(JSON.stringify(run, null, 2));
-    }
-
-    // Default JSON formatted report if PDF library not installed
     res.setHeader('Content-Type', 'application/json');
-    res.json(run);
+    res.setHeader('Content-Disposition', `attachment; filename=CryptoTwin_Report_${runId}.json`);
+    return res.send(JSON.stringify(run, null, 2));
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to export CryptoTwin report' });
   }

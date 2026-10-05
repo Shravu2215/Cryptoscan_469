@@ -1,13 +1,15 @@
 /**
  * CryptoTwin Frontend JavaScript Module
- * Handles target scan selection, fire drill execution polling,
- * interactive breach simulation node rendering, drawer detail view,
- * test matrix filtering, AI diagnosis timeline diff view, and report exports.
+ * Handles target scan selection, JSON Migration Plan file uploads,
+ * input summary display, fire drill execution polling, dynamic node rendering,
+ * side drawer detail popups, test matrix filtering, AI diagnosis timeline,
+ * and the Final Approval Workflow (Approve / Reject / Revise).
  */
 
 class CryptoTwinApp {
   constructor() {
     this.currentScanId = null;
+    this.uploadedPlanJson = null;
     this.currentRunId = null;
     this.activeRunData = null;
     this.pollInterval = null;
@@ -27,8 +29,14 @@ class CryptoTwinApp {
     if (scanSelect) {
       scanSelect.addEventListener('change', (e) => {
         this.currentScanId = e.target.value;
+        this.uploadedPlanJson = null; // Clear uploaded file on manual scan selection
         this.loadLastRunForScan();
       });
+    }
+
+    const fileInput = document.getElementById('ct-file-input');
+    if (fileInput) {
+      fileInput.addEventListener('change', (e) => this.handleFileUpload(e));
     }
 
     const btnRun = document.getElementById('ct-btn-run');
@@ -71,17 +79,42 @@ class CryptoTwinApp {
       btnExport.addEventListener('click', () => this.exportReport());
     }
 
-    const btnAddMigration = document.getElementById('ct-btn-add-migration');
-    if (btnAddMigration) {
-      btnAddMigration.addEventListener('click', () => {
-        window.location.href = `migration-plan.html?scanId=${this.currentScanId || ''}`;
-      });
+    // Final Approval Buttons
+    const btnApprove = document.getElementById('ct-btn-approve');
+    if (btnApprove) {
+      btnApprove.addEventListener('click', () => this.submitApproval('APPROVE'));
+    }
+
+    const btnReject = document.getElementById('ct-btn-reject');
+    if (btnReject) {
+      btnReject.addEventListener('click', () => this.submitApproval('REJECT'));
+    }
+
+    const btnRevise = document.getElementById('ct-btn-revise');
+    if (btnRevise) {
+      btnRevise.addEventListener('click', () => this.submitApproval('REVISE'));
     }
   }
 
   getAuthHeader() {
     const token = localStorage.getItem('cs_token');
     return token ? { 'Authorization': `Bearer ${token}` } : {};
+  }
+
+  showError(msg) {
+    const errorBar = document.getElementById('ct-error-bar');
+    const errorMsg = document.getElementById('ct-error-msg');
+    if (errorBar && errorMsg) {
+      errorMsg.textContent = msg;
+      errorBar.style.display = 'flex';
+    } else {
+      alert(msg);
+    }
+  }
+
+  hideError() {
+    const errorBar = document.getElementById('ct-error-bar');
+    if (errorBar) errorBar.style.display = 'none';
   }
 
   async loadScans() {
@@ -96,17 +129,15 @@ class CryptoTwinApp {
           scans = await res.json();
         }
       } catch (e) {
-        console.warn('Failed to fetch scans from DB API, attempting fallback', e);
+        console.warn('Failed to fetch scans from API, using fallback', e);
       }
 
       if (!scans || scans.length === 0) {
-        // Fallback demo/sample scan
         scans = [
           { id: 'pqc-test-fixture-multilang', name: 'pqc-test-fixture-multilang.zip', status: 'COMPLETED', createdAt: new Date().toISOString() }
         ];
       }
 
-      // Check URL query param scanId
       const urlParams = new URLSearchParams(window.location.search);
       const paramScanId = urlParams.get('scanId');
 
@@ -133,6 +164,50 @@ class CryptoTwinApp {
     }
   }
 
+  async handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    this.hideError();
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const jsonContent = e.target.result;
+      try {
+        const res = await fetch('/api/cryptotwin/upload-plan', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...this.getAuthHeader()
+          },
+          body: JSON.stringify({ jsonContent })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Failed to parse uploaded Migration Plan file.');
+        }
+
+        this.uploadedPlanJson = jsonContent;
+        const input = data.input;
+
+        // Update Input Summary Card
+        document.getElementById('ct-input-source-desc').textContent = `Uploaded File • ${file.name}`;
+        const badge = document.getElementById('ct-input-source-badge');
+        badge.textContent = 'UPLOADED FILE';
+        badge.className = 'ct-status-pill pill-passed';
+
+        document.getElementById('ct-input-repo-name').textContent = input.repoName;
+        document.getElementById('ct-input-items-count').textContent = input.itemCount;
+        document.getElementById('ct-input-algos-list').textContent = input.algorithmsFound.join(', ') || 'None';
+
+        alert(`Successfully uploaded and validated Migration Plan file: ${file.name} (${input.itemCount} items found).`);
+      } catch (err) {
+        this.showError(`Migration Plan File Error: ${err.message}`);
+      }
+    };
+    reader.readAsText(file);
+  }
+
   async loadLastRunForScan() {
     if (!this.currentScanId) return;
     try {
@@ -150,7 +225,6 @@ class CryptoTwinApp {
         this.resetUIState();
       }
     } catch (e) {
-      console.warn('Could not load past run for scan, resetting UI state', e);
       this.resetUIState();
     }
   }
@@ -179,6 +253,12 @@ class CryptoTwinApp {
     document.getElementById('ct-report-blockers').textContent = '0';
     document.getElementById('ct-report-closed-paths').textContent = '0 / 0';
     document.getElementById('ct-report-confidence').textContent = '-- %';
+
+    const approvalPill = document.getElementById('ct-approval-pill');
+    if (approvalPill) {
+      approvalPill.className = 'ct-status-pill pill-skipped';
+      approvalPill.textContent = 'PENDING REVIEW';
+    }
   }
 
   resetStepper() {
@@ -189,11 +269,12 @@ class CryptoTwinApp {
   }
 
   async startFireDrill() {
-    if (!this.currentScanId) {
-      alert('Please select a target scan repository first.');
+    if (!this.currentScanId && !this.uploadedPlanJson) {
+      alert('Please select a target scan repository or upload a Migration Plan JSON file.');
       return;
     }
 
+    this.hideError();
     const btnRun = document.getElementById('ct-btn-run');
     btnRun.disabled = true;
     btnRun.innerHTML = `
@@ -210,25 +291,28 @@ class CryptoTwinApp {
           'Content-Type': 'application/json',
           ...this.getAuthHeader()
         },
-        body: JSON.stringify({ scanId: this.currentScanId, maxFixIterations: 3 })
+        body: JSON.stringify({
+          scanId: this.currentScanId,
+          uploadedPlanJson: this.uploadedPlanJson,
+          maxFixIterations: 3
+        })
       });
 
+      const data = await res.json();
       if (!res.ok) {
-        throw new Error('Failed to create CryptoTwin run');
+        throw new Error(data.error || 'Failed to create CryptoTwin run');
       }
 
-      const run = await res.json();
-      this.currentRunId = run.id;
-      this.activeRunData = run;
-      this.updateUIFromRunData(run);
+      this.currentRunId = data.id;
+      this.activeRunData = data;
+      this.updateUIFromRunData(data);
 
-      // Start Polling
       if (this.pollInterval) clearInterval(this.pollInterval);
-      this.pollInterval = setInterval(() => this.pollRunProgress(), 1500);
+      this.pollInterval = setInterval(() => this.pollRunProgress(), 1200);
 
     } catch (e) {
       console.error('Error starting CryptoTwin drill:', e);
-      alert('Failed to start CryptoTwin Fire Drill: ' + e.message);
+      this.showError('Failed to start CryptoTwin Fire Drill: ' + e.message);
       btnRun.disabled = false;
       btnRun.innerHTML = 'Run CryptoTwin Fire Drill';
     }
@@ -259,7 +343,7 @@ class CryptoTwinApp {
         `;
       }
     } catch (e) {
-      console.warn('Error polling CryptoTwin run state:', e);
+      console.warn('Error polling run state:', e);
     }
   }
 
@@ -279,10 +363,71 @@ class CryptoTwinApp {
     }
   }
 
+  async submitApproval(action) {
+    if (!this.currentRunId || !this.activeRunData) {
+      alert('No active CryptoTwin run to approve or review.');
+      return;
+    }
+
+    let overrideReason = null;
+    const verdict = this.activeRunData.verdict;
+
+    if (action === 'APPROVE' && verdict !== 'PRODUCTION READY') {
+      overrideReason = prompt(`Warning: The current verdict is "${verdict}". To approve with override, please enter an explicit reason:`);
+      if (!overrideReason || overrideReason.trim().length < 5) {
+        alert('Approval cancelled. An explicit reason of at least 5 characters is required for overriding non-ready verdicts.');
+        return;
+      }
+    } else if (action === 'REJECT') {
+      overrideReason = prompt('Please enter a reason for rejecting this migration run:');
+    } else if (action === 'REVISE') {
+      window.location.href = `migration-plan.html?scanId=${this.currentScanId || ''}`;
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/cryptotwin/runs/${this.currentRunId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...this.getAuthHeader()
+        },
+        body: JSON.stringify({ action, overrideReason })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Approval request failed.');
+      }
+
+      this.activeRunData = data;
+      this.updateUIFromRunData(data);
+      alert(`Approval Action "${action}" recorded successfully.`);
+    } catch (err) {
+      alert(`Approval Error: ${err.message}`);
+    }
+  }
+
   updateUIFromRunData(run) {
     if (!run) return;
 
-    // Update Top KPIs
+    // Input Summary
+    if (run.inputSummary) {
+      document.getElementById('ct-input-repo-name').textContent = run.inputSummary.repoName || run.repoName || '--';
+      document.getElementById('ct-input-items-count').textContent = run.inputSummary.itemCount || run.weaknessCount || 0;
+      document.getElementById('ct-input-algos-list').textContent = (run.inputSummary.algorithmsFound || []).join(', ') || 'None';
+      
+      const badge = document.getElementById('ct-input-source-badge');
+      if (run.inputSummary.source === 'UPLOADED_FILE') {
+        badge.textContent = 'UPLOADED FILE';
+        badge.className = 'ct-status-pill pill-passed';
+      } else {
+        badge.textContent = 'DIRECT SCAN';
+        badge.className = 'ct-status-pill pill-passed';
+      }
+    }
+
+    // Top KPIs
     document.getElementById('kpi-weaknesses-count').textContent = run.weaknessCount || (run.attackPaths ? run.attackPaths.length : 0);
     document.getElementById('kpi-attack-paths-count').textContent = run.attackPaths ? run.attackPaths.length : 0;
     document.getElementById('kpi-tests-run-count').textContent = run.testsRun || (run.tests ? run.tests.length : 0);
@@ -300,6 +445,10 @@ class CryptoTwinApp {
       verdictEl.className = 'ct-verdict-badge verdict-ready';
     } else if (verdict === 'PRODUCTION NOT READY') {
       verdictEl.className = 'ct-verdict-badge verdict-not-ready';
+    } else if (verdict === 'INCONCLUSIVE') {
+      verdictEl.className = 'ct-verdict-badge verdict-not-run';
+      verdictEl.style.background = 'var(--ct-amber-bg)';
+      verdictEl.style.color = 'var(--ct-amber)';
     } else if (run.status === 'RUNNING') {
       verdictEl.className = 'ct-verdict-badge verdict-running';
       verdictEl.textContent = 'DRILL IN PROGRESS...';
@@ -307,10 +456,24 @@ class CryptoTwinApp {
       verdictEl.className = 'ct-verdict-badge verdict-not-run';
     }
 
-    // Pipeline Stepper Stages
+    // Approval Pill
+    const approvalPill = document.getElementById('ct-approval-pill');
+    if (approvalPill && run.approval) {
+      const appStatus = run.approval.status || 'PENDING';
+      approvalPill.textContent = appStatus.replace(/_/g, ' ');
+      if (appStatus.includes('APPROVED')) {
+        approvalPill.className = 'ct-status-pill pill-passed';
+      } else if (appStatus === 'REJECTED') {
+        approvalPill.className = 'ct-status-pill pill-failed';
+      } else {
+        approvalPill.className = 'ct-status-pill pill-skipped';
+      }
+    }
+
+    // Pipeline Stepper
     this.updateStepperStages(run.stages || []);
 
-    // Breach Simulation Node Chain
+    // Breach Simulation
     this.renderBreachSimulation(run.attackPaths || []);
 
     // Test Suite Table
@@ -325,7 +488,7 @@ class CryptoTwinApp {
     const totalPathsCount = run.attackPaths ? run.attackPaths.length : 0;
     document.getElementById('ct-report-closed-paths').textContent = `${closedPathsCount} / ${totalPathsCount}`;
     document.getElementById('ct-report-confidence').textContent = confidencePct;
-    document.getElementById('ct-report-sub').textContent = `Run ID: ${run.id || 'N/A'} • Status: ${run.status || 'READY'}`;
+    document.getElementById('ct-report-sub').textContent = `Run ID: ${run.id || 'N/A'} • Verdict: ${run.verdict || 'NOT RUN'}`;
   }
 
   updateStepperStages(stages) {
@@ -369,7 +532,6 @@ class CryptoTwinApp {
       afterHtml += `<div style="font-size:12px; font-weight:700; color:var(--text-h); margin-bottom:8px;">Path #${pathIdx + 1}: ${path.title} (Migrated)</div>`;
 
       path.nodes.forEach((node, nodeIdx) => {
-        // Before Node
         beforeHtml += `
           <div class="ct-chain-node vulnerable" onclick="cryptoTwinApp.openDrawer('${path.id}', ${nodeIdx}, 'BEFORE')">
             <div>
@@ -384,7 +546,6 @@ class CryptoTwinApp {
           beforeHtml += `<div class="ct-chain-connector">↓</div>`;
         }
 
-        // After Node
         const isBlocked = node.isBrokenLink || node.status === 'BLOCKED';
         const isDownstream = nodeIdx > 0 && path.nodes[0].isBrokenLink;
         const nodeClass = isBlocked ? 'blocked' : (isDownstream ? 'protected' : 'vulnerable');
@@ -443,14 +604,14 @@ class CryptoTwinApp {
       <div style="background:var(--bg-card); padding:16px; border-radius:var(--r-md); border:1px solid var(--border-color);">
         <div style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Why It Matters</div>
         <div style="font-size:13px; color:var(--text-h); margin-top:6px; line-height:1.5;">
-          ${node.whyItMatters || 'Classical algorithms like RSA/ECC can be broken by quantum computers (Shor\'s Algorithm), exposing private keys and enabling session hijack/decryption.'}
+          ${node.whyItMatters || 'Vulnerable cryptographic algorithm detected.'}
         </div>
       </div>
 
       <div style="background:var(--ct-green-bg); padding:16px; border-radius:var(--r-md); border:1px solid rgba(16, 185, 129, 0.4);">
         <div style="font-size:11px; font-weight:700; color:var(--ct-green); text-transform:uppercase;">Proposed PQC / Hybrid Replacement</div>
         <div style="font-family:'JetBrains Mono', monospace; font-size:14px; font-weight:700; color:var(--ct-green); margin-top:6px;">
-          ${node.pqcReplacement || 'ML-KEM-768 / Hybrid ECDH+Kyber'}
+          ${node.pqcReplacement || 'ML-KEM-768 / ML-DSA-65'}
         </div>
       </div>
     `;
@@ -473,12 +634,10 @@ class CryptoTwinApp {
 
     let tests = this.activeRunData.tests;
 
-    // Filter Category
     if (this.activeTestTab !== 'ALL') {
       tests = tests.filter(t => t.category.toUpperCase() === this.activeTestTab);
     }
 
-    // Filter Status
     if (this.activeTestFilter !== 'ALL') {
       tests = tests.filter(t => t.status === this.activeTestFilter);
     }
@@ -492,7 +651,8 @@ class CryptoTwinApp {
     tests.forEach(test => {
       const statusPill = test.status === 'PASSED' ? '<span class="ct-status-pill pill-passed">PASSED</span>' :
                          (test.status === 'FAILED' ? '<span class="ct-status-pill pill-failed">FAILED</span>' :
-                         '<span class="ct-status-pill pill-skipped">SKIPPED</span>');
+                         (test.status === 'NOT EXECUTED' ? '<span class="ct-status-pill pill-skipped" style="background:var(--ct-amber-bg); color:var(--ct-amber);">NOT EXECUTED</span>' :
+                         '<span class="ct-status-pill pill-skipped">SKIPPED</span>'));
 
       html += `
         <tr>
@@ -500,7 +660,7 @@ class CryptoTwinApp {
           <td><span style="font-size:11px; padding:2px 8px; border-radius:4px; background:var(--bg-main); font-weight:600;">${test.category}</span></td>
           <td>${test.phase || 'POST-MIGRATION'}</td>
           <td>${statusPill}</td>
-          <td style="font-family:'JetBrains Mono', monospace; font-size:12px;">${test.durationMs ? `${test.durationMs}ms` : '12ms'}</td>
+          <td style="font-family:'JetBrains Mono', monospace; font-size:12px;">${test.durationMs ? `${test.durationMs}ms` : '--'}</td>
           <td style="color:var(--text-m); font-size:12px;">${test.reason || 'Executing normally'}</td>
         </tr>
       `;
@@ -529,7 +689,7 @@ class CryptoTwinApp {
           </div>
 
           <div style="font-size:13px; color:var(--text-m);">
-            <strong>AI Identified Root Cause:</strong> ${item.rootCause || 'Algorithm parameter mismatch during hybrid key exchange payload packing.'}
+            <strong>AI Identified Root Cause:</strong> ${item.rootCause || 'Diagnostic log analyzed.'}
           </div>
 
           ${item.codeDiff ? `

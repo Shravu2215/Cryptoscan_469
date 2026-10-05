@@ -34,7 +34,7 @@
     <!-- Main Container -->
     <main class="ct-container">
 
-      <!-- 4.1 Header -->
+      <!-- Header & Source Controls -->
       <div class="ct-header">
         <div class="ct-header-title-wrap">
           <div class="ct-header-title">
@@ -56,6 +56,13 @@
           <select id="ct-scan-select" class="ct-scan-select">
             <option value="" disabled selected>Loading scans...</option>
           </select>
+          <label class="ct-btn-secondary" style="cursor:pointer;" title="Upload exported Migration Plan JSON file">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0l-4 4m4-4v12"/>
+            </svg>
+            Upload Plan JSON
+            <input type="file" id="ct-file-input" accept=".json" style="display:none;">
+          </label>
           <button id="ct-btn-run" class="ct-btn-primary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
               <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
@@ -72,7 +79,39 @@
         </div>
       </div>
 
-      <!-- 4.2 Top KPI Cards -->
+      <!-- Error Alert Bar (hidden by default) -->
+      <div id="ct-error-bar" style="display:none; background:var(--ct-red-bg); border:1px solid rgba(239, 68, 68, 0.4); color:var(--ct-red); padding:12px 18px; border-radius:var(--r-md); font-size:13px; font-weight:600; align-items:center; justify-content:space-between;">
+        <span id="ct-error-msg">Error details</span>
+        <button onclick="document.getElementById('ct-error-bar').style.display='none'" style="background:none; border:none; color:var(--ct-red); cursor:pointer; font-weight:700;">✕</button>
+      </div>
+
+      <!-- STEP 2: Input Summary Card -->
+      <div class="ct-panel" style="background:linear-gradient(135deg, var(--bg-card) 0%, var(--bg-main) 100%);">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-size:14px; font-weight:800; color:var(--text-h); text-transform:uppercase; letter-spacing:0.04em;">Input Data Source Summary</div>
+            <div style="font-size:12px; color:var(--text-m); margin-top:2px;" id="ct-input-source-desc">Direct Scan Input • Selected Scan</div>
+          </div>
+          <span id="ct-input-source-badge" class="ct-status-pill pill-passed">DIRECT SCAN</span>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-top:16px;">
+          <div style="background:var(--bg-main); padding:12px 16px; border-radius:var(--r-md); border:1px solid var(--border-color);">
+            <div style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Repository</div>
+            <div style="font-size:14px; font-weight:700; color:var(--text-h); margin-top:2px;" id="ct-input-repo-name">--</div>
+          </div>
+          <div style="background:var(--bg-main); padding:12px 16px; border-radius:var(--r-md); border:1px solid var(--border-color);">
+            <div style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Items in Scope</div>
+            <div style="font-size:14px; font-weight:700; color:var(--text-h); margin-top:2px;" id="ct-input-items-count">0</div>
+          </div>
+          <div style="background:var(--bg-main); padding:12px 16px; border-radius:var(--r-md); border:1px solid var(--border-color); grid-column:span 2;">
+            <div style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Algorithms Found</div>
+            <div style="font-size:13px; font-weight:600; color:var(--ct-purple); margin-top:2px; font-family:'JetBrains Mono', monospace;" id="ct-input-algos-list">None</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top KPI Cards -->
       <div class="ct-kpi-grid">
         <div class="ct-kpi-card">
           <span class="ct-kpi-lbl">Weaknesses in Scope</span>
@@ -97,7 +136,7 @@
         <div class="ct-kpi-card">
           <span class="ct-kpi-lbl">
             Migration Confidence %
-            <span class="ct-tooltip-icon" title="Formula: 40% Closed Attack Paths + 30% Security Tests Passed + 20% Functional Tests Passed + 10% Compatibility - Penalties for unapplied patches">?</span>
+            <span class="ct-tooltip-icon" title="Formula: 40% Closed Attack Paths + 30% Security Tests Passed + 20% Functional Tests Passed + 10% Compatibility - Penalties for unapplied patches / unexecuted tests">?</span>
           </span>
           <div class="ct-kpi-val" id="kpi-confidence-pct">-- %</div>
         </div>
@@ -109,11 +148,10 @@
         </div>
       </div>
 
-      <!-- 4.3 Pipeline Stepper -->
+      <!-- Pipeline Stepper -->
       <div class="ct-stepper-card">
         <div class="ct-stepper" id="ct-pipeline-stepper">
           <div class="ct-step-line"></div>
-          <!-- 9 Stages dynamically rendered -->
           <div class="ct-step-item pending" data-stage="weakness-found">
             <div class="ct-step-node">1</div>
             <div class="ct-step-lbl">Weaknesses Found</div>
@@ -153,7 +191,7 @@
         </div>
       </div>
 
-      <!-- 4.4 Breach Simulation Panel -->
+      <!-- Breach Simulation Panel -->
       <div class="ct-panel">
         <div class="ct-panel-hd">
           <div>
@@ -168,7 +206,6 @@
         </div>
 
         <div class="ct-sim-columns">
-          <!-- BEFORE Migration Column -->
           <div class="ct-sim-column">
             <div class="ct-sim-col-title" style="color:var(--ct-red);">
               <span>BEFORE MIGRATION (Vulnerable Chain)</span>
@@ -179,7 +216,6 @@
             </div>
           </div>
 
-          <!-- AFTER Migration Column -->
           <div class="ct-sim-column">
             <div class="ct-sim-col-title" style="color:var(--ct-green);">
               <span>AFTER MIGRATION (Closed & Protected)</span>
@@ -192,7 +228,7 @@
         </div>
       </div>
 
-      <!-- 4.5 Test Results Panel -->
+      <!-- Test Results Panel -->
       <div class="ct-panel">
         <div class="ct-panel-hd">
           <div>
@@ -209,6 +245,7 @@
               <option value="ALL">All Statuses</option>
               <option value="PASSED">Passed</option>
               <option value="FAILED">Failed</option>
+              <option value="NOT EXECUTED">Not Executed</option>
             </select>
           </div>
         </div>
@@ -243,7 +280,7 @@
         </div>
       </div>
 
-      <!-- 4.6 AI Diagnosis & Auto-Fix Panel -->
+      <!-- AI Diagnosis & Auto-Fix Panel -->
       <div class="ct-panel">
         <div class="ct-panel-hd">
           <div>
@@ -264,30 +301,36 @@
         </div>
       </div>
 
-      <!-- 4.7 Final Report Card -->
+      <!-- STEP 8: Final Approval Card -->
       <div class="ct-report-card">
         <div class="ct-report-hd">
           <div>
-            <div style="font-size:18px; font-weight:800; color:var(--text-h);">CryptoTwin Fire Drill Summary</div>
-            <div style="font-size:13px; color:var(--text-m); margin-top:2px;" id="ct-report-sub">Run pending or completed</div>
+            <div style="font-size:18px; font-weight:800; color:var(--text-h);">CryptoTwin Final Review & Approval</div>
+            <div style="font-size:13px; color:var(--text-m); margin-top:2px;" id="ct-report-sub">Review drill results and approve for production deployment</div>
           </div>
           <div style="display:flex; gap:12px;">
-            <button id="ct-btn-export" class="ct-btn-secondary">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-              </svg>
-              Export Report (JSON)
+            <button id="ct-btn-approve" class="ct-btn-primary" style="background:var(--ct-green);">
+              Approve Migration
             </button>
-            <button id="ct-btn-add-migration" class="ct-btn-primary">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-              </svg>
-              Add to Migration Plan
+            <button id="ct-btn-reject" class="ct-btn-secondary" style="color:var(--ct-red); border-color:var(--ct-red);">
+              Reject
+            </button>
+            <button id="ct-btn-revise" class="ct-btn-secondary">
+              Revise in Migration Plan
+            </button>
+            <button id="ct-btn-export" class="ct-btn-secondary">
+              Export Report (JSON)
             </button>
           </div>
         </div>
 
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-top:12px;">
+          <div style="background:var(--bg-main); padding:16px; border-radius:var(--r-md); border:1px solid var(--border-color);">
+            <div style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Approval Status</div>
+            <div style="margin-top:4px;" id="ct-approval-status-wrap">
+              <span class="ct-status-pill pill-skipped" id="ct-approval-pill">PENDING REVIEW</span>
+            </div>
+          </div>
           <div style="background:var(--bg-main); padding:16px; border-radius:var(--r-md); border:1px solid var(--border-color);">
             <div style="font-size:11px; font-weight:700; color:var(--text-m); text-transform:uppercase;">Blockers Remaining</div>
             <div style="font-size:22px; font-weight:800; color:var(--text-h); margin-top:4px;" id="ct-report-blockers">0</div>
@@ -303,9 +346,9 @@
         </div>
       </div>
 
-      <!-- Judge Line Footer Note -->
+      <!-- Footer Note -->
       <footer style="margin-top:20px; text-align:center; font-size:12px; color:var(--text-s); padding:16px; border-top:1px solid var(--border-light);">
-        We don't claim to detect every security breach. We prevent cryptography-driven breaches: CryptoTwin makes a safe copy of the application, simulates the migration and the relevant attack paths, tests the security controls, and verifies the fix doesn't introduce new vulnerabilities before production.
+        CryptoTwin does not claim to detect every breach. It reduces cryptography-driven breach risk and verifies that a migration does not introduce new security gaps before production.
       </footer>
 
     </main>
@@ -321,7 +364,6 @@
       </button>
     </div>
     <div class="ct-drawer-body" id="drawer-body">
-      <!-- Dynamically filled -->
     </div>
   </div>
 
