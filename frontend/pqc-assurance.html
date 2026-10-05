@@ -19,6 +19,7 @@
   </script>
   <link rel="stylesheet" href="assets/css/global.css">
   <link rel="stylesheet" href="assets/css/visuals.css">
+  <link rel="stylesheet" href="assets/css/pqc-assurance-report.css">
   <style>
     .pqc-assurance-card {
       background: var(--bg-card);
@@ -215,6 +216,29 @@ TEST TARGET (do not hardcode anything for it): the "Agentic AI" app = React+Vite
 Report exactly what you verified by running, and what you could not</pre>
         </div>
 
+        <section class="assurance-report-section" aria-labelledby="assurance-report-title">
+          <div class="assurance-report-head">
+            <div>
+              <h2 id="assurance-report-title">Assurance Report</h2>
+              <p id="assurance-count">Assessed from observed scan findings</p>
+              <p class="assurance-selection-note" id="assurance-selection-note" aria-live="polite"></p>
+            </div>
+            <div class="assurance-report-actions">
+              <button class="btn-action" id="copy-report" type="button">Copy assurance report</button>
+              <button class="btn-action" id="export-report" type="button">Export as JSON</button>
+              <span id="report-feedback" role="status"></span>
+            </div>
+          </div>
+          <div id="assurance-summary" class="assurance-summary" aria-label="Assurance summary"></div>
+          <div class="assurance-filter-row" role="group" aria-label="Filter assurance findings">
+            <button class="assurance-filter active" type="button" data-assurance-filter="all">All</button>
+            <button class="assurance-filter" type="button" data-assurance-filter="classical">Classically broken</button>
+            <button class="assurance-filter" type="button" data-assurance-filter="quantum">Quantum-vulnerable</button>
+            <input class="assurance-search" id="assurance-search" type="search" placeholder="Search algorithm or replacement" aria-label="Search algorithms">
+          </div>
+          <div id="assurance-report-list" aria-live="polite"></div>
+        </section>
+
       </div>
     </main>
   </div>
@@ -223,8 +247,6 @@ Report exactly what you verified by running, and what you could not</pre>
   <script src="assets/js/shell.js"></script>
   <script>
     // Initialize App Shell (Sidebar & Topbar)
-    new AppShell();
-
     function copyDirectiveText() {
       const rawText = document.getElementById('directive-raw-text').innerText;
       navigator.clipboard.writeText(rawText).then(() => {
@@ -238,5 +260,10 @@ Report exactly what you verified by running, and what you could not</pre>
       });
     }
   </script>
+  <script src="assets/js/quantumRules.js"></script>
+  <script src="assets/js/engine.js"></script>
+  <script src="assets/js/migrationPlanData.js"></script>
+  <script src="assets/js/pqcAssuranceKnowledge.js"></script>
+  <script src="assets/js/pqcAssurance.js"></script>
 </body>
 </html>
