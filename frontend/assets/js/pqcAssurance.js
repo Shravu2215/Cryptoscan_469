@@ -194,12 +194,31 @@
     return `
       <article id="assurance-${index}" class="pqc-assurance-card assurance-report-card assurance-focused-card selected">
         <header class="assurance-card-header">
-          <div><div class="assurance-kicker">Selected CryptoTwin finding</div><h3>${escapeHtml(candidate.algorithm)} → ${escapeHtml(target)}</h3><p>${escapeHtml(location)} · ${escapeHtml(purposeLabel(purpose))}</p></div>
+          <div class="assurance-focused-title">
+            <div class="assurance-focused-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 19 6v5c0 4.8-3 8.1-7 10-4-1.9-7-5.2-7-10V6l7-3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="assurance-focused-heading">
+              <div class="assurance-kicker">Selected CryptoTwin finding</div>
+              <h3>${escapeHtml(candidate.algorithm)} <span aria-hidden="true">→</span> ${escapeHtml(target)}</h3>
+              <div class="assurance-focused-meta"><span>${escapeHtml(location)}</span><span>${escapeHtml(purposeLabel(purpose))}</span></div>
+            </div>
+            <span class="assurance-review-badge">Migration review</span>
+          </div>
         </header>
         <section class="assurance-brief">
-          <p><strong>Why this recommendation:</strong> ${escapeHtml(why)}</p>
-          <p><strong>Quantum outlook:</strong> ${escapeHtml(quantumOutlook)}</p>
-          <p><strong>Standard:</strong> ${source ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.label)}</a>` : escapeHtml(entry.standard || 'Not established for this recommendation.')}</p>
+          <div class="assurance-brief-row">
+            <span class="assurance-brief-icon reason" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3a8 8 0 0 0-4.8 14.4c.7.5 1.1 1.1 1.2 1.8h7.2c.1-.7.5-1.3 1.2-1.8A8 8 0 0 0 12 3Z" stroke="currentColor" stroke-width="1.7"/><path d="M9.5 22h5M9.5 19.2h5M12 7v5l3 1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+            <p><strong>Why this recommendation</strong><span>${escapeHtml(why)}</span></p>
+          </div>
+          <div class="assurance-brief-row">
+            <span class="assurance-brief-icon quantum" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2v20M2 12h20M4.9 4.9l14.2 14.2M19.1 4.9 4.9 19.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg></span>
+            <p><strong>Quantum outlook</strong><span>${escapeHtml(quantumOutlook)}</span></p>
+          </div>
+          <div class="assurance-brief-row">
+            <span class="assurance-brief-icon standard" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v6h5M9 14h6M9 17h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+            <p><strong>Standard &amp; guidance</strong><span>${source ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.label)} <span aria-hidden="true">↗</span></a>` : escapeHtml(entry.standard || 'Not established for this recommendation.')}</span></p>
+          </div>
         </section>
       </article>`;
   }
