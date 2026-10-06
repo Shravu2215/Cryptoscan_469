@@ -106,6 +106,26 @@ html.dark .assurance-code-grid pre { background: rgba(15,23,42,.7); color: #e2e8
 .assurance-check pre { max-height: 160px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-b); font: 10px/1.5 'JetBrains Mono', monospace; }
 .assurance-library { margin: 10px 0 0; color: var(--text-m); font-size: 11px; }
 .assurance-table a { color: #7c3aed; font-weight: 700; }
+.assurance-brief {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.assurance-brief p { color: var(--text-b); font-size: 14px; line-height: 1.55; margin: 0; }
+.assurance-brief p + p { margin-top: 9px; }
+.assurance-brief a { color: #7c3aed; font-weight: 700; }
+body.assurance-focused .content > section[aria-labelledby="posture-title"],
+body.assurance-focused .assurance-tabs,
+body.assurance-focused .assurance-report-head,
+body.assurance-focused .assurance-page-head > a,
+body.assurance-focused #assurance-scan-meta {
+  display: none !important;
+}
+body.assurance-focused .assurance-page-head { margin-bottom: 8px; }
+body.assurance-focused .assurance-page-head h1 { font-size: 23px; }
+body.assurance-focused .assurance-selection-note { margin-bottom: 12px; }
+body.assurance-focused .assurance-focused-card { max-width: 920px; }
 @media (max-width: 700px) { .assurance-check-grid { grid-template-columns: 1fr; } .assurance-page-head h1 { font-size: 23px; } }
 
 .app-layout {
