@@ -412,4 +412,49 @@ router.get('/runs/:id/report', requireAuth, async (req, res) => {
   }
 });
 
+// ── GET /api/cryptotwin/runs/:id/raw-logs/:migrationId ───────────────────────
+router.get('/runs/:id/raw-logs/:migrationId', requireAuth, async (req, res) => {
+  try {
+    const row = await loadRun(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Run not found' });
+    const report = safe(row.reportJson) || {};
+    const migrations = report.migrations || safe(row.stagesJson) || [];
+    const target = migrations.find(m => m.migrationId === req.params.migrationId);
+    if (!target) return res.status(404).json({ error: 'Migration ID not found in run' });
+    return res.json({
+      migrationId: req.params.migrationId,
+      rawLogs: target.evidence ? target.evidence.rawLogs : []
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ── POST /api/cryptotwin/runs/:id/generate-app ──────────────────────────────
+router.post('/runs/:id/generate-app', requireAuth, async (req, res) => {
+  try {
+    const { approvedIds } = req.body;
+    const row = await loadRun(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Run not found' });
+
+    const { generateUpdatedApplication } = require('../services/cryptoTwinEngine');
+    const report = safe(row.reportJson) || {};
+    const migrations = report.migrations || [];
+
+    const result = generateUpdatedApplication(null, approvedIds || [], migrations);
+
+    appendAuditLog({ userId: req.user.id, action: 'CRYPTOTWIN_GENERATE_APP', method: 'POST', path: '/api/cryptotwin/runs/' + req.params.id + '/generate-app', statusCode: 200 }).catch(() => {});
+
+    return res.json({
+      message: 'Updated Application Package Generated Successfully',
+      approvedCount: result.approvedCount,
+      diffText: result.diffText,
+      generatedAt: result.generatedAt
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Internal server error: ' + err.message });
+  }
+});
+
 module.exports = router;
+
