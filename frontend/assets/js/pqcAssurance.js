@@ -148,8 +148,66 @@
       ${state?.error ? `<p class="assurance-warning">${escapeHtml(state.error)}</p>` : ''}`;
   }
 
+  function renderFocusedCard(candidate, index, entry, target) {
+    const finding = candidate.rawFinding || {};
+    const purpose = `${candidate.purpose || finding.usage || ''}`;
+    const isSecret = /SECRET_HYGIENE|hardcoded|secret|credential|api[_ -]?key|private[_ -]?key/i.test(`${candidate.remediationClass || ''} ${candidate.algorithm} ${purpose} ${target}`);
+    const isSignature = /sign|auth|jwt|certificate/i.test(purpose);
+    const isKem = /ML-KEM/i.test(target);
+    const isSignaturePqc = /ML-DSA|SLH-DSA|FN-DSA/i.test(target);
+    let why = entry.points?.[0] || entry.safeStatus || 'Use a reviewed, purpose-matched implementation.';
+    let quantumOutlook = 'No stronger quantum-resistance claim is established for this recommendation; verify it against the cited standard.';
+
+    if (isSecret) {
+      why = 'Move the exposed value out of source control, restrict access, and rotate it.';
+      quantumOutlook = 'This is secret handling, not a PQC algorithm upgrade; it does not make the underlying cryptography quantum-safe.';
+    } else if (isKem && isSignature) {
+      why = 'ML-KEM is for key establishment, not signatures. Choose a signature scheme such as ML-DSA or SLH-DSA for this operation.';
+      quantumOutlook = 'Do not apply this key-establishment recommendation to a signature call.';
+    } else if (isSignaturePqc && /encrypt|key.?exchange|key.?establish/i.test(purpose)) {
+      why = 'A signature scheme does not replace encryption or key establishment. Choose a purpose-matched KEM for this operation.';
+      quantumOutlook = 'Do not apply a signature recommendation to encryption or key establishment.';
+    } else if (isKem) {
+      why = 'ML-KEM is standardized for key establishment; its Module-LWE basis is different from RSA/ECDH.';
+      quantumOutlook = 'No efficient quantum attack is currently known against standardized ML-KEM parameters; use a reviewed protocol/provider.';
+    } else if (isSignaturePqc) {
+      why = /SLH-DSA/i.test(target) ? 'SLH-DSA uses standardized hash-based signatures.' : 'ML-DSA uses standardized module-lattice signatures.';
+      quantumOutlook = 'Shor’s algorithm breaks RSA/ECDSA, while no efficient quantum attack is currently known against standardized ML-DSA/SLH-DSA parameters.';
+    } else if (/sha-?256|sha3/i.test(target)) {
+      why = 'SHA-256 and SHA-3 are standardized hash functions; MD5/SHA-1 collision weaknesses are already practical classical risks.';
+      quantumOutlook = 'Grover speeds generic search, but does not recreate the known MD5/SHA-1 collision break in these replacements.';
+    } else if (/aes-?256|chacha20/i.test(target)) {
+      why = 'Use the recommended strong symmetric cipher with an authenticated-encryption mode.';
+      quantumOutlook = 'Grover gives a quadratic key-search speedup; AES-256 retains roughly 128-bit generic quantum search work.';
+    }
+
+    const source = entry.sources?.find(item =>
+      (isKem && /FIPS 203/.test(item.label)) ||
+      (isSignaturePqc && (/ML-DSA/i.test(target) ? /FIPS 204/.test(item.label) : /FIPS 205/.test(item.label))) ||
+      (/sha-?256|sha3/i.test(target) && /FIPS 180-4/.test(item.label)) ||
+      (/aes-?256|chacha20/i.test(target) && /800-38D/.test(item.label))
+    );
+    const file = finding.file || finding.filePath || candidate.affectedFiles?.[0] || 'Finding file not recorded';
+    const line = finding.line || finding.lineNumber || '';
+    const location = `${file}${line ? ` · line ${line}` : ''}`;
+
+    return `
+      <article id="assurance-${index}" class="pqc-assurance-card assurance-report-card assurance-focused-card selected">
+        <header class="assurance-card-header">
+          <div><div class="assurance-kicker">Selected CryptoTwin finding</div><h3>${escapeHtml(candidate.algorithm)} → ${escapeHtml(target)}</h3><p>${escapeHtml(location)} · ${escapeHtml(purposeLabel(purpose))}</p></div>
+        </header>
+        <section class="assurance-brief">
+          <p><strong>Why this recommendation:</strong> ${escapeHtml(why)}</p>
+          <p><strong>Quantum outlook:</strong> ${escapeHtml(quantumOutlook)}</p>
+          <p><strong>Standard:</strong> ${source ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.label)}</a>` : escapeHtml(entry.standard || 'Not established for this recommendation.')}</p>
+        </section>
+      </article>`;
+  }
+
   function renderCard(candidate, index) {
-    const entry = PQCAssuranceKnowledge.resolveAssuranceEntry(candidate.replacement || 'None specified', candidate.algorithm, candidate.purpose);
+    const target = toAlgorithm || candidate.replacement || 'No replacement specified';
+    const entry = PQCAssuranceKnowledge.resolveAssuranceEntry(target, candidate.algorithm, candidate.purpose);
+    if (sourceLabel === 'cryptotwin') return renderFocusedCard(candidate, index, entry, target);
     const finding = candidate.rawFinding || {};
     const findings = candidate.findings?.length ? candidate.findings : [finding];
     const selected = focusFinding(candidate);
@@ -276,6 +334,7 @@
 
   function renderPage() {
     const data = window.CryptoEngine?.getData ? window.CryptoEngine.getData() : {};
+    document.body.classList.toggle('assurance-focused', sourceLabel === 'cryptotwin');
     currentScan = findCurrentScan(data);
     const scanId = currentScan?.id || currentScan?.scanId || '';
     if (requestedScanId && !currentScan) {
@@ -287,7 +346,9 @@
       candidates = MigrationPlanData.buildCandidates(collected.findings);
       byId('assurance-scan-meta').textContent = `${currentScan?.repoName || currentScan?.name || 'Current scan'} · ${scanId || 'scan ID not recorded'} · Last scan: ${dateLabel(currentScan?.scanDate || currentScan?.completedAt || currentScan?.timestamp)}`;
       if (selectedFindingId || fromAlgorithm || toAlgorithm) {
-        byId('assurance-selection-note').textContent = `Focused view${selectedFindingId ? ` · finding ${selectedFindingId}` : ''}${fromAlgorithm || toAlgorithm ? ` · ${fromAlgorithm || '—'} → ${toAlgorithm || '—'}` : ''}${sourceLabel ? ` · opened from ${sourceLabel}` : ''}.`;
+        byId('assurance-selection-note').textContent = sourceLabel === 'cryptotwin'
+          ? 'Short, finding-specific migration assurance.'
+          : `Focused view${selectedFindingId ? ` · finding ${selectedFindingId}` : ''}${fromAlgorithm || toAlgorithm ? ` · ${fromAlgorithm || '—'} → ${toAlgorithm || '—'}` : ''}${sourceLabel ? ` · opened from ${sourceLabel}` : ''}.`;
       } else {
         byId('assurance-selection-note').textContent = 'Showing all replacement candidates derived from the selected scan and shared CryptoScan rules.';
       }

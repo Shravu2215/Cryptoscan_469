@@ -123,6 +123,7 @@
     .ct-btn-reject-sm  { padding: 6px 14px; background: var(--ct-red); border: none; border-radius: 6px; font-size: 11px; font-weight: 700; color: #fff; cursor: pointer; }
     .ct-btn-revise-sm  { padding: 6px 14px; background: var(--ct-amber); border: none; border-radius: 6px; font-size: 11px; font-weight: 700; color: #fff; cursor: pointer; }
     .ct-btn-approve-sm:disabled { opacity: 0.45; cursor: not-allowed; }
+    .ct-btn-assurance { padding: 6px 14px; background: var(--ct-purple); border: none; border-radius: 6px; font-size: 11px; font-weight: 700; color: #fff; cursor: pointer; text-decoration: none; }
 
     /* Modals & Drawers */
     .ct-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 300; display: none; align-items: center; justify-content: center; }
@@ -578,6 +579,7 @@
           </div>
 
           <div class="ct-card-actions">
+            <a class="ct-btn-assurance" href="pqc-assurance.html?findingId=${encodeURIComponent(m.migrationId)}&amp;from=${encodeURIComponent(m.item.currentAlgorithm)}&amp;to=${encodeURIComponent(m.item.targetAlgorithm)}&amp;source=cryptotwin">PQC Assurance</a>
             <button class="ct-btn-approve-sm" onclick="approveItem('${m.migrationId}', '${m.verificationStatus}')" ${isApproved ? 'disabled' : ''}>✓ Approve</button>
             <button class="ct-btn-reject-sm" onclick="rejectItem('${m.migrationId}')">✕ Reject</button>
             <button class="ct-btn-revise-sm" onclick="openReviseModal(${idx})">↩ Revise</button>
