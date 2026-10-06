@@ -6,10 +6,15 @@ Owns: Database schema, Authentication, Repository upload, Scanner dispatch, CBOM
 
 ```bash
 npm install
-cp .env.example .env       # fill in real DATABASE_URL and JWT_SECRET
+cp .env.example .env       # fill in real DATABASE_URL, DIRECT_URL, and JWT secrets
 npm run prisma:migrate     # creates tables from prisma/schema.prisma
 npm run dev                # starts on http://localhost:3000
 ```
+
+For production deployments, set `DIRECT_URL` to the database provider's direct
+PostgreSQL connection URL (not a transaction-pooler URL). The Docker entrypoint
+uses it for `prisma migrate deploy`; the running API continues to use
+`DATABASE_URL`.
 
 Windows note: if `DATABASE_URL` parsing fails, wrap the whole string in quotes
 and URL-encode special characters in the password.

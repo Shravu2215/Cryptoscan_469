@@ -58,5 +58,6 @@ RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" npx prisma gene
 ENV NODE_ENV=production
 EXPOSE 3000
 
-# Apply pending migrations, then start the server.
-CMD ["sh", "-c", "npx prisma migrate deploy && node src/server.js"]
+# Prisma migrations need a direct PostgreSQL connection for advisory locks.
+# Keep DATABASE_URL (which may be a Neon pooler URL) for the app itself.
+CMD ["sh", "-c", "DATABASE_URL=\"${DIRECT_URL:?Set DIRECT_URL to the direct PostgreSQL connection URL for Prisma migrations}\" npx prisma migrate deploy && node src/server.js"]
