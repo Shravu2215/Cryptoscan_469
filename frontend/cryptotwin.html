@@ -1067,11 +1067,10 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
               Security Threat &amp; Features
             </button>
-            ${m.remediationClass === 'PQC_REPLACEMENT' ? `
-            <a class="ct-btn-assurance" href="pqc-assurance.html?findingId=${encodeURIComponent(m.migrationId)}&amp;from=${encodeURIComponent(m.item.currentAlgorithm)}&amp;to=${encodeURIComponent(m.item.targetAlgorithm)}&amp;purpose=${encodeURIComponent(m.item.purpose)}&amp;file=${encodeURIComponent(m.item.filePath)}&amp;line=${encodeURIComponent(m.item.line)}&amp;remediationClass=${encodeURIComponent(m.remediationClass)}&amp;scanId=${encodeURIComponent(_runData.scanId || '')}&amp;source=cryptotwin" target="_blank" title="PQC Assurance for this finding">
+            <a class="ct-btn-assurance" href="pqc-assurance.html?findingId=${encodeURIComponent(m.migrationId)}&amp;from=${encodeURIComponent(m.item.currentAlgorithm)}&amp;to=${encodeURIComponent(m.item.targetAlgorithm)}&amp;purpose=${encodeURIComponent(m.item.purpose)}&amp;file=${encodeURIComponent(m.item.filePath)}&amp;line=${encodeURIComponent(m.item.line)}&amp;remediationClass=${encodeURIComponent(m.remediationClass)}&amp;scanId=${encodeURIComponent(_runData.scanId || '')}&amp;source=cryptotwin" title="PQC Assurance for this finding">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-              Assurance
-            </a>` : ''}
+              PQC Assurance
+            </a>
             <button class="ct-btn-approve-sm" onclick="approveItem('${m.migrationId}', '${m.verificationStatus}')" ${isApproved ? 'disabled' : ''}>${m.verificationStatus !== 'VERIFIED' && !isApproved ? '&#9888; Approve (Override)' : '&#10003; Approve'}</button>
             <button class="ct-btn-reject-sm" onclick="rejectItem('${m.migrationId}')">&#10005; Reject</button>
             <button class="ct-btn-revise-sm" onclick="openReviseModal(${idx})">&#8617; Revise</button>
