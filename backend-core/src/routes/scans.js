@@ -310,6 +310,9 @@ router.get('/:scanId/findings', requireAuth, async (req, res) => {
     if (!scan) {
       scan = getScan(scanId);
       findings = getFindings(scanId);
+    } else if (!Array.isArray(findings) || findings.length === 0) {
+      const storedFindings = getFindings(scanId);
+      if (storedFindings.length > 0) findings = storedFindings;
     }
 
     if (!scan) return res.status(404).json({ error: 'Scan not found' });
