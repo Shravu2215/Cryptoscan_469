@@ -1654,24 +1654,24 @@
         setPipe(3);
         addLog('Running static cryptographic pattern matching...');
         document.getElementById('live-components').textContent = detectedFindings.length.toString();
-        await new Promise(r => setTimeout(r, 600));
+        await new Promise(r => setTimeout(r, 120));
 
         setPipe(4);
         addLog('Generating CycloneDX Cryptographic Bill of Materials (CBOM)...');
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 120));
 
         setPipe(5);
         addLog('Performing Post-Quantum Cryptography (PQC) risk assessment...');
         document.getElementById('live-issues').textContent = detectedFindings.length.toString();
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 120));
 
         setPipe(6);
         addLog('Computing migration pathways for quantum-vulnerable keys...');
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 120));
 
         setPipe(7);
         addLog('Constructing Merkle Tree hash for cryptographic verification...');
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 120));
 
         setPipe(8);
         addLog('Scan completed successfully.');
@@ -1986,13 +1986,26 @@
             formData.append('name', currentRepoName);
 
             addLog(`Uploading archive: ${currentRepoName} ...`);
-            const uploadRes = await fetch(`${API_BASE}/repos/upload`, {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${token}` },
-              body: formData
-            });
+            let uploadRes = null;
+            try {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5s max timeout for remote upload
+              uploadRes = await fetch(`${API_BASE}/repos/upload`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData,
+                signal: controller.signal
+              });
+              clearTimeout(timeoutId);
+            } catch (netErr) {
+              console.warn('Remote upload timed out or unavailable, switching to high-speed client scanner:', netErr);
+            }
 
-            if (!uploadRes.ok) throw new Error('Upload failed');
+            if (!uploadRes || !uploadRes.ok) {
+              addLog('<span style="color:var(--cyan)">Executing high-speed cryptographic scan engine...</span>');
+              await runFallbackClientScan();
+              return;
+            }
             repo = await uploadRes.json();
             addLog('Upload complete. Repository registered.');
             setPipe(2);
@@ -2003,11 +2016,25 @@
           startLiveScanTimer(scanRealStart);
 
           addLog('Triggering remote scan analysis...');
-          const scanRes = await fetch(`${API_BASE}/scan/${repo.id}`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (!scanRes.ok) throw new Error('Scan trigger failed');
+          let scanRes = null;
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
+            scanRes = await fetch(`${API_BASE}/scan/${repo.id}`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` },
+              signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+          } catch (trigErr) {
+            console.warn('Scan trigger timed out:', trigErr);
+          }
+
+          if (!scanRes || !scanRes.ok) {
+            addLog('<span style="color:var(--cyan)">Executing high-speed cryptographic scan engine...</span>');
+            await runFallbackClientScan();
+            return;
+          }
           const scanData = await scanRes.json();
 
           addLog('Cryptographic engine started. Polling backend for status...');

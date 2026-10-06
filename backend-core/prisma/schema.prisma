@@ -307,3 +307,34 @@ model FileManifestEntry {
   @@index([scanId])
   @@index([scanId, filePath])
 }
+
+// CryptoTwin — sandbox migration & breach simulation run record
+model CryptoTwinRun {
+  id             String    @id @default(uuid())
+  scanId         String?
+  userId         String
+  repoName       String    @default("")
+  source         String    @default("direct")     // direct | uploaded
+  status         String    @default("PENDING")    // PENDING | RUNNING | DONE | FAILED
+  inputJson      String    @default("{}")         // serialized CryptoTwinInput
+  stagesJson     String    @default("[]")         // stage status array
+  attackPaths    String    @default("[]")         // breach simulation paths
+  testsJson      String    @default("[]")         // test results
+  patchLog       String    @default("[]")         // {file, before, after}[]
+  aiIterations   String    @default("[]")         // AI fix attempts
+  verdict        String?                           // PRODUCTION_READY | PRODUCTION_NOT_READY | INCONCLUSIVE
+  confidence     Float?
+  blockers       String    @default("[]")
+  approval       String?                           // APPROVED | APPROVED_WITH_OVERRIDE | REJECTED | PENDING_REVIEW
+  approvalBy     String?
+  approvalAt     DateTime?
+  approvalNote   String?
+  overrideReason String?
+  reportJson     String?
+  errorMessage   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([scanId])
+  @@index([userId])
+}
