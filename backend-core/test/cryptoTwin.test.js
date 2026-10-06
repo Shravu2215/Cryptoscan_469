@@ -4,7 +4,7 @@ const assert = require('assert');
 const cryptoTwinEngine = require('../src/services/cryptoTwinEngine');
 const cryptoTwinRoutes = require('../src/routes/cryptoTwin');
 
-console.log('--- Testing CryptoTwin Real Code Review & Verification Engine ---');
+console.log('--- Testing CryptoTwin Recommendation & Evidence Engine ---');
 
 // 1. Check Route Endpoints
 const routePaths = cryptoTwinRoutes.stack
@@ -17,6 +17,8 @@ assert(routePaths.some(r => r.path === '/runs/:id' && r.methods.includes('get'))
 assert(routePaths.some(r => r.path === '/runs/:id/approval' && r.methods.includes('post')), 'POST /runs/:id/approval endpoint should exist');
 assert(routePaths.some(r => r.path === '/runs/:id/raw-logs/:migrationId' && r.methods.includes('get')), 'GET /runs/:id/raw-logs/:migrationId endpoint should exist');
 assert(routePaths.some(r => r.path === '/runs/:id/generate-app' && r.methods.includes('post')), 'POST /runs/:id/generate-app endpoint should exist');
+assert(routePaths.some(r => r.path === '/assurance-checks' && r.methods.includes('post')), 'POST /assurance-checks endpoint should exist');
+assert(routePaths.some(r => r.path === '/assurance-checks/:id' && r.methods.includes('get')), 'GET /assurance-checks/:id endpoint should exist');
 console.log('✓ All CryptoTwin route paths verified.');
 
 // 2. Check AST / Token-level Fake-Diff Guard
@@ -59,8 +61,51 @@ assert.strictEqual(norm.inScope.length, 2, '2 items should be in active migratio
 assert.strictEqual(norm.safeExcluded.length, 1, '1 safe item (AES-256-GCM) should be excluded from scope');
 console.log('✓ Input normalization and safe item exclusion verified.');
 
-// 6. Check End-to-End Per-Migration Execution & Quantum Readiness Rescan
+// 6. Recommendation classes, purpose-aware targets, secret deduplication, and honest status
+assert.strictEqual(cryptoTwinEngine.classifyMigration('Hardcoded key material', 'secret'), 'SECRET_HYGIENE');
+assert.strictEqual(cryptoTwinEngine.classifyMigration('RSA-2048', 'jwt signing'), 'PQC_REPLACEMENT');
+assert.strictEqual(cryptoTwinEngine.classifyMigration('MD5', 'hashing'), 'SYMMETRIC_HASH_UPGRADE');
+assert.match(cryptoTwinEngine.deriveTargetAlgorithm('RSA-2048', 'PQC_REPLACEMENT', 'jwt signing'), /ML-DSA/);
+assert.match(cryptoTwinEngine.deriveTargetAlgorithm('ECDH', 'PQC_REPLACEMENT', 'key_exchange'), /ML-KEM/);
+
+const deduped = cryptoTwinEngine.normaliseInput({
+  items: [
+    { id: 'secret-11', filePath: '.env', line: 11, currentAlgorithm: 'Hardcoded key material', severity: 'CRITICAL', hash: 'a'.repeat(64) },
+    { id: 'secret-12', filePath: '.env', line: 12, currentAlgorithm: 'Hardcoded key material', severity: 'HIGH', hash: 'a'.repeat(64) }
+  ]
+}).inScope;
+assert.strictEqual(deduped.length, 1);
+assert.deepStrictEqual(deduped[0].lineNumbers, [11, 12]);
+assert.strictEqual(deduped[0].secretHashPrefix, 'aaaaaaaa');
+assert.strictEqual(Object.prototype.hasOwnProperty.call(deduped[0], 'secretHash'), false);
+
+const secretPanel = cryptoTwinEngine.buildWhyThisChangePanel(deduped[0], {}, {});
+assert.strictEqual(secretPanel.impact, 'App fails at startup if env var missing');
+assert.deepStrictEqual(secretPanel.checks, ['Build', 'Run-with-env', 'Missing-var-raises', 'Rescan']);
+assert(!secretPanel.checks.includes('Tamper'));
+
+const after = cryptoTwinEngine.generateRealAfterCode({ line: 11, migrationType: 'SECRET_HYGIENE', targetAlgorithm: 'secret manager' }, { language: 'Python' }, false);
+assert.deepStrictEqual(after.afterLines.map(line => line.lineNum), [11, 12, 13, 14]);
+
 (async () => {
+  const secretChecks = await cryptoTwinEngine.runAssuranceChecks({
+    algorithm: 'Hardcoded key material',
+    purpose: 'secret',
+    replacement: 'Environment variable / secret manager'
+  });
+  assert.deepStrictEqual(secretChecks.checks.map(check => check.name), ['Build', 'Run-with-env', 'Missing-var-raises', 'Rescan']);
+  assert(secretChecks.checks.every(check => check.status === 'NOT_VERIFIED'), 'Secret hygiene checks must stay unverified until the target application is migrated and tested');
+
+  const hashChecks = await cryptoTwinEngine.runAssuranceChecks({
+    algorithm: 'MD5',
+    purpose: 'hashing',
+    replacement: 'SHA-256 / SHA-3-256'
+  });
+  assert.strictEqual(hashChecks.checks[0].name, 'Cryptographic hash known-answer test');
+  assert.strictEqual(hashChecks.checks[0].status, 'PASS', 'Hash KAT must pass only when computed standard vectors match');
+  assert.strictEqual(hashChecks.checks[1].status, 'NOT_APPLICABLE');
+  assert.strictEqual(hashChecks.checks[2].status, 'NOT_APPLICABLE');
+
   const result = await cryptoTwinEngine.runCryptoTwin({
     items: [
       { id: 'm1', filePath: 'src/auth.py', line: 42, currentAlgorithm: 'RSA-2048', usageContext: 'jwt', severity: 'HIGH' },
@@ -74,25 +119,24 @@ console.log('✓ Input normalization and safe item exclusion verified.');
   assert(result.migrations.length === 2, 'Should process 2 in-scope migrations');
   assert(Array.isArray(result.migrations[0].evidence.rawLogs), 'Evidence must contain rawLogs array');
 
-  // Check Quantum Readiness rescan computation with VERIFIED items
-  const testResults = result.migrations.map(m => ({ ...m, verificationStatus: 'VERIFIED' }));
+  assert(result.migrations.every(m => m.verificationStatus === 'NOT_TESTABLE'), 'Suggestions must not be reported as verified or applied');
+  assert(result.migrations.every(m => m.evidence.checks.every(check => check.status === 'NOT_VERIFIED')), 'Recommendation checks must remain unverified until actually run');
+  assert(result.migrations.every(m => m.evidence.rawLogs.length === 0), 'No synthetic execution log may be displayed');
+
   const readiness = cryptoTwinEngine.computeQuantumReadiness(
-    testResults.map(m => m.item),
+    result.migrations.map(m => m.item),
     result.safeExcluded,
-    new Set(['m1']), // Only m1 approved
-    testResults
+    new Set(['m1']),
+    result.migrations
   );
-  assert.strictEqual(readiness.currentPct, 33, 'Current readiness should be 33%');
-  assert.strictEqual(readiness.afterApprovedPct, 67, 'After approved readiness should be 67% with 1 item approved');
-  assert.strictEqual(readiness.projectedPct, 100, 'Projected readiness should be 100% if all approved');
+  assert.strictEqual(readiness.currentPct, null, 'Readiness requires CBOM evidence, not finding counts');
+  assert.strictEqual(readiness.afterApprovedPct, null);
+  assert.strictEqual(readiness.projectedPct, null);
 
-  // Check application generator
-  const appBuild = cryptoTwinEngine.generateUpdatedApplication(null, ['m1'], testResults);
+  const appBuild = cryptoTwinEngine.generateUpdatedApplication(null, ['m1'], result.migrations);
   assert(appBuild.diffText !== undefined, 'Generated application must produce diff patch text');
-  assert.strictEqual(appBuild.approvedCount, 1);
+  assert.strictEqual(appBuild.approvedCount, 0, 'Unverified recommendations must not be applied as approved migrations');
 
-  console.log('✓ End-to-end per-migration engine execution & readiness rescan verified.');
+  console.log('✓ Per-finding recommendations, unverified evidence, and scan-derived readiness verified.');
   console.log('--- CryptoTwin Unit Tests Passed Successfully ---');
-})();
-
-
+})().catch(error => { console.error(error); process.exitCode = 1; });

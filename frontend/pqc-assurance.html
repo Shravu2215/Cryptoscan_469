@@ -6,237 +6,69 @@
   <title>PQC Assurance — CryptoScan</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script>
-    function initTheme() {
-      if (localStorage.getItem('cs_theme') === 'dark') {
-        document.documentElement.classList.add('dark', 'dark-mode');
-        document.documentElement.classList.remove('light-mode');
-      } else {
-        document.documentElement.classList.add('light-mode');
-        document.documentElement.classList.remove('dark', 'dark-mode');
-      }
-    }
-    initTheme();
+    if (localStorage.getItem('cs_theme') === 'dark') document.documentElement.classList.add('dark', 'dark-mode');
+    else document.documentElement.classList.add('light-mode');
   </script>
   <link rel="stylesheet" href="assets/css/global.css">
   <link rel="stylesheet" href="assets/css/visuals.css">
-  <style>
-    .pqc-assurance-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
-      border-radius: 14px;
-      padding: 24px;
-      margin-bottom: 20px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
-      backdrop-filter: blur(12px);
-      transition: all 0.2s ease;
-    }
-    .pqc-assurance-card:hover {
-      border-color: rgba(168, 85, 247, 0.45);
-      box-shadow: 0 8px 30px rgba(168, 85, 247, 0.08);
-    }
-    .pqc-directive-text {
-      white-space: pre-wrap;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 13px;
-      line-height: 1.65;
-      color: var(--text-h);
-      background: rgba(15, 23, 42, 0.04);
-      border: 1px solid var(--border-light);
-      border-radius: 10px;
-      padding: 20px;
-      overflow-x: auto;
-      user-select: text;
-    }
-    html.dark .pqc-directive-text,
-    :root.dark .pqc-directive-text {
-      background: rgba(15, 23, 42, 0.6);
-      border-color: rgba(255, 255, 255, 0.1);
-      color: #e2e8f0;
-    }
-    .badge-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .badge-pqc {
-      background: rgba(147, 51, 234, 0.12);
-      color: #9333ea;
-      border: 1px solid rgba(147, 51, 234, 0.25);
-    }
-    html.dark .badge-pqc {
-      background: rgba(192, 132, 252, 0.15);
-      color: #c084fc;
-      border-color: rgba(192, 132, 252, 0.3);
-    }
-    .btn-action {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      border: 1px solid var(--border-color);
-      background: var(--bg-card);
-      color: var(--text-h);
-      transition: all 0.2s ease;
-    }
-    .btn-action:hover {
-      background: var(--bg-card-hover);
-      border-color: #9333ea;
-      color: #9333ea;
-      transform: translateY(-1px);
-    }
-    .btn-primary-action {
-      background: linear-gradient(135deg, #9333ea, #6366f1);
-      color: #ffffff;
-      border: none;
-    }
-    .btn-primary-action:hover {
-      background: linear-gradient(135deg, #7e22ce, #4f46e5);
-      color: #ffffff;
-      box-shadow: 0 4px 14px rgba(147, 51, 234, 0.35);
-    }
-  </style>
+  <link rel="stylesheet" href="assets/css/pqc-assurance-report.css">
 </head>
 <body>
-
   <div class="app-layout">
-    <!-- App Shell Sidebar -->
     <aside class="app-sidebar" id="app-sidebar"></aside>
-
-    <!-- Main Content Area -->
     <main class="app-main">
-      <!-- Topbar Header -->
       <header class="app-topbar" id="app-topbar"></header>
-
       <div class="content">
-
-        <!-- Page Header & Actions -->
-        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom: 24px;">
+        <header class="assurance-page-head">
           <div>
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom: 4px;">
-              <h1 style="font-size:24px; font-weight:800; color:var(--text-h); letter-spacing:-0.02em;">PQC Assurance</h1>
-              <span class="badge-pill badge-pqc">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:12px;height:12px;">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                </svg>
-                Active Mandate
-              </span>
-            </div>
-            <div style="font-size:13px; color:var(--text-m);">Post-Quantum Cryptography Assurance & Runtime Analysis Engineering Directive</div>
+            <div class="assurance-kicker">CryptoScan · Scan-linked evidence</div>
+            <h1>PQC Assurance</h1>
+            <p id="assurance-scan-meta">Loading the current scan…</p>
           </div>
-          <div style="display:flex; align-items:center; gap:10px;">
-            <button class="btn-action" id="btn-copy-directive" onclick="copyDirectiveText()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-              </svg>
-              <span id="copy-btn-text">Copy Directive</span>
-            </button>
-            <a href="scan.html" class="btn-action btn-primary-action" style="text-decoration:none;">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-                <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-              Go to Scan & Runtime
-            </a>
+          <a href="migration-plan.html" class="btn-action">Migration Plan</a>
+        </header>
+        <p class="assurance-selection-note" id="assurance-selection-note" aria-live="polite"></p>
+
+        <section aria-labelledby="posture-title">
+          <div class="assurance-section-heading">
+            <div><h2 id="posture-title">Current scan posture</h2><p>Percentages use observed CBOM assets; unknown assets are not counted as safe.</p></div>
+            <strong id="assurance-posture-score">Not yet verified</strong>
           </div>
-        </div>
+          <div id="assurance-summary" class="assurance-summary" aria-live="polite"></div>
+        </section>
 
-        <!-- Directive Content Card -->
-        <div class="pqc-assurance-card">
-          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;color:#9333ea;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-              </svg>
-              <h2 style="font-size:15px; font-weight:700; color:var(--text-h); letter-spacing:-0.01em;">Task Specification & Architecture Rules</h2>
-            </div>
-            <span style="font-size:12px; color:var(--text-m); font-family:'JetBrains Mono', monospace;">Verbatim Document</span>
+        <nav class="assurance-tabs" aria-label="Assurance views">
+          <button type="button" class="assurance-tab active" data-assurance-view="replacements">Replacements</button>
+          <button type="button" class="assurance-tab" data-assurance-view="whole-scan">Whole-scan view</button>
+        </nav>
+
+        <section id="replacements-view" class="assurance-view">
+          <div class="assurance-report-head">
+            <div><h2>Replacement assurance</h2><p id="assurance-count">Based on real findings from the selected scan.</p></div>
+            <input class="assurance-search" id="assurance-search" type="search" placeholder="Search algorithm, file, or purpose" aria-label="Search replacements">
           </div>
+          <div id="assurance-report-list" aria-live="polite"></div>
+        </section>
 
-          <pre id="directive-raw-text" class="pqc-directive-text">TASK: FIX and REBUILD the "Runtime Analysis" feature in CryptoScan so it works end-to-end on ANY real website. The previous implementation does not work properly. First inspect the existing code (frontend /scan page, backend-core routes, DB schema, how static findings are stored/rendered, and whatever runtime code already exists) and REPLACE the broken parts rather than stacking on top. Keep it SIMPLE.
-
-HARD RULES
-- NO mock / dummy / predefined / sample data. Every finding comes from a real observed event or a real probe. Zero events =&gt; honest empty state ("0 crypto operations observed"). Nothing specific to any one site is hardcoded.
-- Metadata only: algorithm, operation, key size/curve/mode, hash, caller script URL:line, timestamp, count, URL scheme+host. NEVER capture keys, plaintext, passwords, tokens, cookies, headers, request/response bodies or argument values.
-- Reuse the existing Findings, CBOM, Risk Analysis, Quantum Threat Model and Migration Plan pages and the existing static-scan classifier (quantum status, severity, PQC recommendation). No parallel result pages, no second classifier.
-- Reports say "observed during this session", never "complete".
-
-USER FLOW (this exact flow must work)
-1. On CryptoScan /scan, the user clicks the "Runtime Analysis" card, enters the target URL, clicks "Prepare Session". Backend creates a session. CryptoScan hands {sessionId, ingestUrl, token, targetOrigin, cryptoscanOrigin} to the Chrome extension and shows "Session ready - open the target site". Also open the target URL in a new tab.
-2. On the TARGET website, the extension injects a small floating circular widget (bottom-right, closed Shadow DOM so site CSS cannot break it, draggable). It shows state, a live "N events" counter, and Start / Stop buttons. Before Start it shows "Ready". 
-3. The user presses Start in the widget. Recording begins: widget shows a spinning ring + "Recording…" + live counter. The user then uses the site normally (click around, log in, chat, upload, etc.). Recording must survive navigation and reloads within the target origin (state kept in chrome.storage.session, widget re-injected on each page load, hooks injected at document_start on every load).
-4. The user presses Stop in the widget. The extension flushes remaining events, calls backend /stop, widget shows "Analyzing…", then the extension focuses the existing CryptoScan tab (or opens one) and navigates it to /findings?runtimeSession=&lt;id&gt;. Findings page loads that session's results with Source = Runtime. CBOM, Risk Analysis, Quantum Threat Model and Migration Plan then show this session's data through the existing pipeline.
-5. The CryptoScan /scan page must also be able to show the live counter and a Stop button for the active session (backup path), but the widget on the target site is the primary control.
-
-BACKEND (backend-core)
-- POST /api/runtime/sessions {targetUrl} -&gt; {id, ingestToken, startedAt}
-- POST /api/runtime/sessions/:id/events (batch of aggregated events; token in header; CORS enabled for this route; size cap; reject unknown fields)
-- GET  /api/runtime/sessions/:id -&gt; {status, eventCount, lastEventAt}
-- POST /api/runtime/sessions/:id/stop -&gt; marks stopped, runs probes, generates findings
-- Aggregate by (source, algorithm, operation, keyInfo, callerScript/host). Pass each aggregated event to the existing classifier. Store in the same findings tables with source="runtime" and sessionId.
-- Real TLS probe on Stop, only when the target is a public HTTPS host: negotiated TLS version, cipher suite, certificate key type/size, signature algorithm, expiry, and accepted protocol versions (try TLS 1.0/1.1/1.2/1.3 handshakes). Findings: e.g. TLS&lt;=1.1 accepted, RSA/ECDSA certificate or ECDHE key exchange = quantum-vulnerable. If the target is http:// or localhost, create NO TLS result; instead create the finding "Unencrypted transport (no TLS) observed" from the observed HTTP requests below.
-- Classification examples (through the existing classifier, no new tables): Math.random / Python random -&gt; informational "non-cryptographic PRNG (only a risk if used for security values)"; MD5/SHA-1 -&gt; broken hash; SHA-256/384/512 -&gt; info (Grover only); AES -&gt; check mode (flag ECB); RSA &lt;2048 high, RSA/ECDSA/ECDH/Ed25519/secp256k1 -&gt; quantum-vulnerable; wallet signing methods -&gt; ECDSA secp256k1.
-
-CHROME EXTENSION (MV3), folder /runtime-extension
-- host_permissions: &lt;all_urls&gt;. A background service worker holds session state and does ALL network calls to CryptoScan backend (this avoids page CORS, CSP and mixed-content problems). Add the CryptoScan frontend and backend origins to the manifest so the handoff and fetch work from an https Vercel page to an http://localhost target.
-- A content script on the CryptoScan origin (match pattern configurable, must match the deployed Vercel domain exactly) receives the session handoff via window.postMessage and answers a "is the extension installed" ping, so /scan can show "Extension detected" or clear install instructions. 
-- Main-world hook script registered with chrome.scripting.registerContentScripts (world:"MAIN", run_at:"document_start", all_frames:true, matches &lt;all_urls&gt;) so hooks run before page code. Hooks only SEND events while a session is active for that origin; otherwise they do nothing.
-- Hooks (always call through to the original, never change behavior, try/catch everything):
-  * crypto.subtle: digest, generateKey, importKey, exportKey (format only), encrypt, decrypt, sign, verify, deriveKey, deriveBits, wrapKey, unwrapKey -&gt; algorithm name, length, namedCurve, hash, modulusLength.
-  * crypto.getRandomValues, crypto.randomUUID, Math.random (aggregate counts; fires very often).
-  * fetch, XMLHttpRequest, WebSocket, EventSource -&gt; record only URL scheme + host + port + whether cross-origin (never path query, headers or bodies). Used for "unencrypted HTTP/WS transport" and "third-party host" findings.
-  * window.ethereum.request -&gt; method name only, mapped to ECDSA secp256k1.
-  * WebAssembly.instantiate / instantiateStreaming -&gt; "WASM module loaded (possible embedded crypto, not analyzable)".
-  * Detect loaded JS crypto libraries via globals/script URLs (CryptoJS, forge, sjcl, jsrsasign, elliptic, tweetnacl, ethers, web3) -&gt; "library present".
-  * Caller attribution: new Error().stack -&gt; script URL:line; classify first-party vs third-party by hostname.
-- Main world -&gt; content script via window.postMessage -&gt; service worker aggregates and flushes every 1s and on stop/pagehide. Fail silently.
-- Debuggability (this was the main failure before): extension popup shows session state, event count, last flush time and last error; console.log prefixed "[CryptoScan]" at every stage (handoff received, hooks installed, first event, flush ok/failed, stop). Add a "Self-test" button in the popup that triggers one crypto.subtle.digest and one Math.random call on the active tab and confirms they appear in the counter.
-
-OPTIONAL SERVER AGENT (for sites whose backend the user owns; generic, no site-specific code)
-- cryptoscan_agent.py, stdlib only. start(session_id, ingest_url, token) reading env vars CRYPTOSCAN_SESSION / CRYPTOSCAN_INGEST / CRYPTOSCAN_TOKEN; complete no-op when unset.
-- Wrap: hashlib.* (md5, sha1, sha256, sha512, new), hmac.new, secrets.*, os.urandom, random.*, uuid.uuid4, jwt/PyJWT encode/decode if installed (alg only), and ssl.SSLContext.wrap_socket (record negotiated .version() and .cipher() and server_hostname after the handshake, for outbound TLS calls). Caller file:line via inspect. Aggregate and flush every 1s from a background thread, fail silently. If a hook cannot capture some library's TLS (e.g. async httpx), say so in the README instead of faking it.
-
-TEST TARGET (do not hardcode anything for it): the "Agentic AI" app = React+Vite frontend + FastAPI backend running on localhost. Install the extension unpacked, do a session on it, and verify:
-- Widget appears on the target page; Start -&gt; counter rises while using the app; Stop -&gt; redirect to CryptoScan Findings with Runtime findings.
-- Expected REAL results include: unencrypted HTTP calls to the localhost API, CORS-open API is NOT crypto (don't report as crypto), SHA-256 if the server agent is enabled, outbound TLS to LLM providers if captured.
-- Then repeat on a second unrelated public HTTPS website to prove it is generic (TLS probe + whatever browser crypto it runs).
-- Zero-crypto page =&gt; honest empty state.
-- Grep stored events and network payloads: no keys, plaintext, headers, cookies or bodies.
-- Static scan flow still unchanged.
-Report exactly what you verified by running, and what you could not</pre>
-        </div>
-
+        <section id="whole-scan-view" class="assurance-view" hidden>
+          <div class="assurance-report-head">
+            <div><h2>All replacements in this scan</h2><p>Rows are derived from the shared Migration Plan findings.</p></div>
+          </div>
+          <div class="assurance-table-wrap">
+            <table class="assurance-table" id="whole-scan-table">
+              <thead><tr><th>Observed</th><th>Recommendation</th><th>Purpose</th><th>Severity</th><th>Finding</th><th>Assurance</th></tr></thead>
+              <tbody id="whole-scan-body"></tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </main>
   </div>
-
-  <!-- JavaScript Modules -->
   <script src="assets/js/shell.js"></script>
-  <script>
-    // Initialize App Shell (Sidebar & Topbar)
-    new AppShell();
-
-    function copyDirectiveText() {
-      const rawText = document.getElementById('directive-raw-text').innerText;
-      navigator.clipboard.writeText(rawText).then(() => {
-        const btnText = document.getElementById('copy-btn-text');
-        btnText.innerText = 'Copied!';
-        setTimeout(() => {
-          btnText.innerText = 'Copy Directive';
-        }, 2000);
-      }).catch(err => {
-        console.error('Failed to copy text: ', err);
-      });
-    }
-  </script>
+  <script src="assets/js/quantumRules.js"></script>
+  <script src="assets/js/engine.js"></script>
+  <script src="assets/js/migrationPlanData.js"></script>
+  <script src="assets/js/pqcAssuranceKnowledge.js"></script>
+  <script src="assets/js/pqcAssurance.js"></script>
 </body>
 </html>

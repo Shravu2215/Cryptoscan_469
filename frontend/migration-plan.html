@@ -1228,6 +1228,14 @@
           <div class="replace-val" id="drw-replacement">ML-DSA</div>
         </div>
 
+        <a id="drw-assurance-link" class="btn-p" href="pqc-assurance.html" style="margin-top:12px; background:linear-gradient(135deg,#9333ea,#6366f1); text-decoration:none; justify-content:center;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4" />
+          </svg>
+          Assurance
+        </a>
+
         <div class="prop-grid" style="margin-top:16px;">
           <div class="prop-item">
             <div class="prop-lbl">Current Risk</div>
@@ -1341,6 +1349,7 @@
     <script src="assets/js/quantumRules.js"></script>
     <script src="assets/js/engine.js"></script>
     <script src="assets/js/hndl.js"></script>
+    <script src="assets/js/migrationPlanData.js"></script>
     <script>
       let allFindings = [];
       let migrationCandidates = [];
@@ -1677,40 +1686,15 @@
       }
 
       function getSeverity(f) {
-        if (!f) return 'MEDIUM';
-        const s = (f.severity || f.severity_level || (f.details && f.details.severity) || 'MEDIUM').toUpperCase();
-        if (s.includes('CRIT')) return 'CRITICAL';
-        if (s.includes('HIGH')) return 'HIGH';
-        if (s.includes('MED')) return 'MEDIUM';
-        if (s.includes('LOW')) return 'LOW';
-        if (s.includes('INFO') || s.includes('SAFE')) return 'SAFE';
-        return 'MEDIUM';
+        return MigrationPlanData.getSeverity(f);
       }
 
       function isQuantum(f) {
-        if (!f) return false;
-        if (typeof QuantumRules !== 'undefined' && QuantumRules.isQuantumVulnerable) {
-          return QuantumRules.isQuantumVulnerable(f);
-        }
-        if (f.quantum === 'yes' || f.quantum === true) return true;
-        if (f.quantumVulnerable !== undefined) return Boolean(f.quantumVulnerable);
-        if (f.is_quantum_vulnerable !== undefined) return Boolean(f.is_quantum_vulnerable);
-        const name = (f.algorithm || f.title || '').toLowerCase();
-        return name.includes('rsa') || name.includes('ecc') || name.includes('ecdsa') || name.includes('dh') || name.includes('dsa') || name.includes('elgamal');
+        return MigrationPlanData.isQuantum(f);
       }
 
       function determineReplacement(algo) {
-        if (typeof QuantumRules !== 'undefined' && QuantumRules.lookup) {
-          const rule = QuantumRules.lookup(algo);
-          if (rule && rule.replacement) return rule.replacement;
-        }
-        if (!algo) return 'ML-KEM / ML-DSA';
-        const al = algo.toLowerCase();
-        if (al.includes('rsa') || al.includes('dh') || al.includes('ecdh')) return 'ML-KEM (Kyber-768/1024) or Hybrid X25519+ML-KEM';
-        if (al.includes('dsa') || al.includes('ecdsa') || al.includes('ed25519')) return 'ML-DSA (Dilithium-3/5) or SLH-DSA (SPHINCS+)';
-        if (al.includes('md5') || al.includes('sha1')) return 'SHA-256 / SHA-3 / BLAKE3';
-        if (al.includes('des') || al.includes('3des') || al.includes('rc4')) return 'AES-256-GCM / ChaCha20-Poly1305';
-        return 'NIST Post-Quantum Standard (FIPS 203/204/205)';
+        return MigrationPlanData.determineReplacement(algo);
       }
 
       function getUrgencyBadgeClass(tier) {
@@ -1739,47 +1723,7 @@
       }
 
       function computeFindingMosca(rawFinding, fileCount) {
-        const x = (typeof QuantumRules !== 'undefined' && QuantumRules.deriveX)
-          ? QuantumRules.deriveX(rawFinding)
-          : ((rawFinding && rawFinding.risk && rawFinding.risk.X !== undefined) ? rawFinding.risk.X : 5);
-        const y = (typeof QuantumRules !== 'undefined' && QuantumRules.deriveY)
-          ? QuantumRules.deriveY(rawFinding, fileCount)
-          : ((rawFinding && rawFinding.risk && rawFinding.risk.Y !== undefined) ? rawFinding.risk.Y : 1.5);
-        const z = (typeof CryptoEngine !== 'undefined' && CryptoEngine.getGlobalZ)
-          ? CryptoEngine.getGlobalZ()
-          : ((typeof QuantumRules !== 'undefined' && QuantumRules.getZ) ? QuantumRules.getZ() : 10);
-
-        const cls = (typeof QuantumRules !== 'undefined' && QuantumRules.classify)
-          ? QuantumRules.classify(x, y, z)
-          : (typeof HndlEngine !== 'undefined' && HndlEngine.classify)
-          ? HndlEngine.classify(x, y, z)
-          : {
-              X: x, Y: y, Z: z, exposure: x + y, margin: z - (x + y),
-              category: (x + y > z) ? 'VULNERABLE_NOW' : ((z - (x + y) <= 5) ? 'VULNERABLE_WITHIN_HORIZON' : 'SAFE_UNDER_CURRENT_TIMELINE'),
-              label: (x + y > z) ? 'Vulnerable Now' : ((z - (x + y) <= 5) ? 'Vulnerable Within Horizon' : 'Safe Under Current Timeline'),
-              message: (x + y > z) ? 'X + Y > Z — data will be at risk when CRQC arrives.' : 'Safe under current timeline.'
-            };
-
-        // Align internal category keys: 'VULNERABLE_NOW', 'WITHIN_HORIZON', 'SAFE_TIMELINE' for UI compatibility
-        const uiCat = cls.category === 'VULNERABLE_WITHIN_HORIZON' ? 'WITHIN_HORIZON'
-                    : cls.category === 'SAFE_UNDER_CURRENT_TIMELINE' ? 'SAFE_TIMELINE'
-                    : cls.category;
-
-        return {
-          X: cls.X,
-          Y: cls.Y,
-          Z: cls.Z,
-          moscaX: `${cls.X}y`,
-          moscaY: `${cls.Y}y`,
-          moscaZ: `${cls.Z}y`,
-          diff: cls.margin,
-          urgency_margin: cls.margin,
-          isMet: cls.margin < 0,
-          category: uiCat,
-          rawCategory: cls.category,
-          categoryLabel: cls.label,
-          message: cls.message
-        };
+        return MigrationPlanData.computeMosca(rawFinding, fileCount);
       }
 
       /* Unified Mosca bucketing powered by computeFindingMosca */
@@ -1868,7 +1812,8 @@
 
         syncGlobalZUI();
 
-        const scans = (data.scans && data.scans.length > 0) ? data.scans : (data.activeScan && data.activeScan.findings ? [data.activeScan] : (data.repositories || []));
+        const prepared = MigrationPlanData.collectFindings(data);
+        const scans = prepared.scans;
         const hasFindings = scans.some(s => s.findings && s.findings.length > 0);
 
         if (!hasFindings) {
@@ -1879,33 +1824,7 @@
           return;
         }
 
-        const repoCritMap = {};
-        (data.repositories || []).forEach(r => {
-          if (r.id) repoCritMap[r.id] = (r.businessCriticality || 'MEDIUM').toUpperCase();
-          if (r.name) repoCritMap[r.name] = (r.businessCriticality || 'MEDIUM').toUpperCase();
-        });
-        scans.forEach(s => {
-          if (s.repoId && s.businessCriticality) repoCritMap[s.repoId] = s.businessCriticality.toUpperCase();
-          if (s.repoName && s.businessCriticality) repoCritMap[s.repoName] = s.businessCriticality.toUpperCase();
-        });
-
-        allFindings = scans.flatMap(s => (s.findings || []).filter(Boolean).map(f => {
-          // Normalize severity before enriching — guards against undefined crashing enrichFinding
-          if (!f.severity) f.severity = 'medium';
-          let enriched;
-          try {
-            enriched = CryptoEngine.enrichFinding(f);
-          } catch (e) {
-            console.warn('enrichFinding failed for finding:', f, e);
-            enriched = f;
-          }
-          return {
-            ...enriched,
-            repoId: s.repoId,
-            repoName: s.repoName || s.name,
-            businessCriticality: f.businessCriticality || s.businessCriticality || repoCritMap[s.repoId] || repoCritMap[s.repoName] || 'MEDIUM'
-          };
-        }));
+        allFindings = prepared.findings;
 
         // Identify at-risk components
         const atRisk = allFindings.filter(f => getSeverity(f) !== 'SAFE' || isQuantum(f));
@@ -1923,80 +1842,7 @@
         if (activeEl) activeEl.style.display = 'flex';
         if (headerActionsEl) headerActionsEl.style.display = 'flex';
 
-        // Group by algorithm to form discrete migration candidates
-        const candidateMap = {};
-        const critWeights = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
-
-        atRisk.forEach(f => {
-          const algo = f.algorithm || f.title.split(' ')[0] || 'Unknown';
-          if (!candidateMap[algo]) {
-            candidateMap[algo] = {
-              algorithm: algo,
-              purpose: f.usage || f.category || 'Data Protection',
-              severity: getSeverity(f),
-              quantumVulnerable: isQuantum(f),
-              isClassicallyWeak: (typeof QuantumRules !== 'undefined' && QuantumRules.isClassicallyWeak) ? QuantumRules.isClassicallyWeak(f) : false,
-              affectedFiles: new Set(),
-              maxCriticality: 'MEDIUM',
-              maxCritWeight: 2,
-              rationale: f.remediation || f.snippet || 'Component is considered insecure or vulnerable to quantum attacks.',
-              replacement: determineReplacement(algo)
-            };
-          }
-          candidateMap[algo].affectedFiles.add(f.file || 'unknown');
-
-          const fCrit = (f.businessCriticality || 'MEDIUM').toUpperCase();
-          const cWeight = critWeights[fCrit] || 2;
-          if (cWeight > (candidateMap[algo].maxCritWeight || 0)) {
-            candidateMap[algo].maxCritWeight = cWeight;
-            candidateMap[algo].maxCriticality = fCrit;
-          }
-
-          // Store first finding to extract HNDL / score details
-          if (!candidateMap[algo].rawFinding) {
-            candidateMap[algo].rawFinding = f;
-          }
-
-          // Escalate severity if multiple findings have different severities
-          const s1 = candidateMap[algo].severity;
-          const s2 = getSeverity(f);
-          if (s2 === 'CRITICAL' || (s2 === 'HIGH' && s1 !== 'CRITICAL')) {
-            candidateMap[algo].severity = s2;
-          }
-          if (isQuantum(f)) candidateMap[algo].quantumVulnerable = true;
-          if (typeof QuantumRules !== 'undefined' && QuantumRules.isClassicallyWeak && QuantumRules.isClassicallyWeak(f)) {
-            candidateMap[algo].isClassicallyWeak = true;
-          }
-        });
-
-        migrationCandidates = Object.values(candidateMap).map(c => {
-          let priority = 3;
-          if (c.isClassicallyWeak || c.maxCriticality === 'CRITICAL' || c.severity === 'CRITICAL' || c.severity === 'HIGH' || c.quantumVulnerable) {
-            priority = 1;
-          } else if (c.maxCriticality === 'HIGH' || c.severity === 'MEDIUM') {
-            priority = 2;
-          } else {
-            priority = 3;
-          }
-
-          return {
-            ...c,
-            fileCount: c.affectedFiles ? (c.affectedFiles.size || c.affectedFiles.length || 0) : 0,
-            priority: priority
-          };
-        });
-
-        const riskWeights = { 'CRITICAL': 1, 'HIGH': 2, 'MEDIUM': 3, 'LOW': 4, 'SAFE': 5 };
-        migrationCandidates.sort((a, b) => {
-          if ((b.maxCritWeight || 2) !== (a.maxCritWeight || 2)) {
-            return (b.maxCritWeight || 2) - (a.maxCritWeight || 2);
-          }
-          if (a.priority !== b.priority) return a.priority - b.priority;
-          const wA = riskWeights[a.severity] || 4;
-          const wB = riskWeights[b.severity] || 4;
-          if (wA !== wB) return wA - wB;
-          return b.fileCount - a.fileCount;
-        });
+        migrationCandidates = MigrationPlanData.buildCandidates(atRisk);
 
         updateDashboard(atRisk);
         render2DMatrix();
@@ -2323,6 +2169,15 @@
         pBadge.textContent = `Priority ${pVal}`;
 
         document.getElementById('drw-replacement').textContent = c.replacement || 'None specified';
+        const primaryFinding = c.rawFinding || c.findings?.[0] || {};
+        const assuranceParams = new URLSearchParams({
+          from: c.algorithm || '',
+          to: c.replacement || '',
+          findingId: primaryFinding.id || '',
+          scanId: primaryFinding.scanId || '',
+          source: 'migration-plan'
+        });
+        document.getElementById('drw-assurance-link').href = `pqc-assurance.html?${assuranceParams.toString()}`;
 
         const rBadge = document.getElementById('drw-risk-badge');
         const sev = c.severity || 'INFO';

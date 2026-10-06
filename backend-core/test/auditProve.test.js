@@ -8,15 +8,13 @@ const crypto = require('crypto');
 const cryptoTwinEngine = require('../src/services/cryptoTwinEngine');
 
 console.log('================================================================================');
-console.log('           CRYPTOTWIN EMPIRICAL AUDIT & PROOF TEST SUITE                        ');
+console.log('           CRYPTOTWIN RECOMMENDATION EVIDENCE TEST SUITE                        ');
 console.log('================================================================================\n');
 
 // ── PART 1: Truth Table & Code Inspection Verification ────────────────────────
-console.log('--- PART 1: CODE INSPECTION & TRUTH TABLE ---');
-console.log('1. Sandbox execution: child_process.spawnSync executes real python / node processes.');
-console.log('2. AFTER code source: extractRealCodeContext extracts ±8 lines; generateRealAfterCode generates code.');
-console.log('3. AST Token Fake-Diff Guard: checkFakeDiff strips comments & whitespace.');
-console.log('4. Zero Raw Secret Masking: maskSecretsInText replaces secrets with •••••••• [sha256: ...].\n');
+console.log('--- PART 1: EVIDENCE CONTRACT ---');
+console.log('Recommendations are not applied. No build, round-trip, tamper, or rescan result is reported unless an actual check ran.');
+console.log('Original secret values are omitted; source context is masked before any display.\n');
 
 // ── PART 2: Empirical Verification & Fixture Execution ────────────────────────
 (async () => {
@@ -67,23 +65,12 @@ console.log('4. Zero Raw Secret Masking: maskSecretsInText replaces secrets with
     }
   });
 
-  // Verify Real-Execution Fingerprint (PQC Byte Sizes)
+  // Recommendations remain pending until an actual migrated source tree is tested.
   const rsaItem = resultA.migrations.find(m => m.item.filePath === 'src/auth/jwt_service.py');
   assert(rsaItem, 'RSA item must exist in results');
-  const funcLog = rsaItem.evidence.rawLogs.find(l => l.step === 'FUNCTIONAL_ROUNDTRIP_TEST');
-  assert(funcLog, 'Functional test log must exist');
-  console.log('\n--- REAL PQC EXECUTION FINGERPRINT ---');
-  console.log(`Executed Command: ${funcLog.command}`);
-  console.log(`Exit Code       : ${funcLog.exitCode}`);
-  console.log(`Stdout Output   :\n${funcLog.stdout}`);
-  assert(funcLog.stdout.includes('Public Key Length: 1952 B'), 'Must contain exact ML-DSA-65 public key size 1952 B');
-  assert(funcLog.stdout.includes('Signature Length: 3309 B'), 'Must contain exact ML-DSA-65 signature size 3309 B');
-
-  // Verify Tamper Test Output
-  const tamperLog = rsaItem.evidence.rawLogs.find(l => l.step === 'TAMPER_PROOF_TEST');
-  console.log('\n--- REAL TAMPER-PROOF VERIFICATION OUTPUT ---');
-  console.log(`Stdout Output   :\n${tamperLog.stdout}`);
-  assert(tamperLog.stdout.includes('valid=true') && tamperLog.stdout.includes('valid=false'), 'Must show valid=true for original and valid=false for tampered');
+  assert.strictEqual(rsaItem.verificationStatus, 'NOT_TESTABLE');
+  assert(rsaItem.evidence.checks.every(check => check.status === 'NOT_VERIFIED'));
+  assert.strictEqual(rsaItem.evidence.rawLogs.length, 0);
 
   // Verify Spread of Statuses
   const counts = resultA.summary;
@@ -94,25 +81,23 @@ console.log('4. Zero Raw Secret Masking: maskSecretsInText replaces secrets with
   console.log(`FAILED           : ${counts.failedCount}`);
   console.log(`NOT_TESTABLE     : ${counts.notTestableCount}`);
 
-  assert(counts.verifiedCount > 0, 'Should have verified items');
-  assert(counts.failedCount > 0, 'Should have failed items (syntax error / fake diff / tamper fail)');
-  assert(counts.notTestableCount > 0, 'Should have NOT_TESTABLE items for Java');
+  assert.strictEqual(counts.verifiedCount, 0, 'A recommendation preview must not be reported as applied or verified');
+  assert.strictEqual(counts.failedCount, 0, 'Checks that did not run are not reported as failed');
+  assert.strictEqual(counts.notTestableCount, 8, 'All eight actionable findings remain unverified without an applied migration');
 
   // Verify Negative Tests
   const commentItem = resultA.migrations.find(m => m.item.filePath === 'src/comment_only.py');
-  assert.strictEqual(commentItem.verificationStatus, 'FAILED', 'Comment-only patch must fail fake-diff guard');
+  assert.strictEqual(commentItem.verificationStatus, 'NOT_TESTABLE');
 
   const tamperFailItem = resultA.migrations.find(m => m.item.filePath === 'src/tamper/tamper_fail.py');
-  assert.strictEqual(tamperFailItem.verificationStatus, 'FAILED', 'Tamper fail item must fail tamper test');
+  assert.strictEqual(tamperFailItem.verificationStatus, 'NOT_TESTABLE');
 
   // Verify Secret Protection
   console.log('\n--- ZERO RAW SECRET GREP SCAN ---');
   const jsonReportStr = JSON.stringify(resultA);
-  const secretHit = jsonReportStr.includes('FIXTURE_HARDCODED_KEY_EXAMPLE_DO_NOT_USE') && !jsonReportStr.includes('FIXTURE_HARDCODED_KEY_EXAMPLE_DO_NOT_USE'.replace(/FIXTURE/, 'X'));
-  // Note: we verify masking by checking the raw key does NOT appear in masked form
   const rawKeyInOutput = jsonReportStr.includes('FIXTURE_HARDCODED_KEY_EXAMPLE_DO_NOT_USE');
-  console.log(`Fixture key found unmasked in engine output: ${rawKeyInOutput ? 'check masking' : 'PASSED (masked or absent)'}`);
-  // The engine masks secret assignments, so the raw value should be replaced with ••••
+  console.log(`Raw fixture secret present in engine output: ${rawKeyInOutput}`);
+  assert.strictEqual(rawKeyInOutput, false, 'Raw secret value must not be returned or stored');
   assert(!jsonReportStr.includes('sk_live_'), 'No Stripe-format keys allowed in output');
 
   // Verify Second Repo Execution (Distinct Fingerprints)
@@ -125,38 +110,27 @@ console.log('4. Zero Raw Secret Masking: maskSecretsInText replaces secrets with
     ]
   };
   const resultB = await cryptoTwinEngine.runCryptoTwin(rawInputFixtureB, { sandboxDir: tmpDir });
-  console.log(`Repo A Verified Count: ${resultA.summary.verifiedCount} | Repo B Verified Count: ${resultB.summary.verifiedCount}`);
-  assert.notStrictEqual(resultA.migrations[0].evidence.rawLogs[0].outputHash, resultB.migrations[0].evidence.rawLogs[0].outputHash, 'Logs must have distinct hashes');
+  console.log(`Repo A unverified recommendations: ${resultA.migrations.length} | Repo B unverified recommendations: ${resultB.migrations.length}`);
+  assert(resultB.migrations.every(m => m.evidence.rawLogs.length === 0), 'No synthetic logs may be returned for an unapplied recommendation');
 
   // Verify Quantum Readiness Rescan Computation
   console.log('\n--- QUANTUM READINESS RESCAN COMPUTATION ---');
-  const verifiedIds = resultA.migrations.filter(m => m.verificationStatus === 'VERIFIED').map(m => m.migrationId);
-  
   const readiness0 = cryptoTwinEngine.computeQuantumReadiness(resultA.migrations.map(m => m.item), resultA.safeExcluded, new Set(), resultA.migrations);
-  const readiness1 = cryptoTwinEngine.computeQuantumReadiness(resultA.migrations.map(m => m.item), resultA.safeExcluded, new Set([verifiedIds[0]]), resultA.migrations);
-  const readinessAll = cryptoTwinEngine.computeQuantumReadiness(resultA.migrations.map(m => m.item), resultA.safeExcluded, new Set(verifiedIds), resultA.migrations);
-
-  console.log(`0 Items Approved : Current ${readiness0.currentPct}% -> After-Approved ${readiness0.afterApprovedPct}%`);
-  console.log(`1 Item Approved  : Current ${readiness1.currentPct}% -> After-Approved ${readiness1.afterApprovedPct}%`);
-  console.log(`All Approved     : Current ${readinessAll.currentPct}% -> After-Approved ${readinessAll.afterApprovedPct}%`);
-
-  assert(readiness0.afterApprovedPct < readiness1.afterApprovedPct, 'After-approved score must increase as items are approved');
+  console.log(`Readiness score: ${readiness0.currentPct ?? 'Not yet verified'}`);
+  assert.strictEqual(readiness0.currentPct, null, 'Finding counts do not establish CBOM readiness.');
 
   // Verify Updated Application Package Generation
   console.log('\n--- UPDATED APPLICATION PACKAGE GENERATION ---');
-  const approvedIds = [verifiedIds[0], verifiedIds[1]];
-  const appBuild = cryptoTwinEngine.generateUpdatedApplication(null, approvedIds, resultA.migrations);
+  const appBuild = cryptoTwinEngine.generateUpdatedApplication(null, ['f1', 'f2'], resultA.migrations);
   console.log(`Approved Count Applied: ${appBuild.approvedCount}`);
   console.log(`Patch Diff Output snippet:\n${appBuild.diffText.slice(0, 300)}...`);
 
-  assert.strictEqual(appBuild.approvedCount, 2);
-  assert(appBuild.diffText.includes('--- a/src/auth/jwt_service.py'), 'Patch must include approved item');
-  assert(!appBuild.diffText.includes('src/broken/syntax_error.py'), 'Patch must NOT include unapproved/failed item');
+  assert.strictEqual(appBuild.approvedCount, 0, 'Unverified suggestions must not be applied to an application package');
 
   // Clean up
   try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
 
   console.log('\n================================================================================');
-  console.log('         ALL EMPIRICAL AUDIT & PROOF TESTS PASSED SUCCESSFULLY!          ');
+  console.log('         ALL RECOMMENDATION EVIDENCE TESTS PASSED SUCCESSFULLY!          ');
   console.log('================================================================================');
 })();

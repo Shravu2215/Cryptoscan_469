@@ -12,7 +12,7 @@ function maskSecretsInText(text) {
   if (!text || typeof text !== 'string') return text;
   
   // Patterns matching hardcoded secrets, api keys, passwords, private key assignments
-  const secretRegex = /((?:api_key|apikey|secret|password|private_key|token|auth_key|access_key)\s*[:=]\s*)(['"])([^\2\n]{4,})\2/gi;
+  const secretRegex = /((?:api[_-]?key|apikey|secret(?:[_-]?key)?|password|private[_-]?key|token|auth[_-]?key|access[_-]?key)\s*[:=]\s*)(['"])([^'"\r\n]{4,})\2/gi;
   
   return text.replace(secretRegex, (match, prefix, quote, secretValue) => {
     const hash = crypto.createHash('sha256').update(secretValue).digest('hex').slice(0, 8);
@@ -108,40 +108,35 @@ function classifyMigration(algo, ctx) {
   const c = (ctx || '').toLowerCase();
 
   if (a.includes('secret') || a.includes('key material') || a.includes('password') || a.includes('token') || a.includes('hardcoded') || c.includes('secret')) {
-    return 'secret-handling';
+    return 'SECRET_HYGIENE';
   }
-  if (a.includes('rsa') || a.includes('ecdh') || a.includes('ecdsa') || a.includes('dsa') || a.includes('curve25519') || a.includes('ed25519')) {
-    return 'pqc-replacement';
+  if (a.includes('rsa') || a.includes('dh') || a.includes('ecdh') || a.includes('ecdsa') || a.includes('eddsa') || a.includes('ed25519') || a.includes('ed448') || a.includes('dsa') || a.includes('curve25519') || a.includes('x25519') || a.includes('x448') || a.includes('ecc')) {
+    return 'PQC_REPLACEMENT';
   }
-  if (a.includes('3des') || a.includes('des') || a.includes('rc4') || a.includes('blowfish') || a.includes('ecb') || a.includes('cbc')) {
-    return 'symmetric-upgrade';
-  }
-  if (a.includes('md5') || a.includes('sha1') || a.includes('sha-1')) {
-    return 'hash-upgrade';
-  }
-  return 'general-upgrade';
+  return 'SYMMETRIC_HASH_UPGRADE';
 }
 
 function deriveTargetAlgorithm(algo, migrationType, ctx = '') {
   const a = (algo || '').toLowerCase();
   const c = (ctx || '').toLowerCase();
 
-  if (migrationType === 'secret-handling' || a.includes('secret') || a.includes('hardcoded')) {
-    return 'Environment Variable / AWS KMS / Azure Key Vault';
+  if (migrationType === 'SECRET_HYGIENE') {
+    return 'Environment variable or approved secret manager; rotate exposed key';
   }
-  if (migrationType === 'pqc-replacement') {
-    if (a.includes('rsa') && (c.includes('jwt') || c.includes('sign') || a.includes('sign'))) return 'ML-DSA-65 (FIPS 204)';
-    if (a.includes('ecdsa') || a.includes('dsa') || c.includes('sign')) return 'ML-DSA-65 (FIPS 204)';
-    if (a.includes('ecdh') || a.includes('dh') || a.includes('rsa')) return 'ML-KEM-768 (FIPS 203)';
-    return 'ML-DSA-65 (FIPS 204) / ML-KEM-768 (FIPS 203)';
+  if (migrationType === 'PQC_REPLACEMENT') {
+    const signatureUse = /sign|signature|verify|jwt|certificate|eddsa|ecdsa|ed25519|ed448/.test(c + ' ' + a);
+    return signatureUse ? 'ML-DSA-65 (FIPS 204) or SLH-DSA (FIPS 205)' : 'ML-KEM-768 (FIPS 203); consider a reviewed hybrid during transition';
   }
-  if (migrationType === 'symmetric-upgrade') {
-    return 'AES-256-GCM (Authenticated Encryption)';
+  if (a.includes('md5') || a.includes('sha1') || a.includes('sha-1')) {
+    return 'SHA-256 / SHA3-256';
   }
-  if (migrationType === 'hash-upgrade') {
-    return 'SHA-256 / SHA-3-256';
-  }
-  return 'AES-256-GCM / SHA-256';
+  if (a.includes('aes-128') || a.includes('aes128')) return 'AES-256-GCM';
+  return 'AES-256-GCM or ChaCha20-Poly1305, selected for the observed operation';
+}
+
+function lineLabel(item) {
+  const lines = item.lineNumbers?.length ? item.lineNumbers : (Number.isInteger(item.line) ? [item.line] : []);
+  return lines.length ? lines.join(', ') : 'line not recorded';
 }
 
 // ── 5. Extract Real Code Context from File (±8 lines context) ─────────────────
@@ -211,75 +206,58 @@ function generateRealAfterCode(item, context, isExecutable = true) {
   const targetLineNum = item.line || 42;
 
   let afterLines = [];
-  const statusLabel = isExecutable ? '# Upgraded & Sandbox Verified' : '# SUGGESTED — NOT APPLIED, NOT TESTED (Runtime/Compiler unavailable in sandbox)';
+  const statusLabel = isExecutable ? '# Upgraded & Sandbox Verified' : '# SUGGESTED — NOT APPLIED, NOT TESTED';
 
-  if (item.filePath && item.filePath.includes('syntax_error')) {
-    afterLines = [
-      { lineNum: targetLineNum, text: `def bad_code(\n    return broken syntax`, isTarget: true }
-    ];
-  } else if (lang === 'Python') {
-    if (type === 'secret-handling') {
+  if (lang === 'Python') {
+    if (type === 'SECRET_HYGIENE') {
       afterLines = [
-        { lineNum: targetLineNum - 2, text: `# Upgraded: Hardcoded key moved to Environment Variable / Secret Manager`, isTarget: false },
-        { lineNum: targetLineNum - 1, text: `import os`, isTarget: false },
-        { lineNum: targetLineNum,     text: `SECRET_KEY = os.environ.get("APP_SECRET_KEY")  ${statusLabel}`, isTarget: true },
-        { lineNum: targetLineNum + 1, text: `if not SECRET_KEY:`, isTarget: false },
-        { lineNum: targetLineNum + 2, text: `    raise RuntimeError("APP_SECRET_KEY environment variable is missing")`, isTarget: false }
+        { lineNum: targetLineNum, text: `# Suggested: move the leaked key out of source control`, isTarget: false },
+        { lineNum: targetLineNum + 1, text: `import os`, isTarget: false },
+        { lineNum: targetLineNum + 2, text: `SECRET_KEY = os.environ["APP_SECRET_KEY"]`, isTarget: true },
+        { lineNum: targetLineNum + 3, text: `${statusLabel}`, isTarget: false }
       ];
-    } else if (type === 'pqc-replacement' && target.includes('ML-DSA')) {
+    } else if (type === 'PQC_REPLACEMENT' && target.includes('ML-DSA')) {
       afterLines = [
-        { lineNum: targetLineNum - 3, text: `# Upgraded: NIST FIPS 204 ML-DSA-65 Quantum-Resistant Digital Signature`, isTarget: false },
-        { lineNum: targetLineNum - 2, text: `import oqs`, isTarget: false },
-        { lineNum: targetLineNum - 1, text: `def sign_token(payload):`, isTarget: false },
-        { lineNum: targetLineNum,     text: `    with oqs.Signature("ML-DSA-65") as signer:  ${statusLabel}`, isTarget: true },
-        { lineNum: targetLineNum + 1, text: `        signer.generate_keypair()`, isTarget: true },
-        { lineNum: targetLineNum + 2, text: `        sig = signer.sign(payload.encode("utf-8"))`, isTarget: true },
-        { lineNum: targetLineNum + 3, text: `        return sig`, isTarget: false }
+        { lineNum: targetLineNum, text: `# Suggested FIPS 204 signer; adapt to the selected provider API`, isTarget: false },
+        { lineNum: targetLineNum + 1, text: `# Update the signing key format and every verifier together`, isTarget: false },
+        { lineNum: targetLineNum + 2, text: `${statusLabel}`, isTarget: false }
       ];
-    } else if (type === 'pqc-replacement' && target.includes('ML-KEM')) {
+    } else if (type === 'PQC_REPLACEMENT' && target.includes('ML-KEM')) {
       afterLines = [
-        { lineNum: targetLineNum - 3, text: `# Upgraded: NIST FIPS 203 ML-KEM-768 Post-Quantum Key Encapsulation`, isTarget: false },
-        { lineNum: targetLineNum - 2, text: `import oqs`, isTarget: false },
-        { lineNum: targetLineNum - 1, text: `def establish_shared_key():`, isTarget: false },
-        { lineNum: targetLineNum,     text: `    with oqs.KeyEncapsulation("ML-KEM-768") as kem:  ${statusLabel}`, isTarget: true },
-        { lineNum: targetLineNum + 1, text: `        public_key = kem.generate_keypair()`, isTarget: true },
-        { lineNum: targetLineNum + 2, text: `        ciphertext, shared_secret = kem.encap_secret(public_key)`, isTarget: true },
-        { lineNum: targetLineNum + 3, text: `        return ciphertext, shared_secret`, isTarget: false }
+        { lineNum: targetLineNum, text: `# Suggested FIPS 203 key encapsulation; use a reviewed provider API`, isTarget: false },
+        { lineNum: targetLineNum + 1, text: `# Migrate peer negotiation and key handling as one protocol change`, isTarget: false },
+        { lineNum: targetLineNum + 2, text: `${statusLabel}`, isTarget: false }
       ];
-    } else if (type === 'hash-upgrade') {
+    } else if (type === 'SYMMETRIC_HASH_UPGRADE') {
       afterLines = [
-        { lineNum: targetLineNum - 1, text: `# Upgraded: SHA-256 Collision-Resistant Digest`, isTarget: false },
-        { lineNum: targetLineNum - 0, text: `import hashlib`, isTarget: false },
-        { lineNum: targetLineNum + 1, text: `digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()  ${statusLabel}`, isTarget: true }
+        { lineNum: targetLineNum, text: `# Suggested replacement: ${target}`, isTarget: false },
+        { lineNum: targetLineNum + 1, text: statusLabel, isTarget: false }
       ];
     } else {
       afterLines = [
-        { lineNum: targetLineNum - 1, text: `# Upgraded: AES-256-GCM Authenticated Encryption`, isTarget: false },
-        { lineNum: targetLineNum,     text: `from cryptography.hazmat.primitives.ciphers.aead import AESGCM  ${statusLabel}`, isTarget: true },
-        { lineNum: targetLineNum + 1, text: `aesgcm = AESGCM(key)`, isTarget: false },
-        { lineNum: targetLineNum + 2, text: `ciphertext = aesgcm.encrypt(nonce, data, associated_data)`, isTarget: true }
+        { lineNum: targetLineNum, text: `# Suggested replacement: ${target}`, isTarget: false },
+        { lineNum: targetLineNum + 1, text: statusLabel, isTarget: false }
       ];
     }
   } else {
     // JavaScript / TypeScript / Java / generic
-    if (type === 'secret-handling') {
+    if (type === 'SECRET_HYGIENE') {
       afterLines = [
-        { lineNum: targetLineNum - 1, text: `// Upgraded: Secret material fetched from process.env`, isTarget: false },
-        { lineNum: targetLineNum,     text: `const secretKey = process.env.APP_SECRET_KEY; // ${statusLabel}`, isTarget: true },
-        { lineNum: targetLineNum + 1, text: `if (!secretKey) throw new Error("APP_SECRET_KEY missing");`, isTarget: false }
+        { lineNum: targetLineNum, text: `// Suggested: read the rotated secret from a secret manager or environment`, isTarget: false },
+        { lineNum: targetLineNum + 1, text: `const secretKey = process.env.APP_SECRET_KEY;`, isTarget: true },
+        { lineNum: targetLineNum + 2, text: `if (!secretKey) throw new Error("APP_SECRET_KEY missing");`, isTarget: false },
+        { lineNum: targetLineNum + 3, text: `// ${statusLabel}`, isTarget: false }
       ];
-    } else if (type === 'pqc-replacement') {
+    } else if (type === 'PQC_REPLACEMENT') {
       afterLines = [
-        { lineNum: targetLineNum - 2, text: `// Upgraded: NIST FIPS 204 ML-DSA-65 Signature`, isTarget: false },
-        { lineNum: targetLineNum - 1, text: `const { ml_dsa65 } = require("@noble/post-quantum/ml-dsa");`, isTarget: false },
-        { lineNum: targetLineNum,     text: `const keys = ml_dsa65.keygen(); // ${statusLabel}`, isTarget: true },
-        { lineNum: targetLineNum + 1, text: `const signature = ml_dsa65.sign(payload, keys.secretKey);`, isTarget: true },
-        { lineNum: targetLineNum + 2, text: `const valid = ml_dsa65.verify(signature, payload, keys.publicKey);`, isTarget: false }
+        { lineNum: targetLineNum, text: `// Suggested: ${target}; select and review a supported provider first`, isTarget: false },
+        { lineNum: targetLineNum + 1, text: `// Update all key formats, signing/encapsulation callers, and verifiers`, isTarget: false },
+        { lineNum: targetLineNum + 2, text: `// ${statusLabel}`, isTarget: false }
       ];
     } else {
       afterLines = [
-        { lineNum: targetLineNum - 1, text: `// ${statusLabel}`, isTarget: false },
-        { lineNum: targetLineNum,     text: `// ${target} implementation for ${lang}`, isTarget: true }
+        { lineNum: targetLineNum, text: `// Suggested replacement: ${target}`, isTarget: false },
+        { lineNum: targetLineNum + 1, text: `// ${statusLabel}`, isTarget: false }
       ];
     }
   }
@@ -292,54 +270,54 @@ function generateRealAfterCode(item, context, isExecutable = true) {
 // ── 7. "Why This Change" Panel Generator ─────────────────────────────────────
 function buildWhyThisChangePanel(item, context, afterCode) {
   const algo = item.currentAlgorithm || 'Legacy Algorithm';
-  const type = item.migrationType || classifyMigration(algo, item.usageContext);
+  const type = item.remediationClass || item.migrationType || classifyMigration(algo, item.usageContext);
   const target = item.targetAlgorithm || deriveTargetAlgorithm(algo, type, item.usageContext);
 
   let risk = '';
   let fix = '';
   let impact = '';
+  let checks = [];
   let rollback = '';
   let whatChanged = [];
 
-  if (type === 'secret-handling') {
-    risk = `Hardcoded secret keys committed in source code leak credentials to version control, build artifacts, and repository contributors. Attacker extracts plaintext credential to forge tokens or access backend resources.`;
-    fix = `Migrated to Environment Variables / Secret Manager (AWS KMS / Azure Key Vault). Credentials are now injected at runtime.`;
-    impact = `Requires setting APP_SECRET_KEY in deployment environment. Zero code changes required for secret rotation.`;
-    rollback = `Restore key assignment in config module and re-inject into secret vault.`;
+  if (type === 'SECRET_HYGIENE') {
+    risk = `The secret is exposed in source control history. Rotate the leaked key now, remove the hardcoded value, and purge or otherwise remediate the history according to your repository policy.`;
+    fix = `Move the replacement secret to an approved secret manager or environment variable. This is secret hygiene, not a PQC algorithm replacement.`;
+    impact = `App fails at startup if env var missing`;
+    checks = ['Build', 'Run-with-env', 'Missing-var-raises', 'Rescan'];
+    rollback = `Restore a valid secret-manager/environment configuration; never restore the leaked key.`;
     whatChanged = [
-      `Line ${item.line}: Replaced plaintext hardcoded key assignment with environment variable lookup.`,
-      `Added runtime check to fail fast if secret environment variable is missing.`
+      `Original line${lineLabel(item).includes(',') ? 's' : ''} ${lineLabel(item)}: remove the exposed assignment and rotate the leaked value.`,
+      `Require the replacement secret at startup and verify the missing-variable path fails closed.`
     ];
-  } else if (type === 'pqc-replacement') {
-    risk = `Shor's algorithm running on a Cryptographically Relevant Quantum Computer (CRQC) solves discrete logarithms and prime factorization in polynomial time. Harvested ciphertext or signed JWT tokens can be decrypted or forged offline.`;
-    fix = `Replaced ${algo} with ${target} (NIST FIPS 204 / FIPS 203). Uses lattice-based cryptography immune to Shor's algorithm.`;
-    impact = `Signature/Public key size increases (ML-DSA-65 signature is 3309 B vs RSA ~256 B; public key is 1952 B). Verify JWT header and DB column length limits.`;
+  } else if (type === 'PQC_REPLACEMENT') {
+    risk = `Shor's algorithm would break the classical RSA/DH/ECC primitive on a sufficiently capable fault-tolerant quantum computer.`;
+    fix = `PQC recommendation: evaluate ${target} for the observed purpose; verify the protocol/provider and migrate every peer.`;
+    impact = `Key, ciphertext, or signature sizes and protocol support can change. Measure the selected parameter set and check the actual payload, certificate, and storage limits.`;
+    checks = ['Build', 'KAT', 'Round-trip', 'Tamper', 'Rescan'];
     rollback = `Revert signature function call to legacy RSA/ECDSA signing handler.`;
     whatChanged = [
-      `Line ${item.line}: Replaced legacy algorithm invocation with NIST PQC standard library call.`,
-      `Added post-quantum keypair generation and verification context.`
-    ];
-  } else if (type === 'symmetric-upgrade') {
-    risk = `Legacy block cipher (${algo}) suffers from Sweet32 block collisions (64-bit blocks) or padding oracle vulnerabilities.`;
-    fix = `Upgraded to AES-256-GCM authenticated encryption (NIST SP 800-38D), providing confidentiality and integrity.`;
-    impact = `Ciphertext output size increases by 16 bytes (Authentication Tag). Ensure IV/nonce is generated randomly per encryption.`;
-    rollback = `Revert cipher initialization to legacy mode.`;
-    whatChanged = [
-      `Line ${item.line}: Swapped unauthenticated cipher with AES-256-GCM initialization.`,
-      `Added nonce generation and authentication tag verification.`
+      `Original line${lineLabel(item).includes(',') ? 's' : ''} ${lineLabel(item)}: migrate the observed primitive to a purpose-matched PQC scheme.`,
+      `Update the protocol, key formats, and every communicating verifier or peer.`
     ];
   } else {
-    risk = `${algo} is cryptographically broken due to practical chosen-prefix collision attacks.`;
-    fix = `Upgraded to SHA-256 / SHA-3-256 collision-resistant digest function.`;
-    impact = `Digest string output length increases to 64 hex characters (256 bits). Verify database column widths.`;
-    rollback = `Revert hash function call to legacy digest.`;
+    risk = /md5|sha.?1/i.test(algo)
+      ? `${algo} has a classical cryptographic weakness; replace it according to the actual hash purpose.`
+      : `${algo} requires symmetric/hash hardening; select the replacement that matches the observed operation and data format.`;
+    fix = `Hardening recommendation: evaluate ${target} for the observed operation and compatibility requirements.`;
+    impact = `Output format, key size, nonce/IV handling, or digest length may change. Check the actual data format and compatibility constraints before deployment.`;
+    checks = ['Build', 'KAT', 'Round-trip', 'Tamper', 'Rescan'];
+    rollback = `Restore a compatible implementation only after risk review; do not reintroduce a classically broken primitive.`;
     whatChanged = [
-      `Line ${item.line}: Replaced broken ${algo} hashing function with SHA-256 digest function.`
+      `Original line${lineLabel(item).includes(',') ? 's' : ''} ${lineLabel(item)}: review the actual call site and migrate its parameters/formats.`,
+      `Verify callers and stored data remain compatible after the change.`
     ];
   }
 
   return {
-    found: `Found ${algo} at ${item.filePath}:${item.line} [Severity: ${item.severity}]`,
+    remediationClass: type,
+    checks,
+    found: `Found ${algo} at ${item.filePath}:${lineLabel(item)}`,
     risk,
     fix,
     whatChanged,
@@ -360,25 +338,34 @@ function normaliseInput(rawInput) {
   rawItems.forEach((raw, idx) => {
     const algo = raw.currentAlgorithm || raw.algorithm || raw.title || 'Unknown';
     const sev  = (raw.severity || 'MEDIUM').toUpperCase();
-    const isSafe = sev === 'SAFE' || sev === 'INFO' || (algo.includes('AES-256-GCM') && !raw.quantumVulnerable) || (algo.includes('SHA-256') && !raw.quantumVulnerable);
+    const isSafe = sev === 'SAFE' || sev === 'INFO';
     const ctx = raw.usageContext || raw.usage || raw.purpose || 'general';
     const type = classifyMigration(algo, ctx);
     const target = raw.targetAlgorithm || raw.replacement || deriveTargetAlgorithm(algo, type, ctx);
+    const lineNumbers = Array.from(new Set([...(Array.isArray(raw.lineNumbers) ? raw.lineNumbers : []), raw.line || raw.lineNumber].filter(Number.isInteger))).sort((a, b) => a - b);
+    const secretHash = type === 'SECRET_HYGIENE' && /^[a-f0-9]{64}$/i.test(String(raw.secretHash || raw.hash || ''))
+      ? String(raw.secretHash || raw.hash).toLowerCase()
+      : null;
 
     const normItem = {
       id: raw.id || `mig-${idx + 1}`,
       filePath: raw.filePath || raw.file || (raw.files && raw.files[0]) || 'unknown',
-      line: raw.line || raw.lineNumber || 1,
+      line: lineNumbers[0] || (Number.isInteger(raw.line) ? raw.line : Number.isInteger(raw.lineNumber) ? raw.lineNumber : null),
+      lineNumbers,
       language: raw.language || (raw.filePath && raw.filePath.endsWith('.py') ? 'Python' : raw.filePath && raw.filePath.endsWith('.java') ? 'Java' : 'JavaScript'),
       currentAlgorithm: algo,
+      library: raw.library || null,
       usageContext: ctx,
       severity: sev,
       quantumVulnerable: !!(raw.quantumVulnerable || raw.quantum === 'yes'),
+      remediationClass: type,
       migrationType: type,
       targetAlgorithm: target,
       priority: raw.priority || (sev === 'CRITICAL' ? 1 : sev === 'HIGH' ? 2 : 3),
       effort: raw.effort || 'Medium',
-      dependsOn: Array.isArray(raw.dependsOn) ? raw.dependsOn : []
+      dependsOn: Array.isArray(raw.dependsOn) ? raw.dependsOn : [],
+      secretHashPrefix: secretHash ? secretHash.slice(0, 8) : null,
+      secretHash
     };
 
 
@@ -389,275 +376,269 @@ function normaliseInput(rawInput) {
     }
   });
 
+  const deduped = [];
+  const secretGroups = new Map();
+  inScope.forEach(item => {
+    if (item.remediationClass !== 'SECRET_HYGIENE' || !item.secretHash) {
+      deduped.push(item);
+      return;
+    }
+    const key = `${item.filePath.toLowerCase()}:${item.secretHash}`;
+    const existing = secretGroups.get(key);
+    if (!existing) {
+      secretGroups.set(key, item);
+      deduped.push(item);
+      return;
+    }
+    existing.lineNumbers = Array.from(new Set([...existing.lineNumbers, ...item.lineNumbers])).sort((a, b) => a - b);
+    existing.line = existing.lineNumbers[0];
+    if (item.severity === 'CRITICAL' || (item.severity === 'HIGH' && existing.severity !== 'CRITICAL')) existing.severity = item.severity;
+  });
+  deduped.forEach(item => { delete item.secretHash; });
+
   return {
     scanId: rawInput.scanId || null,
     repoName: rawInput.repoName || 'Scanned Repository',
     source: rawInput.source || 'direct',
     generatedAt: rawInput.generatedAt || new Date().toISOString(),
-    inScope,
+    inScope: deduped,
     safeExcluded
   };
 }
 
-// ── 9. Sandbox Per-Migration Engine (With Real Child Process Execution) ───────
-function processPerMigrationSandbox(items, sandboxDir, zipEntriesMap = {}) {
-  const migrationResults = [];
+function buildRecommendationResults(items, sandboxDir, zipEntriesMap = {}) {
+  const secretAssignments = /(?:api[_-]?key|apikey|secret(?:[_-]?key)?|password|private[_-]?key|token|auth[_-]?key|access[_-]?key)\s*[:=]\s*(['"])([^'"\r\n]{4,})\1/ig;
+  const groups = new Map();
+  const prepared = [];
 
   for (const item of items) {
-    const relPath = item.filePath;
-    const absPath = path.join(sandboxDir, relPath);
+    const relPath = String(item.filePath || '').replace(/\\/g, '/');
+    const rootPath = fs.realpathSync(sandboxDir);
+    const absolutePath = path.resolve(rootPath, relPath);
+    const sourcePath = fs.existsSync(absolutePath) ? fs.realpathSync(absolutePath) : null;
+    const sourceRelativePath = sourcePath ? path.relative(rootPath, sourcePath) : '';
+    const safePath = Boolean(sourcePath && sourceRelativePath && sourceRelativePath !== '..' && !sourceRelativePath.startsWith(`..${path.sep}`) && !path.isAbsolute(sourceRelativePath));
+    const zipSource = zipEntriesMap[relPath] ?? zipEntriesMap[relPath.replace(/\//g, path.sep)];
+    const source = zipSource !== undefined
+      ? zipSource
+      : (safePath && fs.statSync(sourcePath).isFile() ? fs.readFileSync(sourcePath, 'utf8') : null);
+    let groupKey = null;
+    let secretHashPrefix = item.secretHashPrefix || null;
 
-    let rawFileContent = zipEntriesMap[relPath] || (fs.existsSync(absPath) ? fs.readFileSync(absPath, 'utf8') : null);
-
-    if (!rawFileContent) {
-      if (item.migrationType === 'secret-handling') {
-        rawFileContent = `# File: ${relPath}\nAPI_KEY = "FIXTURE_HARDCODED_KEY_EXAMPLE_DO_NOT_USE"`;  // fixture — not a real secret
-      } else if ((item.currentAlgorithm || '').includes('MD5')) {
-        rawFileContent = `# File: ${relPath}\ndef get_hash(data):\n    return hashlib.md5(data).hexdigest()`;
-      } else if ((item.currentAlgorithm || '').includes('RSA')) {
-        rawFileContent = `# File: ${relPath}\ndef sign_payload(data):\n    signer = pkcs1_15.new(RSA.import_key(key))\n    return signer.sign(h)`;
-      } else if ((item.currentAlgorithm || '').includes('3DES')) {
-        rawFileContent = `// File: ${relPath}\nCipher c = Cipher.getInstance("DESede/CBC/PKCS5Padding");`;
-      } else {
-        rawFileContent = `// File: ${relPath}\nconst algo = "${item.currentAlgorithm}";`;
+    if (source && item.remediationClass === 'SECRET_HYGIENE') {
+      const sourceLines = source.split(/\r?\n/);
+      for (const lineNumber of item.lineNumbers || [item.line]) {
+        const rawLine = sourceLines[lineNumber - 1] || '';
+        secretAssignments.lastIndex = 0;
+        const match = secretAssignments.exec(rawLine);
+        if (!match) continue;
+        const digest = crypto.createHash('sha256').update(match[2]).digest('hex');
+        secretHashPrefix = digest.slice(0, 8);
+        groupKey = `${relPath.toLowerCase()}:${digest}`;
+        break;
       }
-      fs.mkdirSync(path.dirname(absPath), { recursive: true });
-      fs.writeFileSync(absPath, rawFileContent, 'utf8');
     }
 
-    const context = extractRealCodeContext(relPath, item.line, rawFileContent);
-
-    // Check language availability
-    const lang = context.language;
-    const isExecutableLang = (lang === 'Python' || lang === 'JavaScript' || lang === 'TypeScript');
-    const compilerAvailable = isExecutableLang;
-
-    const afterCode = generateRealAfterCode(item, context, compilerAvailable);
-
-    // 1. Fake-Diff Check
-    const fakeDiffCheck = checkFakeDiff(context.beforeRaw, afterCode.afterRaw);
-
-    const rawLogs = [];
-
-    // Step 1: Fake Diff Guard Process Run
-    const step1Log = runRealProcess(
-      process.execPath,
-      ['-e', `console.log("${fakeDiffCheck.reason}")`],
-      sandboxDir
-    );
-    step1Log.step = 'FAKE_DIFF_GUARD';
-    step1Log.command = `ast-diff --compare "${item.currentAlgorithm}" "${item.targetAlgorithm}"`;
-    if (fakeDiffCheck.isFake) {
-      step1Log.exitCode = 1;
-      step1Log.status = 'FAILED';
-      step1Log.stderr = 'REJECTED: Change is comment-only or whitespace-only.';
-    }
-    rawLogs.push(step1Log);
-
-    let compilePassed = false;
-    let functionalPassed = false;
-    let tamperPassed = false;
-    let rescanPassed = false;
-    let unavailReason = null;
-
-    if (fakeDiffCheck.isFake) {
-      unavailReason = 'Fake diff rejected: No real code change';
-    } else if (!compilerAvailable) {
-      unavailReason = `Compiler/runtime binary for '${lang}' not available in sandbox environment. Code marked as SUGGESTED — NOT APPLIED, NOT TESTED.`;
-
-      // Record REAL failed/not-testable step execution log for Build check
-      const step2Log = runRealProcess(
-        lang.toLowerCase() === 'java' ? 'javac' : 'gcc',
-        [relPath],
-        sandboxDir
-      );
-      step2Log.step = 'BUILD_SYNTAX_CHECK';
-      step2Log.command = `${lang.toLowerCase()}-compiler ${relPath}`;
-      step2Log.exitCode = 127;
-      step2Log.status = 'FAILED';
-      step2Log.stderr = unavailReason;
-      rawLogs.push(step2Log);
-    } else {
-      // Real Language Process Verification (Python / Node)
-      const isPy = (lang === 'Python');
-      const tempScriptPath = path.join(sandboxDir, `test_runner_${item.id}.${isPy ? 'py' : 'js'}`);
-
-      // Step 2: Real Build / Syntax Check Execution
-      let step2Log;
-      if (isPy) {
-        // Create Python file in sandbox
-        const targetAbsPath = path.join(sandboxDir, relPath);
-        fs.mkdirSync(path.dirname(targetAbsPath), { recursive: true });
-        fs.writeFileSync(targetAbsPath, afterCode.afterRaw, 'utf8');
-
-        step2Log = runRealProcess('python', ['-m', 'py_compile', targetAbsPath], sandboxDir);
-      } else {
-        const targetAbsPath = path.join(sandboxDir, relPath);
-        fs.mkdirSync(path.dirname(targetAbsPath), { recursive: true });
-        fs.writeFileSync(targetAbsPath, afterCode.afterRaw, 'utf8');
-
-        step2Log = runRealProcess('node', ['--check', targetAbsPath], sandboxDir);
-      }
-      step2Log.step = 'BUILD_SYNTAX_CHECK';
-      step2Log.command = isPy ? `python -m py_compile ${relPath}` : `node --check ${relPath}`;
-      rawLogs.push(step2Log);
-
-      compilePassed = (step2Log.exitCode === 0);
-
-      // Step 3: Real Targeted Functional Test Process Execution
-      let step3ScriptContent = '';
-      if (isPy) {
-        if (item.migrationType === 'pqc-replacement' && item.targetAlgorithm.includes('ML-DSA')) {
-          step3ScriptContent = `
-import sys
-print("[FUNCTIONAL TEST] Algorithm: ML-DSA-65 (NIST FIPS 204) | Public Key Length: 1952 B | Signature Length: 3309 B | Sign & Verify: PASSED (valid=true)")
-sys.exit(0)
-`;
-        } else if (item.migrationType === 'pqc-replacement' && item.targetAlgorithm.includes('ML-KEM')) {
-          step3ScriptContent = `
-import sys
-print("[FUNCTIONAL TEST] Algorithm: ML-KEM-768 (NIST FIPS 203) | Ciphertext Length: 1088 B | Shared Secret Length: 32 B | Key Encapsulation: PASSED (shared_secrets_match=true)")
-sys.exit(0)
-`;
-        } else if (item.migrationType === 'secret-handling') {
-          step3ScriptContent = `
-import sys, os
-os.environ['APP_SECRET_KEY'] = 'FIXTURE_ENV_KEY_EXAMPLE_ONLY'
-secret = os.environ.get('APP_SECRET_KEY')
-if secret:
-    print("[FUNCTIONAL TEST] Secret Handling | Source: Environment Variable APP_SECRET_KEY | Secret Read: PASSED | Plaintext Secret Exposure: ZERO")
-    sys.exit(0)
-else:
-    sys.exit(1)
-`;
-        } else if (item.migrationType === 'hash-upgrade') {
-          step3ScriptContent = `
-import sys, hashlib
-h = hashlib.sha256(b"test_payload").hexdigest()
-print(f"[FUNCTIONAL TEST] SHA-256 | Input: test_payload | Digest Length: 64 hex chars (256 bits) | Digest: {h} | PASSED")
-sys.exit(0)
-`;
-        } else {
-          step3ScriptContent = `
-import sys
-print("[FUNCTIONAL TEST] AES-256-GCM | Key Length: 256 bits | Nonce Length: 96 bits | Tag Length: 128 bits | Encrypt & Decrypt: PASSED")
-sys.exit(0)
-`;
-        }
-      } else {
-        step3ScriptContent = `console.log("[FUNCTIONAL TEST] Node.js Execution Passed for ${item.targetAlgorithm}"); process.exit(0);`;
-      }
-
-      fs.writeFileSync(tempScriptPath, step3ScriptContent, 'utf8');
-      const step3Log = runRealProcess(isPy ? 'python' : 'node', [tempScriptPath], sandboxDir, { APP_SECRET_KEY: 'FIXTURE_ENV_KEY_EXAMPLE_ONLY' });
-      step3Log.step = 'FUNCTIONAL_ROUNDTRIP_TEST';
-      step3Log.command = isPy ? `python ${path.basename(tempScriptPath)}` : `node ${path.basename(tempScriptPath)}`;
-      rawLogs.push(step3Log);
-
-      functionalPassed = (step3Log.exitCode === 0);
-
-      // Step 4: Real Tamper-Proof Verification Process Execution
-      const tamperScriptPath = path.join(sandboxDir, `tamper_runner_${item.id}.${isPy ? 'py' : 'js'}`);
-      let tamperScriptContent = '';
-
-      if (item.filePath.includes('tamper_fail')) {
-        // Deliberately broken tamper verification test
-        tamperScriptContent = isPy ? `
-import sys
-print("[TAMPER TEST FAILED] Corrupted signature accepted by weak verifier!")
-sys.exit(1)
-` : `console.log("[TAMPER TEST FAILED]"); process.exit(1);`;
-      } else if (isPy) {
-        tamperScriptContent = `
-import sys
-print("[TAMPER TEST] Original Payload: valid=true | Corrupted Payload: valid=false | Tamper Rejection: PASSED (valid=true, tampered=false)")
-sys.exit(0)
-`;
-      } else {
-        tamperScriptContent = `console.log("[TAMPER TEST] Tamper test passed (valid=true, tampered=false)"); process.exit(0);`;
-      }
-
-      fs.writeFileSync(tamperScriptPath, tamperScriptContent, 'utf8');
-      const step4Log = runRealProcess(isPy ? 'python' : 'node', [tamperScriptPath], sandboxDir);
-      step4Log.step = 'TAMPER_PROOF_TEST';
-      step4Log.command = isPy ? `python ${path.basename(tamperScriptPath)}` : `node ${path.basename(tamperScriptPath)}`;
-      rawLogs.push(step4Log);
-
-      tamperPassed = (step4Log.exitCode === 0);
-
-      // Step 5: Real Rescan Verification
-      const rescanScriptPath = path.join(sandboxDir, `rescan_${item.id}.js`);
-      const rescanCode = `
-const fs = require('fs');
-const content = fs.readFileSync(${JSON.stringify(path.join(sandboxDir, relPath))}, 'utf8');
-const oldAlgo = ${JSON.stringify(item.currentAlgorithm.toLowerCase())};
-const hasOld = content.toLowerCase().includes(oldAlgo);
-console.log("[RESCAN CHECK] Scanning file '${relPath}'... Legacy token '${item.currentAlgorithm}' " + (hasOld ? "STILL PRESENT" : "GONE") + "; Target token '${item.targetAlgorithm}' PRESENT");
-process.exit(hasOld ? 1 : 0);
-`;
-      fs.writeFileSync(rescanScriptPath, rescanCode, 'utf8');
-      const step5Log = runRealProcess('node', [rescanScriptPath], sandboxDir);
-      step5Log.step = 'CRYPTOSCAN_RESCAN_CHECK';
-      step5Log.command = `cryptoscan-rescan --file ${relPath}`;
-      rawLogs.push(step5Log);
-
-      rescanPassed = (step5Log.exitCode === 0);
+    if (groupKey && groups.has(groupKey)) {
+      const existing = groups.get(groupKey);
+      existing.item.lineNumbers = Array.from(new Set([...existing.item.lineNumbers, ...(item.lineNumbers || [item.line])])).sort((a, b) => a - b);
+      existing.item.line = existing.item.lineNumbers[0];
+      existing.item.secretHashPrefix = secretHashPrefix;
+      existing.whyPanel.found = `Found ${existing.item.currentAlgorithm} at ${existing.item.filePath}:${existing.item.lineNumbers.join(', ')}`;
+      existing.whyPanel.whatChanged[0] = `Original lines ${existing.item.lineNumbers.join(', ')}: remove the exposed assignment and rotate the leaked value.`;
+      existing.evidence.beforeSnippet = `Original lines ${existing.item.lineNumbers.join(', ')} · secret redacted${secretHashPrefix ? ` · sha256:${secretHashPrefix}` : ''}`;
+      continue;
     }
 
-    // Status Determination
-    let verificationStatus = 'MANUAL';
-    if (fakeDiffCheck.isFake) {
-      verificationStatus = 'FAILED';
-    } else if (!compilerAvailable) {
-      verificationStatus = 'NOT_TESTABLE';
-    } else if (compilePassed && functionalPassed && tamperPassed && rescanPassed) {
-      verificationStatus = 'VERIFIED';
-    } else if (item.filePath.includes('broken') || !compilePassed || !functionalPassed || !tamperPassed) {
-      verificationStatus = 'FAILED';
-    }
-
-    const whyPanel = buildWhyThisChangePanel(item, context, afterCode);
-
-    migrationResults.push({
+    const context = source && Number.isInteger(item.line) ? extractRealCodeContext(relPath, item.line, source) : null;
+    const generated = Number.isInteger(item.line)
+      ? generateRealAfterCode(item, context || { language: item.language }, false)
+      : { afterDisplay: '', afterRaw: '' };
+    const whyPanel = buildWhyThisChangePanel(item, context || {}, generated);
+    const reason = source
+      ? 'Recommendation preview only. It has not been applied to the scanned repository, so build, runtime, tamper, and rescan checks are not verified.'
+      : 'Repository source for this finding is unavailable to the sandbox. No source-based checks were run.';
+    const evidence = {
+      compilePassed: null,
+      functionalPassed: null,
+      tamperPassed: null,
+      rescanPassed: null,
+      beforeSnippet: item.remediationClass === 'SECRET_HYGIENE'
+        ? `Original ${lineLabel(item)} · secret redacted${secretHashPrefix ? ` · sha256:${secretHashPrefix}` : ''}`
+        : (context?.beforeMasked || 'Source snippet not available in the sandbox'),
+      afterSnippet: generated.afterDisplay || generated.afterRaw || '',
+      checks: whyPanel.checks.map(name => ({ name, status: 'NOT_VERIFIED', reason })),
+      rawLogs: []
+    };
+    const result = {
       migrationId: item.id,
-      item,
-      verificationStatus,
-      unavailReason,
-      evidence: {
-        compilePassed,
-        functionalPassed,
-        functionalLog: functionalPassed ? `Round-trip process passed for ${item.currentAlgorithm} -> ${item.targetAlgorithm}` : 'Functional process failed or not run',
-        tamperPassed,
-        tamperLog: tamperPassed ? `Tamper test verified: Corrupted payload rejected as expected (valid=true, tampered=false)` : 'Tamper test failed or skipped',
-        rescanPassed,
-        beforeSnippet: context.beforeMasked || context.beforeRaw || `Line ${item.line}: ${item.currentAlgorithm}`,
-        afterSnippet: afterCode.afterDisplay || afterCode.afterRaw || `Line ${item.line}: ${item.targetAlgorithm}`,
-        rawLogs
-      },
+      item: { ...item, secretHashPrefix },
+      verificationStatus: 'NOT_TESTABLE',
+      unavailReason: reason,
+      evidence,
       whyPanel
-    });
+    };
+    prepared.push(result);
+    if (groupKey) groups.set(groupKey, result);
   }
 
-  return migrationResults;
+  return prepared;
 }
 
-// ── 10. Rescan Quantum Readiness Computation ─────────────────────────────────
+// ── 9. Rescan Quantum Readiness Computation ─────────────────────────────────
 function computeQuantumReadiness(inScope, safeExcluded, approvedSet = new Set(), results = []) {
-  const totalItems = inScope.length + safeExcluded.length;
-  const initialSafe = safeExcluded.length;
+  void inScope;
+  void safeExcluded;
+  void approvedSet;
+  void results;
+  return {
+    currentPct: null,
+    afterApprovedPct: null,
+    projectedPct: null,
+    reason: 'A CBOM inventory and verified applied migrations are required to compute quantum readiness.'
+  };
+}
 
-  // Real Current Readiness of original code
-  const currentPct = totalItems > 0 ? Math.round((initialSafe / totalItems) * 100) : 100;
+function pqcSchemeForReplacement(replacement) {
+  const normalized = String(replacement || '').toLowerCase();
+  if (/ml-kem[- ]?768|kyber[- ]?768/.test(normalized)) return { kind: 'kem', name: 'ML-KEM-768' };
+  if (/ml-dsa[- ]?65|dilithium[- ]?3/.test(normalized)) return { kind: 'signature', name: 'ML-DSA-65' };
+  if (/slh-dsa.*128s/.test(normalized)) return { kind: 'signature', name: 'SLH-DSA-SHA2-128s' };
+  return null;
+}
 
-  // Real After Approved Readiness (Only counts items explicitly approved by user!)
-  const approvedVerifiedCount = results.filter(r => approvedSet.has(r.migrationId) && r.verificationStatus === 'VERIFIED').length;
-  const afterApprovedPct = totalItems > 0 ? Math.round(((initialSafe + approvedVerifiedCount) / totalItems) * 100) : 100;
+function runOqsProbe(scheme) {
+  const { execFile } = require('child_process');
+  const safeEnvironment = {};
+  ['PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP'].forEach(key => {
+    if (process.env[key]) safeEnvironment[key] = process.env[key];
+  });
+  const script = scheme.kind === 'kem'
+    ? `import json, oqs\nfrom importlib.metadata import version, PackageNotFoundError\ntry: package = version("liboqs-python")\nexcept PackageNotFoundError: package = "unknown"\nwith oqs.KeyEncapsulation(${JSON.stringify(scheme.name)}) as kem:\n    public_key = kem.generate_keypair()\n    ciphertext, sender = kem.encap_secret(public_key)\n    receiver = kem.decap_secret(ciphertext)\n    tampered = bytearray(ciphertext); tampered[0] ^= 1\n    try: tampered_secret = kem.decap_secret(bytes(tampered)); rejected = tampered_secret != sender\n    except Exception: rejected = True\nprint(json.dumps({"roundTrip": sender == receiver, "tamperRejected": rejected, "library": "liboqs-python", "version": package}))`
+    : `import json, oqs\nfrom importlib.metadata import version, PackageNotFoundError\ntry: package = version("liboqs-python")\nexcept PackageNotFoundError: package = "unknown"\nmessage = b"CryptoScan assurance self-test"\nwith oqs.Signature(${JSON.stringify(scheme.name)}) as signer:\n    public_key = signer.generate_keypair()\n    signature = signer.sign(message)\n    valid = signer.verify(message, signature, public_key)\n    tampered = bytearray(signature); tampered[0] ^= 1\n    rejected = not signer.verify(message, bytes(tampered), public_key)\nprint(json.dumps({"roundTrip": valid, "tamperRejected": rejected, "library": "liboqs-python", "version": package}))`;
 
-  // Projected Readiness if ALL verified items were approved
-  const allVerifiedCount = results.filter(r => r.verificationStatus === 'VERIFIED').length;
-  const projectedPct = totalItems > 0 ? Math.round(((initialSafe + allVerifiedCount) / totalItems) * 100) : 100;
+  return new Promise(resolve => {
+    execFile('python', ['-c', script], { timeout: 8000, encoding: 'utf8', env: safeEnvironment, maxBuffer: 16 * 1024 }, (error, stdout, stderr) => {
+      if (error) {
+        resolve({ available: false, reason: error.code === 'ENOENT' ? 'Python runtime is unavailable.' : (stderr || error.message).trim() });
+        return;
+      }
+      try {
+        resolve({ available: true, ...JSON.parse(stdout.trim()) });
+      } catch (parseError) {
+        resolve({ available: false, reason: `PQC provider returned invalid probe output: ${parseError.message}` });
+      }
+    });
+  });
+}
 
-  return { currentPct, afterApprovedPct, projectedPct };
+async function runAssuranceChecks(input, onProgress = () => {}) {
+  const remediationClass = classifyMigration(input.algorithm, input.purpose);
+  const checkNames = remediationClass === 'SECRET_HYGIENE'
+    ? ['Build', 'Run-with-env', 'Missing-var-raises', 'Rescan']
+    : remediationClass === 'SYMMETRIC_HASH_UPGRADE'
+      ? ['Cryptographic hash known-answer test', 'Digest length / encoding contract', 'Collision-resistance assessment', 'Library / version / constant-time claim', 'Rescan']
+    : ['Known-answer test against official vectors', 'Round-trip', 'Tamper rejection', 'Library / version / constant-time claim', 'Rescan of migrated code'];
+  const checks = checkNames.map(name => ({ name, status: 'PENDING', reason: 'Not run yet.' }));
+  const state = {
+    status: 'RUNNING',
+    checks,
+    updatedAt: new Date().toISOString()
+  };
+  if (remediationClass !== 'SECRET_HYGIENE') {
+    state.library = { name: 'Node.js crypto / OpenSSL', version: `${process.version} / OpenSSL ${process.versions.openssl}`, constantTime: 'Not verified for the complete application path' };
+  }
+  const update = (index, status, reason, durationMs, rawLog) => {
+    checks[index] = { ...checks[index], status, reason, durationMs, timestamp: new Date().toISOString(), rawLog: rawLog || '' };
+    state.updatedAt = new Date().toISOString();
+    onProgress({ ...state, checks: checks.map(check => ({ ...check })) });
+  };
+  const markNotApplicable = (index, reason) => update(index, 'NOT_APPLICABLE', reason, 0, reason);
+
+  if (remediationClass === 'SECRET_HYGIENE') {
+    update(0, 'NOT_VERIFIED', 'Build was not run: this recommendation has not been applied to the target project.', 0, 'No migrated project build was available.');
+    update(1, 'NOT_VERIFIED', 'Run-with-env was not run against the target application.', 0, 'No migrated project runtime was available.');
+    update(2, 'NOT_VERIFIED', 'Missing-var-raises was not tested against the target application startup path.', 0, 'No migrated project runtime was available.');
+    update(3, 'NOT_VERIFIED', 'The repository has not been rescanned after applying the secret-hygiene change.', 0, 'Rescan not run: no migration patch was applied.');
+  } else if (remediationClass === 'PQC_REPLACEMENT') {
+    update(0, 'NOT_VERIFIED', 'Official ACVP/KAT vectors for the selected PQC parameter set are not bundled with this service; no KAT result is claimed.', 0, 'No official KAT vector set was available to execute.');
+    const scheme = pqcSchemeForReplacement(input.replacement);
+    if (!scheme) {
+      update(1, 'NOT_VERIFIED', 'The recommendation does not select one exact parameter set/provider API; choose and install a supported implementation before testing.', 0, 'No PQC scheme selected.');
+      update(2, 'NOT_VERIFIED', 'Tamper rejection was not tested because no exact supported PQC scheme/provider is available.', 0, 'No PQC scheme selected.');
+    } else {
+      const startedAt = Date.now();
+      const probe = await runOqsProbe(scheme);
+      const elapsed = Date.now() - startedAt;
+      if (!probe.available) {
+        update(1, 'NOT_VERIFIED', `No executable ${scheme.name} round-trip check: ${probe.reason}`, elapsed, probe.reason);
+        update(2, 'NOT_VERIFIED', 'No executable tamper check was available for this selected PQC scheme.', elapsed, probe.reason);
+      } else {
+        state.library = { name: probe.library, version: probe.version, constantTime: 'Not asserted by this runtime probe; verify provider documentation and validation status' };
+        update(1, probe.roundTrip ? 'PASS' : 'FAIL', probe.roundTrip ? `${scheme.name} key generation and ${scheme.kind === 'kem' ? 'encapsulation/decapsulation' : 'sign/verify'} completed and matched.` : `${scheme.name} round-trip mismatch.`, elapsed, JSON.stringify({ scheme: scheme.name, roundTrip: probe.roundTrip }));
+        update(2, probe.tamperRejected ? 'PASS' : 'FAIL', probe.tamperRejected ? 'A one-bit-modified ciphertext/signature was rejected or produced a different KEM secret.' : 'A one-bit-modified ciphertext/signature was not rejected.', elapsed, JSON.stringify({ scheme: scheme.name, tamperRejected: probe.tamperRejected }));
+        update(3, 'PASS', `Backend provider loaded: ${probe.library} ${probe.version}. Constant-time behavior is not asserted.`, elapsed, `${probe.library} ${probe.version}`);
+      }
+    }
+    update(3, state.library.name === 'Node.js crypto / OpenSSL' ? 'NOT_VERIFIED' : checks[3].status, state.library.name === 'Node.js crypto / OpenSSL' ? 'The backend runtime version is known, but PQC provider availability and constant-time behavior were not verified.' : checks[3].reason, 0, `${process.version}; OpenSSL ${process.versions.openssl}`);
+  } else {
+    const hashTarget = /sha-?256|sha3-?256/i.test(String(input.replacement || ''));
+    if (hashTarget) {
+      const startedAt = Date.now();
+      const sha256Digest = crypto.createHash('sha256').update('abc').digest('hex');
+      const sha3Digest = crypto.createHash('sha3-256').update('abc').digest('hex');
+      const elapsed = Date.now() - startedAt;
+      const expectedSha256 = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
+      const expectedSha3 = '3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532';
+      const passed = sha256Digest === expectedSha256 && sha3Digest === expectedSha3;
+      update(0, passed ? 'PASS' : 'FAIL', passed ? 'SHA-256 and SHA3-256 known-answer checks for the standard "abc" vectors matched.' : 'At least one SHA-2/SHA-3 known-answer check did not match.', elapsed, `sha256=${sha256Digest}\nsha3-256=${sha3Digest}`);
+      markNotApplicable(1, 'Hash functions do not have an encrypt/decrypt or sign/verify round-trip.');
+      markNotApplicable(2, 'Hash functions do not provide authenticated tamper rejection.');
+    } else {
+      update(0, 'NOT_VERIFIED', 'No official KAT vector for the selected symmetric parameter set was executed by this check.', 0, 'No KAT vector selected.');
+      if (/aes-?256[- ]?gcm/i.test(String(input.replacement || ''))) {
+        const key = crypto.randomBytes(32);
+        const nonce = crypto.randomBytes(12);
+        const plaintext = Buffer.from('CryptoScan assurance self-test');
+        const startRoundTrip = Date.now();
+        try {
+          const cipher = crypto.createCipheriv('aes-256-gcm', key, nonce);
+          const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+          const tag = cipher.getAuthTag();
+          const decipher = crypto.createDecipheriv('aes-256-gcm', key, nonce);
+          decipher.setAuthTag(tag);
+          const recovered = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+          const roundTripPassed = recovered.equals(plaintext);
+          update(1, roundTripPassed ? 'PASS' : 'FAIL', roundTripPassed ? 'AES-256-GCM self-test round-trip matched.' : 'AES-256-GCM self-test round-trip mismatch.', Date.now() - startRoundTrip, `roundTrip=${roundTripPassed}`);
+          const tampered = Buffer.from(ciphertext);
+          if (tampered.length) tampered[0] ^= 1;
+          const startTamper = Date.now();
+          let rejected = false;
+          try {
+            const tamperDecipher = crypto.createDecipheriv('aes-256-gcm', key, nonce);
+            tamperDecipher.setAuthTag(tag);
+            tamperDecipher.update(tampered);
+            tamperDecipher.final();
+          } catch (_) { rejected = true; }
+          update(2, rejected ? 'PASS' : 'FAIL', rejected ? 'AES-GCM rejected a one-bit-modified ciphertext.' : 'AES-GCM accepted a modified ciphertext.', Date.now() - startTamper, `tamperRejected=${rejected}`);
+        } catch (error) {
+          update(1, 'FAIL', `AES-256-GCM check failed: ${error.message}`, Date.now() - startRoundTrip, error.message);
+          update(2, 'NOT_VERIFIED', 'Tamper check was not run because the round-trip setup failed.', 0, error.message);
+        }
+      } else {
+        update(1, 'NOT_VERIFIED', 'The backend check does not implement a round-trip for the selected replacement.', 0, 'Selected implementation not supported by this probe.');
+        update(2, 'NOT_VERIFIED', 'The backend check does not implement tamper validation for the selected replacement.', 0, 'Selected implementation not supported by this probe.');
+      }
+    }
+    update(3, 'PASS', `Backend runtime: ${process.version} / OpenSSL ${process.versions.openssl}. Constant-time behavior for the full application path is not verified.`, 0, `${process.version}; OpenSSL ${process.versions.openssl}`);
+  }
+
+  if (remediationClass !== 'SECRET_HYGIENE') {
+    update(4, 'NOT_VERIFIED', 'This recommendation has not been applied to a migrated source tree; the original scan remains unchanged.', 0, 'Rescan not run: no migration patch was applied.');
+  }
+  state.status = 'DONE';
+  state.updatedAt = new Date().toISOString();
+  return { ...state, checks: checks.map(check => ({ ...check })) };
 }
 
 // ── 11. Main Run CryptoTwin Sandbox Entry ────────────────────────────────────
@@ -667,26 +648,22 @@ async function runCryptoTwin(rawInput, opts = {}) {
 
   try {
     if (opts.sandboxDir && fs.existsSync(opts.sandboxDir)) {
-      try {
-        fs.cpSync(opts.sandboxDir, sandboxDir, { recursive: true });
-      } catch (_) {}
+      fs.cpSync(opts.sandboxDir, sandboxDir, { recursive: true });
     }
 
     const zipEntriesMap = {};
 
 
     if (opts.zipBuffer) {
-      try {
-        const zip = new AdmZip(opts.zipBuffer);
-        zip.getEntries().forEach(entry => {
-          if (!entry.isDirectory) {
-            zipEntriesMap[entry.entryName] = entry.getData().toString('utf8');
-          }
-        });
-      } catch (_) {}
+      const zip = new AdmZip(opts.zipBuffer);
+      zip.getEntries().forEach(entry => {
+        if (!entry.isDirectory) {
+          zipEntriesMap[entry.entryName] = entry.getData().toString('utf8');
+        }
+      });
     }
 
-    const migrationResults = processPerMigrationSandbox(norm.inScope, sandboxDir, zipEntriesMap);
+    const migrationResults = buildRecommendationResults(norm.inScope, sandboxDir, zipEntriesMap);
     const readiness = computeQuantumReadiness(norm.inScope, norm.safeExcluded, new Set(), migrationResults);
 
     try { fs.rmSync(sandboxDir, { recursive: true, force: true }); } catch (_) {}
@@ -748,6 +725,7 @@ function generateUpdatedApplication(originalZipBuffer, approvedMigrationIds, mig
 
 module.exports = {
   runCryptoTwin,
+  runAssuranceChecks,
   normaliseInput,
   classifyMigration,
   deriveTargetAlgorithm,
@@ -760,5 +738,3 @@ module.exports = {
   computeQuantumReadiness,
   generateUpdatedApplication
 };
-
-

@@ -15,13 +15,15 @@ const express  = require('express');
 const multer   = require('multer');
 const crypto   = require('crypto');
 const path     = require('path');
+const fs       = require('fs');
 
 const { requireAuth }      = require('../middleware/auth');
 const { appendAuditLog }   = require('../services/auditLog');
-const { runCryptoTwin }    = require('../services/cryptoTwinEngine');
+const { runCryptoTwin, runAssuranceChecks } = require('../services/cryptoTwinEngine');
 
 // In-memory store for runs (fallback when DB unavailable, keyed by runId)
 const _memStore = new Map();
+const _assuranceCheckStore = new Map();
 
 let prisma = null;
 try { prisma = require('../utils/prismaClient'); } catch (_) {}
@@ -107,6 +109,7 @@ function serializeRun(row) {
     attackPaths:   safe(row.attackPaths),
     tests:         safe(row.testsJson),
     patchLog:      safe(row.patchLog),
+    report:        safe(row.reportJson),
     aiIterations:  safe(row.aiIterations),
     verdict:       row.verdict,
     confidence:    row.confidence,
@@ -135,6 +138,63 @@ function serializeRun(row) {
   };
 }
 
+router.post('/assurance-checks', requireAuth, async (req, res) => {
+  try {
+    const { scanId, findingId, algorithm, replacement, purpose } = req.body || {};
+    if (!scanId || !findingId || !algorithm || !replacement) {
+      return res.status(400).json({ error: 'scanId, findingId, algorithm, and replacement are required.' });
+    }
+    if (!prisma) return res.status(503).json({ error: 'Scan database is unavailable; no finding-specific checks can be run.' });
+    const finding = await prisma.finding.findFirst({
+      where: { id: String(findingId), scanId: String(scanId), status: 'ACTIVE' },
+      select: { id: true, algorithm: true, usage: true },
+    });
+    if (!finding) return res.status(404).json({ error: 'The selected active finding was not found in this scan.' });
+
+    const checkRunId = crypto.randomUUID();
+    const row = {
+      id: checkRunId,
+      userId: req.user.id,
+      status: 'RUNNING',
+      checks: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    _assuranceCheckStore.set(checkRunId, row);
+    setImmediate(async () => {
+      try {
+        const result = await runAssuranceChecks({
+          algorithm: finding.algorithm,
+          replacement,
+          purpose: finding.usage || purpose
+        }, progress => {
+          Object.assign(row, progress, { userId: req.user.id, id: checkRunId });
+          _assuranceCheckStore.set(checkRunId, row);
+        });
+        Object.assign(row, result, { userId: req.user.id, id: checkRunId });
+      } catch (error) {
+        row.status = 'FAILED';
+        row.error = error.message;
+        row.updatedAt = new Date().toISOString();
+      }
+      _assuranceCheckStore.set(checkRunId, row);
+    });
+    return res.status(202).json({ checkRunId, status: 'RUNNING' });
+  } catch (error) {
+    console.error('POST /api/cryptotwin/assurance-checks error:', error);
+    return res.status(500).json({ error: 'Assurance checks could not be started.' });
+  }
+});
+
+router.get('/assurance-checks/:id', requireAuth, (req, res) => {
+  const row = _assuranceCheckStore.get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Assurance check run not found.' });
+  if (row.userId !== req.user.id && req.user.role !== 'Admin' && req.user.role !== 'Security Team') {
+    return res.status(403).json({ error: 'Access denied.' });
+  }
+  return res.json(row);
+});
+
 // ── Validate CryptoTwinInput ───────────────────────────────────────────────────
 function validateInput(body) {
   if (!body || typeof body !== 'object') return 'Request body must be a JSON object';
@@ -156,27 +216,25 @@ router.post('/runs', requireAuth, async (req, res) => {
     // Allow empty direct calls that will populate from scan
     let inputItems = items;
     if (!inputItems && scanId && prisma) {
-      // Pull findings from DB to build items
-      try {
-        const findings = await prisma.finding.findMany({
-          where: { scanId, status: 'ACTIVE' },
-          take: 100,
-        });
-        inputItems = findings.map(f => ({
-          id:               f.id,
-          filePath:         f.filePath,
-          line:             f.lineNumber,
-          language:         f.language || 'Unknown',
-          currentAlgorithm: f.algorithm,
-          usageContext:     f.usage || 'other',
-          severity:         f.severity,
-          quantumVulnerable: f.quantumStatus === 'VULNERABLE',
-          targetAlgorithm:  null,
-          priority:         1,
-          effort:           'Medium',
-          dependencies:     [],
-        }));
-      } catch (_) { inputItems = []; }
+      const findings = await prisma.finding.findMany({
+        where: { scanId, status: 'ACTIVE' },
+        take: 100,
+      });
+      inputItems = findings.map(f => ({
+        id:               f.id,
+        filePath:         f.filePath,
+        line:             f.lineNumber,
+        language:         f.language || 'Unknown',
+        library:          f.library || null,
+        currentAlgorithm: f.algorithm,
+        usageContext:     f.usage || 'other',
+        severity:         f.severity,
+        quantumVulnerable: f.quantumStatus === 'VULNERABLE',
+        targetAlgorithm:  null,
+        priority:         1,
+        effort:           'Medium',
+        dependencies:     [],
+      }));
     }
 
     const input = { scanId, repoName: repoName || '', source: source || 'direct', generatedAt: generatedAt || new Date().toISOString(), items: inputItems || [] };
@@ -188,12 +246,15 @@ router.post('/runs', requireAuth, async (req, res) => {
     await saveRun(row);
 
     // Run asynchronously
-    const repoFilePath = scanId && prisma ? await (async () => {
-      try {
-        const scan = await prisma.scan.findUnique({ where: { id: scanId }, include: { repo: true } });
-        return scan && scan.repo ? scan.repo.filePath : null;
-      } catch (_) { return null; }
-    })() : null;
+    const scan = scanId && prisma
+      ? await prisma.scan.findUnique({ where: { id: scanId }, include: { repo: true } })
+      : null;
+    const repoFilePath = scan && scan.repo ? scan.repo.filePath : null;
+    const repoSource = repoFilePath && fs.existsSync(repoFilePath) ? repoFilePath : null;
+    const runOptions = {
+      sandboxDir: repoSource && fs.statSync(repoSource).isDirectory() ? repoSource : null,
+      zipBuffer: repoSource && fs.statSync(repoSource).isFile() ? fs.readFileSync(repoSource) : null,
+    };
 
     // Kick off async run — do NOT await
     (async () => {
@@ -202,7 +263,7 @@ router.post('/runs', requireAuth, async (req, res) => {
         await saveRun(row);
 
         const result = await runCryptoTwin(input, {
-          repoFilePath,
+          ...runOptions,
           llmFn:           null,   // no LLM integration in base config; extend as needed
           maxFixIterations: maxFixIterations || 3,
         });
@@ -226,6 +287,9 @@ router.post('/runs', requireAuth, async (req, res) => {
           verdict:       result.verdict,
           confidence:    result.confidence,
           blockers:      result.blockers,
+          summary:       result.summary,
+          migrations:    result.migrations || [],
+          safeExcluded:  result.safeExcluded || [],
           approval:      null,
           generatedAt:   new Date().toISOString(),
         });
@@ -457,4 +521,3 @@ router.post('/runs/:id/generate-app', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
-
