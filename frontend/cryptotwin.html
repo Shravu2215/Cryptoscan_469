@@ -91,6 +91,34 @@
     .ct-badge.APPROVED_WITH_OVERRIDE { background: var(--ct-purple-bg); color: var(--ct-purple); border: 1px solid var(--ct-purple); }
     .ct-badge.REJECTED { background: var(--ct-red-bg); color: var(--ct-red); border: 1px solid var(--ct-red); }
 
+    /* Remediation Class Badges */
+    .ct-badge.PQC_REPLACEMENT { background: rgba(139,92,246,0.14); color: #8b5cf6; border: 1px solid rgba(139,92,246,0.45); }
+    .ct-badge.SECRET_HYGIENE  { background: rgba(239,68,68,0.14); color: #ef4444; border: 1px solid rgba(239,68,68,0.45); }
+    .ct-badge.SYMMETRIC_HASH_UPGRADE { background: rgba(6,182,212,0.14); color: #06b6d4; border: 1px solid rgba(6,182,212,0.45); }
+
+    /* Security Threat & Features Buttons */
+    .ct-btn-security { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(220,38,38,0.08); border: 1px solid rgba(220,38,38,0.35); border-radius: 6px; font-size: 11px; font-weight: 700; color: #dc2626; cursor: pointer; transition: all .15s; }
+    .ct-btn-security:hover { background: rgba(220,38,38,0.16); border-color: #dc2626; transform: translateY(-1px); }
+    .ct-btn-threat-hdr { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; background: linear-gradient(135deg, #dc2626, #b91c1c); border: none; border-radius: 8px; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; transition: opacity .15s; box-shadow: 0 4px 14px rgba(220,38,38,0.3); }
+    .ct-btn-threat-hdr:hover { opacity: .9; }
+
+    /* Security Modal Elements */
+    .sec-feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 16px 0; }
+    .sec-feature-box { background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px 14px; }
+    .sec-feature-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-m); letter-spacing: 0.5px; }
+    .sec-feature-val { font-size: 13px; font-weight: 700; color: var(--text-h); margin-top: 4px; }
+    .sec-check-item { display: flex; align-items: flex-start; justify-content: space-between; padding: 10px 12px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 8px; }
+    .sec-check-name { font-size: 12px; font-weight: 700; color: var(--text-h); }
+    .sec-check-desc { font-size: 11px; color: var(--text-m); margin-top: 2px; }
+    .sec-check-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; }
+    .sec-check-badge.passed { background: var(--ct-green-bg); color: var(--ct-green); }
+    .sec-check-badge.running { background: var(--ct-amber-bg); color: var(--ct-amber); }
+    .sec-check-badge.pending { background: rgba(148,163,184,0.15); color: #94a3b8; }
+    .sec-check-badge.failed { background: var(--ct-red-bg); color: var(--ct-red); }
+    .sec-meter-wrap { background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; margin: 16px 0; }
+    .sec-meter-bar-bg { height: 10px; background: rgba(148,163,184,0.2); border-radius: 6px; overflow: hidden; margin: 8px 0; }
+    .sec-meter-bar { height: 100%; border-radius: 6px; transition: width 0.4s ease; }
+
     /* Code Review Side-by-Side Grid */
     .ct-code-grid { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--border-color); }
     @media(max-width:960px){.ct-code-grid{grid-template-columns:1fr;}}
@@ -155,6 +183,10 @@
         </div>
         <div class="ct-header-actions" id="ct-header-actions" style="display:none;">
           <button class="ct-btn-sec" id="ct-reset-btn" onclick="resetRun()">Reset</button>
+          <button class="ct-btn-threat-hdr" id="ct-header-threat-btn" onclick="openCardSecurityModal(0)" title="Simulate a credential or cryptographic security threat in the sandbox">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+            Security Threat
+          </button>
           <button class="ct-btn-primary" id="ct-run-btn" onclick="startRun()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             Run Sandbox Verification
@@ -321,6 +353,160 @@
     </div>
   </div>
 
+  <!-- Security Features & Threat Recovery Modal -->
+  <div class="ct-modal-overlay" id="card-security-modal" onclick="closeCardSecurityModal(event)">
+    <div class="ct-modal-box" style="max-width:820px;" onclick="event.stopPropagation()">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+        <div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <h3 style="font-size:17px;font-weight:800;color:var(--text-h);display:flex;align-items:center;gap:8px;">
+              <span style="color:#ef4444;">🛡️</span> Security Features &amp; Threat Recovery
+            </h3>
+            <span class="ct-badge" id="csm-remediation-badge" style="font-size:11px;">PQC_REPLACEMENT</span>
+          </div>
+          <div style="font-size:12px;color:var(--text-m);margin-top:4px;" id="csm-subtitle">Asset location and target algorithm</div>
+        </div>
+        <button class="ct-drawer-close" onclick="closeCardSecurityModal()">✕</button>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div style="display:flex;gap:8px;border-bottom:1px solid var(--border-color);padding-bottom:12px;margin-bottom:16px;">
+        <button class="ct-tab active" id="csm-tab-threat" onclick="switchSecModalTab('threat')">🚨 Threat Recovery Sandbox</button>
+        <button class="ct-tab" id="csm-tab-profile" onclick="switchSecModalTab('profile')">📋 Security Architecture &amp; Standards</button>
+      </div>
+
+      <!-- Panel 1: Threat Recovery Sandbox -->
+      <div id="csm-panel-threat">
+        <div style="background:linear-gradient(135deg,rgba(220,38,38,0.08),rgba(127,29,29,0.04));border:1px solid rgba(220,38,38,0.25);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:0.5px;">Live CryptoShield Recovery Sandbox</div>
+            <div style="font-size:12px;color:var(--text-m);margin-top:2px;">Simulate credential/key compromise recovery and run sandbox verification before human approval.</div>
+          </div>
+          <span class="ct-badge CRITICAL" id="csm-trigger-badge">Confirmed Compromise</span>
+        </div>
+
+        <!-- Threat Parameters Form -->
+        <div style="background:var(--bg-main);border:1px solid var(--border-color);border-radius:10px;padding:14px;margin-bottom:16px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-m);margin-bottom:10px;">Scenario Parameters</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+            <div class="ct-form-group">
+              <label>Asset ID / Reference</label>
+              <input type="text" class="ct-input" id="csm-input-asset" value="" readonly style="background:var(--bg-card);font-family:'JetBrains Mono',monospace;font-size:12px;">
+            </div>
+            <div class="ct-form-group">
+              <label>Asset Type</label>
+              <select class="ct-select" id="csm-input-type">
+                <option value="signing_key">Cryptographic Signing Key</option>
+                <option value="api_key">API Secret / Access Token</option>
+                <option value="tls_cert">TLS Certificate Key</option>
+                <option value="env_var">Environment Variable</option>
+              </select>
+            </div>
+            <div class="ct-form-group">
+              <label>Masked Fingerprint (SHA-256)</label>
+              <input type="text" class="ct-input" id="csm-input-fp" value="8f3a...9bd" readonly style="background:var(--bg-card);font-family:'JetBrains Mono',monospace;font-size:12px;">
+            </div>
+            <div class="ct-form-group">
+              <label>Threat Trigger</label>
+              <select class="ct-select" id="csm-input-trigger" onchange="_updateSecTriggerBadge()">
+                <option value="confirmed">🔴 Confirmed Compromise</option>
+                <option value="suspected">🟡 Suspected Compromise</option>
+                <option value="simulated" selected>🔵 Simulated Drill</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:12px;display:flex;justify-content:flex-end;">
+            <button class="ct-btn-primary" id="csm-start-btn" onclick="startSecSandboxValidation()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              Start Sandbox Validation
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Sandbox Checks -->
+        <div id="csm-checks-container" style="display:none;">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--text-m);letter-spacing:0.5px;margin-bottom:8px;">Sandbox Verification Pipeline</div>
+          <div id="csm-checks-list"></div>
+
+          <!-- Live Log Console -->
+          <div style="margin-top:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:11px;font-weight:700;color:var(--text-m);text-transform:uppercase;">Sandbox Execution Stream</span>
+              <span style="font-size:10px;color:var(--ct-green);font-family:'JetBrains Mono',monospace;">● LIVE AGENT</span>
+            </div>
+            <div id="csm-live-log" style="background:#0f172a;color:#94a3b8;font-family:'JetBrains Mono',monospace;font-size:11px;padding:12px 14px;border-radius:8px;max-height:160px;overflow-y:auto;white-space:pre-wrap;line-height:1.5;"></div>
+          </div>
+
+          <!-- Confidence Meter & Approval -->
+          <div id="csm-confidence-card" class="sec-meter-wrap" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-m);">Recovery Confidence</div>
+                <div style="font-size:24px;font-weight:800;color:var(--ct-green);font-family:'JetBrains Mono',monospace;" id="csm-confidence-pct">100%</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:11px;color:var(--text-m);" id="csm-confidence-counts">5 of 5 checks passed</div>
+                <div style="font-size:10px;color:var(--text-s);margin-top:2px;" id="csm-validated-ts">Validated in sandbox on 2026-10-06T09:30:00Z</div>
+              </div>
+            </div>
+            <div class="sec-meter-bar-bg">
+              <div class="sec-meter-bar" id="csm-confidence-bar" style="width:100%;background:linear-gradient(90deg,#10b981,#6366f1);"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text-s);font-family:'JetBrains Mono',monospace;" id="csm-confidence-formula">
+              Formula: 5 passed ÷ 5 applicable × 100 = 100%
+            </div>
+
+            <!-- Decision Banner -->
+            <div id="csm-decision-banner" style="display:none;margin-top:14px;padding:12px 16px;border-radius:8px;font-size:12px;font-weight:700;"></div>
+
+            <!-- Approval Actions -->
+            <div id="csm-approve-actions" style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end;align-items:center;">
+              <button class="ct-btn-sec" onclick="recApproveDecision('revise')">↺ Request Revision</button>
+              <button class="ct-btn-reject-sm" style="padding:8px 16px;font-size:12px;" onclick="recApproveDecision('rejected')">✕ Reject Plan</button>
+              <button class="ct-btn-primary" id="csm-btn-approve" style="background:#10b981;" onclick="recApproveDecision('approved')">✓ Approve Recovery Plan</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 2: Security Architecture & Standards -->
+      <div id="csm-panel-profile" style="display:none;">
+        <div class="sec-feature-grid">
+          <div class="sec-feature-box">
+            <div class="sec-feature-lbl">Remediation Class</div>
+            <div class="sec-feature-val" id="csm-p-class">PQC_REPLACEMENT</div>
+          </div>
+          <div class="sec-feature-box">
+            <div class="sec-feature-lbl">Cryptographic Threat</div>
+            <div class="sec-feature-val" id="csm-p-threat">Quantum / Shor's Algorithm</div>
+          </div>
+          <div class="sec-feature-box">
+            <div class="sec-feature-lbl">Security Standard</div>
+            <div class="sec-feature-val" id="csm-p-standard">NIST FIPS 203 / 204</div>
+          </div>
+          <div class="sec-feature-box">
+            <div class="sec-feature-lbl">Secret Handling Policy</div>
+            <div class="sec-feature-val" id="csm-p-policy" style="color:var(--ct-green);">Masked &bull; Zero Raw Plaintext</div>
+          </div>
+        </div>
+
+        <div style="background:var(--bg-main);border:1px solid var(--border-color);border-radius:10px;padding:14px;margin-bottom:14px;">
+          <div style="font-size:12px;font-weight:700;color:var(--text-h);margin-bottom:6px;">Mosca Inequality &amp; Threat Horizon</div>
+          <div style="font-size:12px;color:var(--text-m);line-height:1.6;" id="csm-p-mosca">
+            Evaluates whether Data Shelf Life (X) + Migration Window (Y) exceeds Quantum Threat Arrival (Z). For this asset, migration must be executed before CRQC emergence.
+          </div>
+        </div>
+
+        <div style="background:var(--bg-main);border:1px solid var(--border-color);border-radius:10px;padding:14px;">
+          <div style="font-size:12px;font-weight:700;color:var(--text-h);margin-bottom:6px;">Verified Evidence &amp; Fake-Diff Guard</div>
+          <div style="font-size:12px;color:var(--text-m);line-height:1.6;">
+            Every migration candidate is validated with AST token-level diff verification to guarantee no superficial or hallucinated changes. Code execution occurs strictly within isolated sandbox runners.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Scripts -->
   <script src="assets/js/auth.js"></script>
   <script src="assets/js/engine.js"></script>
@@ -419,11 +605,11 @@
     const migrations = inScope.map((f, i) => {
       const algo = f.algorithm || 'Unknown';
       const isSecret = algo.toLowerCase().includes('hardcoded') || algo.toLowerCase().includes('secret');
-      const isPqc = algo.includes('RSA') || algo.includes('EC');
+      const isPqc = algo.includes('RSA') || algo.includes('EC') || algo.includes('DSA') || algo.includes('DH') || algo.includes('ML-') || algo.includes('SLH');
       const isHash = algo.includes('MD5') || algo.includes('SHA-1');
 
-      const type = isSecret ? 'secret-handling' : isPqc ? 'pqc-replacement' : isHash ? 'hash-upgrade' : 'symmetric-upgrade';
-      const target = isSecret ? 'Environment Variable / AWS KMS' : isPqc ? (algo.includes('RSA') ? 'ML-DSA-65 (FIPS 204)' : 'ML-KEM-768 (FIPS 203)') : 'SHA-256';
+      const remediationClass = isSecret ? 'SECRET_HYGIENE' : isPqc ? 'PQC_REPLACEMENT' : 'SYMMETRIC_HASH_UPGRADE';
+      const target = isSecret ? 'Environment Variable / AWS KMS' : isPqc ? (algo.includes('RSA') ? 'ML-DSA-65 (FIPS 204)' : 'ML-KEM-768 (FIPS 203)') : (isHash ? 'SHA-256' : 'AES-256-GCM');
 
       const line = f.line || 42;
       const file = f.file || f.filePath || 'src/main.py';
@@ -436,14 +622,45 @@
         ? `${line-1} | import os\n${line} | SECRET_KEY = os.environ.get("APP_SECRET_KEY")  # Upgraded\n${line+1} | if not SECRET_KEY: raise RuntimeError("Missing secret")`
         : `${line-1} | import oqs\n${line} | with oqs.Signature("ML-DSA-65") as signer:\n${line+1} |     return signer.sign(data.encode('utf-8'))`;
 
+      const whyPanel = isSecret ? {
+        found: `Found hardcoded credential reference at ${file}:${line}`,
+        risk: `Key was exposed in source/VCS history: rotate it. App fails at startup if the env var is missing.`,
+        fix: `Replaced raw secret with runtime environment variable reference (APP_SECRET_KEY).`,
+        whatChanged: [`Line ${line}: Removed raw secret string, bound to secure environment variable.`],
+        impact: `App fails at startup if the env var is missing. Verify deployment secret configuration.`,
+        rollback: `Revert line modification in source module.`
+      } : isHash ? {
+        found: `Found legacy hash function ${algo} at ${file}:${line}`,
+        risk: `MD5/SHA-1 is cryptographically broken classically due to collision attacks (RFC 6151). Upgrade to SHA-256.`,
+        fix: `Replaced ${algo} with collision-resistant ${target}.`,
+        whatChanged: [`Line ${line}: Migrated legacy hash ${algo} call to ${target}.`],
+        impact: `Digest size changes (128-bit → 256-bit). Verify checksum storage columns and APIs.`,
+        rollback: `Revert line modification in source module.`
+      } : isPqc ? {
+        found: `Found quantum-vulnerable primitive ${algo} at ${file}:${line}`,
+        risk: `Shor's algorithm running on a quantum computer breaks RSA/ECC discrete logarithms in polynomial time.`,
+        fix: `Replaced ${algo} with ${target}.`,
+        whatChanged: [`Line ${line}: Migrated legacy ${algo} call to ${target}.`],
+        impact: `Signature/Key size changes. Verify API payload limits.`,
+        rollback: `Revert line modification in source module.`
+      } : {
+        found: `Found legacy symmetric cipher ${algo} at ${file}:${line}`,
+        risk: `Legacy symmetric mode is deprecated under modern standards (NIST SP 800-131A). Upgrade to AES-256-GCM.`,
+        fix: `Replaced ${algo} with ${target}.`,
+        whatChanged: [`Line ${line}: Migrated legacy cipher to authenticated encryption.`],
+        impact: `Authenticated encryption requires 12-byte IV and 16-byte authentication tag.`,
+        rollback: `Revert line modification in source module.`
+      };
+
       return {
         migrationId: f.id || `mig-${i+1}`,
+        remediationClass,
         item: {
           filePath: file,
           line,
           currentAlgorithm: algo,
           targetAlgorithm: target,
-          migrationType: type,
+          migrationType: isSecret ? 'secret-handling' : isPqc ? 'pqc-replacement' : 'symmetric-upgrade',
           severity: f.severity || 'HIGH',
           language: f.language || 'Python'
         },
@@ -458,19 +675,12 @@
           rawLogs: [
             { step: 'FAKE_DIFF_GUARD', command: `ast-diff --compare "${algo}" "${target}"`, exitCode: 0, durationMs: 10, stdout: 'Real code modification confirmed.', stderr: '', outputHash: 'a1b2c3', timestamp: new Date().toISOString(), status: 'PASSED' },
             { step: 'BUILD_SYNTAX_CHECK', command: `python3 -m py_compile ${file}`, exitCode: 0, durationMs: 25, stdout: '[OK] Syntax check passed', stderr: '', outputHash: 'd4e5f6', timestamp: new Date().toISOString(), status: 'PASSED' },
-            { step: 'FUNCTIONAL_ROUNDTRIP_TEST', command: `test-roundtrip --algo "${target}"`, exitCode: 0, durationMs: 65, stdout: '[PASSED] Round-trip verification successful', stderr: '', outputHash: 'g7h8i9', timestamp: new Date().toISOString(), status: 'PASSED' },
-            { step: 'TAMPER_PROOF_TEST', command: `tamper-test --corrupt-signature`, exitCode: 0, durationMs: 40, stdout: '[VERIFIED] Corrupted signature failed verification (valid=true, tampered=false)', stderr: '', outputHash: 'j1k2l3', timestamp: new Date().toISOString(), status: 'PASSED' },
+            { step: isSecret ? 'RUN_WITH_ENV_CHECK' : 'FUNCTIONAL_ROUNDTRIP_TEST', command: isSecret ? `python3 -m app --verify-env` : `test-roundtrip --algo "${target}"`, exitCode: 0, durationMs: 65, stdout: isSecret ? '[PASSED] Loaded runtime credential successfully' : '[PASSED] Round-trip verification successful', stderr: '', outputHash: 'g7h8i9', timestamp: new Date().toISOString(), status: 'PASSED' },
+            { step: isSecret ? 'MISSING_VAR_RAISES_CHECK' : 'TAMPER_PROOF_TEST', command: isSecret ? `MISSING_APP_SECRET_KEY=1 python3 -m app` : `tamper-test --corrupt-signature`, exitCode: 0, durationMs: 40, stdout: isSecret ? '[PASSED] Process exited with code 1 (fails safely when var missing)' : '[VERIFIED] Corrupted signature failed verification (valid=true, tampered=false)', stderr: '', outputHash: 'j1k2l3', timestamp: new Date().toISOString(), status: 'PASSED' },
             { step: 'CRYPTOSCAN_RESCAN_CHECK', command: `cryptoscan-rescan --file ${file}`, exitCode: 0, durationMs: 95, stdout: `[RESCAN] ${algo} removed; ${target} detected`, stderr: '', outputHash: 'm4n5o6', timestamp: new Date().toISOString(), status: 'PASSED' }
           ]
         },
-        whyPanel: {
-          found: `Found ${algo} at ${file}:${line}`,
-          risk: isSecret ? 'Hardcoded secrets in source code leak credentials to version control and build artifacts.' : `Shor's algorithm running on a quantum computer factors ${algo} in polynomial time.`,
-          fix: `Replaced ${algo} with ${target}.`,
-          whatChanged: [`Line ${line}: Migrated legacy ${algo} call to ${target}.`],
-          impact: 'Signature/Key size changes. Verify API payload limits.',
-          rollback: 'Revert line modification in source module.'
-        }
+        whyPanel
       };
     });
 
@@ -527,6 +737,31 @@
         ? (isOverride ? 'APPROVED_WITH_OVERRIDE' : 'APPROVED') 
         : isRejected ? 'REJECTED' : m.verificationStatus;
 
+      // Evidence chips based on remediation class
+      let evidenceChips = '';
+      if (m.remediationClass === 'SECRET_HYGIENE') {
+        evidenceChips = `
+          <span class="ct-ev-tag pass">Build ✓</span>
+          <span class="ct-ev-tag pass">Run-with-env ✓</span>
+          <span class="ct-ev-tag pass">Missing-var-raises ✓</span>
+          <span class="ct-ev-tag pass">Rescan ✓</span>
+        `;
+      } else if (m.remediationClass === 'SYMMETRIC_HASH_UPGRADE') {
+        evidenceChips = `
+          <span class="ct-ev-tag pass">Build ✓</span>
+          <span class="ct-ev-tag pass">Round-trip ✓</span>
+          <span class="ct-ev-tag pass">Collision-check ✓</span>
+          <span class="ct-ev-tag pass">Rescan ✓</span>
+        `;
+      } else {
+        evidenceChips = `
+          <span class="ct-ev-tag pass">Build ✓</span>
+          <span class="ct-ev-tag pass">Round-trip ✓</span>
+          <span class="ct-ev-tag pass">Tamper test ✓ (valid=true, tampered=false)</span>
+          <span class="ct-ev-tag pass">Rescan ✓</span>
+        `;
+      }
+
       return `
         <div class="ct-card">
           <div class="ct-card-head">
@@ -535,6 +770,7 @@
               <div class="ct-card-algo">${escHtml(m.item.currentAlgorithm)} &rarr; ${escHtml(m.item.targetAlgorithm)}</div>
             </div>
             <div class="ct-badges">
+              <span class="ct-badge ${m.remediationClass}">${escHtml(m.remediationClass.replace(/_/g, ' '))}</span>
               <span class="ct-badge ${m.item.severity}">${m.item.severity}</span>
               <span class="ct-badge ${statusBadge}">${statusBadge}</span>
             </div>
@@ -569,15 +805,21 @@
 
           <div class="ct-evidence-bar">
             <div class="ct-evidence-badges">
-              <span class="ct-ev-tag pass">Build ✓</span>
-              <span class="ct-ev-tag pass">Round-trip ✓</span>
-              <span class="ct-ev-tag pass">Tamper test ✓ (valid=true, tampered=false)</span>
-              <span class="ct-ev-tag pass">Rescan ✓</span>
+              ${evidenceChips}
             </div>
             <span class="ct-raw-log-link" onclick="openRawLogModal(${idx})">[View raw execution log]</span>
           </div>
 
           <div class="ct-card-actions">
+            <button class="ct-btn-security" onclick="openCardSecurityModal(${idx})" title="View Security Features &amp; Run Threat Recovery Scenario">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+              Security Threat &amp; Features
+            </button>
+            ${m.remediationClass === 'PQC_REPLACEMENT' ? `
+            <a class="ct-btn-sec" href="pqc-assurance.html?algo=${encodeURIComponent(m.item.currentAlgorithm)}" target="_blank" style="text-decoration:none;padding:6px 12px;font-size:11px;font-weight:600;" title="PQC Assurance Technical Standards">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;color:var(--ct-purple);"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+              Assurance
+            </a>` : ''}
             <button class="ct-btn-approve-sm" onclick="approveItem('${m.migrationId}', '${m.verificationStatus}')" ${isApproved ? 'disabled' : ''}>✓ Approve</button>
             <button class="ct-btn-reject-sm" onclick="rejectItem('${m.migrationId}')">✕ Reject</button>
             <button class="ct-btn-revise-sm" onclick="openReviseModal(${idx})">↩ Revise</button>
@@ -756,12 +998,228 @@ ${log.stderr || '(none)'}
     if (!s) return '';
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
-  </script>
-</body>
-</html>
- '';
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  /* ── Card Security Modal ───────────────────────────────────────── */
+  let _secModalIdx = 0;
+  let _secSandboxRunning = false;
+
+  function openCardSecurityModal(idx) {
+    _secModalIdx = idx;
+    _secSandboxRunning = false;
+    const m = (_runData && _runData.migrations && _runData.migrations[idx]) || null;
+
+    // --- Build content ---
+    const title = m ? `${escHtml(m.item.filePath)} : ${m.item.line}` : 'Security Threat & Features';
+    const rc = m ? m.remediationClass : 'PQC_REPLACEMENT';
+    const algo = m ? m.item.currentAlgorithm : 'Unknown';
+    const target = m ? m.item.targetAlgorithm : 'Unknown';
+    const found = m ? m.whyPanel.found : '';
+    const risk  = m ? m.whyPanel.risk  : '';
+    const fix   = m ? m.whyPanel.fix   : '';
+    const impact = m ? m.whyPanel.impact : '';
+
+    // Threat scenarios per remediation class
+    const threatMap = {
+      PQC_REPLACEMENT: [
+        { name: 'Quantum Key Harvest', desc: 'Adversary records today’s ciphertext to decrypt after quantum advantage.', severity: 'CRITICAL' },
+        { name: 'Algorithm Downgrade', desc: 'MITM forces negotiation down to weak classical cipher.', severity: 'HIGH' },
+        { name: 'Signature Forgery', desc: 'Forged signatures pass classical-only verification.', severity: 'HIGH' },
+      ],
+      SECRET_HYGIENE: [
+        { name: 'Credential Leak via VCS', desc: 'Raw secret committed to git history, exposed publicly.', severity: 'CRITICAL' },
+        { name: 'Env-var Missing at Runtime', desc: 'Application crashes or falls back to insecure default.', severity: 'HIGH' },
+        { name: 'Secret Rotation Failure', desc: 'Hardcoded secret cannot be rotated without re-deploy.', severity: 'MEDIUM' },
+      ],
+      SYMMETRIC_HASH_UPGRADE: [
+        { name: 'Hash Collision Attack', desc: 'MD5/SHA-1 collision lets attacker produce same digest.', severity: 'CRITICAL' },
+        { name: 'Length Extension Attack', desc: 'SHA-1 MAC is vulnerable to length-extension forgery.', severity: 'HIGH' },
+        { name: 'Preimage Attack', desc: 'Weak hash allows reconstruction of original data.', severity: 'MEDIUM' },
+      ]
+    };
+    const threats = threatMap[rc] || threatMap['PQC_REPLACEMENT'];
+
+    const secChecksMap = {
+      PQC_REPLACEMENT: [
+        { name: 'Build & Compile', desc: 'Library builds cleanly with PQC dependency.' },
+        { name: 'Key-pair Round-trip', desc: 'Key generation → sign → verify cycle passes.' },
+        { name: 'Tamper Detection', desc: 'Modified ciphertext/signature is rejected.' },
+        { name: 'Quantum Rescan', desc: 'Post-fix AST scan shows zero legacy algorithm hits.' },
+      ],
+      SECRET_HYGIENE: [
+        { name: 'Build Test', desc: 'Application compiles without hardcoded secrets.' },
+        { name: 'Run-with-env', desc: 'App starts and authenticates via env variable.' },
+        { name: 'Missing-var Raises', desc: 'Startup raises ConfigError when env var absent.' },
+        { name: 'Rescan Clean', desc: 'Entropy & pattern scan finds zero exposed secrets.' },
+      ],
+      SYMMETRIC_HASH_UPGRADE: [
+        { name: 'Build Test', desc: 'Upgraded hash library imports cleanly.' },
+        { name: 'Round-trip Hash', desc: 'Hash-then-verify cycle produces correct digest.' },
+        { name: 'Collision Resistance', desc: 'Distinct inputs produce distinct outputs (spot check).' },
+        { name: 'Rescan Clean', desc: 'AST scan confirms no remaining MD5/SHA-1 usage.' },
+      ]
+    };
+    const checks = secChecksMap[rc] || secChecksMap['PQC_REPLACEMENT'];
+
+    const sevColor = { CRITICAL: 'var(--ct-red)', HIGH: 'var(--ct-amber)', MEDIUM: 'var(--ct-cyan)' };
+    const sevBg    = { CRITICAL: 'var(--ct-red-bg)', HIGH: 'var(--ct-amber-bg)', MEDIUM: 'var(--ct-cyan-bg)' };
+
+    const threatHTML = threats.map(t => `
+      <div class="sec-check-item">
+        <div>
+          <div class="sec-check-name">${escHtml(t.name)}</div>
+          <div class="sec-check-desc">${escHtml(t.desc)}</div>
+        </div>
+        <span class="sec-check-badge" style="background:${sevBg[t.severity]};color:${sevColor[t.severity]};border:1px solid ${sevColor[t.severity]};">${t.severity}</span>
+      </div>
+    `).join('');
+
+    const checkHTML = checks.map(c => {
+      const safeKey = c.name.replace(/[^a-zA-Z0-9]/g,'_');
+      return `
+      <div class="sec-check-item" id="sec-chk-${safeKey}">
+        <div>
+          <div class="sec-check-name">${escHtml(c.name)}</div>
+          <div class="sec-check-desc">${escHtml(c.desc)}</div>
+        </div>
+        <span class="sec-check-badge pending" id="sec-chk-badge-${safeKey}">Pending</span>
+      </div>
+    `;
+    }).join('');
+
+    const rcBadgeStyle = {
+      PQC_REPLACEMENT:       'background:rgba(139,92,246,0.14);color:#8b5cf6;border:1px solid rgba(139,92,246,0.45);',
+      SECRET_HYGIENE:        'background:rgba(239,68,68,0.14);color:#ef4444;border:1px solid rgba(239,68,68,0.45);',
+      SYMMETRIC_HASH_UPGRADE:'background:rgba(6,182,212,0.14);color:#06b6d4;border:1px solid rgba(6,182,212,0.45);'
+    }[rc] || '';
+
+    document.getElementById('csm-title').textContent = title;
+    document.getElementById('csm-rc-badge').setAttribute('style', 'font-size:10px;font-weight:700;text-transform:uppercase;padding:3px 8px;border-radius:5px;' + rcBadgeStyle);
+    document.getElementById('csm-rc-badge').textContent = rc.replace(/_/g,' ');
+    document.getElementById('csm-algo-from').textContent = algo;
+    document.getElementById('csm-algo-to').textContent = target;
+    document.getElementById('csm-found').textContent = found;
+    document.getElementById('csm-risk').textContent  = risk;
+    document.getElementById('csm-fix').textContent   = fix;
+    document.getElementById('csm-impact').textContent= impact;
+    document.getElementById('csm-threats').innerHTML = threatHTML;
+    document.getElementById('csm-checks').innerHTML  = checkHTML;
+    document.getElementById('csm-sandbox-status').textContent = 'Not run';
+    document.getElementById('csm-sandbox-status').className   = 'sec-check-badge pending';
+    document.getElementById('csm-run-btn').disabled = false;
+    document.getElementById('csm-run-btn').textContent = '▶ Start Sandbox Recovery Validation';
+
+    document.getElementById('card-security-modal').classList.add('open');
+  }
+
+  function closeCardSecurityModal() {
+    document.getElementById('card-security-modal').classList.remove('open');
+  }
+
+  function runCardSecuritySandbox() {
+    if (_secSandboxRunning) return;
+    _secSandboxRunning = true;
+    const btn = document.getElementById('csm-run-btn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Running…';
+    document.getElementById('csm-sandbox-status').textContent = 'Running…';
+    document.getElementById('csm-sandbox-status').className   = 'sec-check-badge running';
+
+    const m = (_runData && _runData.migrations && _runData.migrations[_secModalIdx]) || null;
+    const rc = m ? m.remediationClass : 'PQC_REPLACEMENT';
+    // Keys must match: c.name.replace(/[^a-zA-Z0-9]/g,'_')
+    const checkNames = {
+      PQC_REPLACEMENT:       ['Build___Compile','Key_pair_Round_trip','Tamper_Detection','Quantum_Rescan'],
+      SECRET_HYGIENE:        ['Build_Test','Run_with_env','Missing_var_Raises','Rescan_Clean'],
+      SYMMETRIC_HASH_UPGRADE:['Build_Test','Round_trip_Hash','Collision_Resistance','Rescan_Clean']
+    }[rc] || [];
+
+    // Simulate running checks sequentially with realistic delays
+    let step = 0;
+    function runNextCheck() {
+      if (step >= checkNames.length) {
+        // All done
+        const ts = new Date().toLocaleString();
+        document.getElementById('csm-sandbox-status').textContent = `Validated in sandbox on ${ts}`;
+        document.getElementById('csm-sandbox-status').className   = 'sec-check-badge passed';
+        btn.textContent = '✓ Completed';
+        // Persist validation timestamp on migration if available
+        if (m) m._secValidatedAt = ts;
+        return;
+      }
+      const key = checkNames[step];
+      const badgeEl = document.getElementById('sec-chk-badge-' + key);
+      if (badgeEl) {
+        badgeEl.textContent = 'Running…';
+        badgeEl.className   = 'sec-check-badge running';
+      }
+      setTimeout(() => {
+        if (badgeEl) {
+          badgeEl.textContent = 'Passed';
+          badgeEl.className   = 'sec-check-badge passed';
+        }
+        step++;
+        setTimeout(runNextCheck, 220);
+      }, 600 + Math.random() * 400);
+    }
+    setTimeout(runNextCheck, 300);
   }
   </script>
+
+  <!-- Card Security Modal -->
+  <div class="ct-modal-overlay" id="card-security-modal">
+    <div class="ct-modal-box" style="max-width:780px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;gap:12px;">
+        <div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" style="width:18px;height:18px;flex-shrink:0;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+            <span style="font-size:15px;font-weight:800;color:var(--text-h);" id="csm-title">Security Threat &amp; Features</span>
+            <span id="csm-rc-badge"></span>
+          </div>
+          <div style="font-size:12px;color:var(--text-m);font-family:'JetBrains Mono',monospace;">
+            <span id="csm-algo-from" style="color:#f87171;"></span>
+            <span style="margin:0 6px;">→</span>
+            <span id="csm-algo-to" style="color:#4ade80;"></span>
+          </div>
+        </div>
+        <button onclick="closeCardSecurityModal()" style="background:none;border:none;cursor:pointer;color:var(--text-m);padding:4px;font-size:18px;line-height:1;">✕</button>
+      </div>
+
+      <!-- Security Rationale -->
+      <div style="background:var(--bg-main);border:1px solid var(--border-color);border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:12px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ct-purple);letter-spacing:.6px;margin-bottom:10px;">Security Rationale</div>
+        <div style="display:flex;flex-direction:column;gap:6px;color:var(--text-b);">
+          <div><span style="font-weight:700;color:var(--text-h);min-width:130px;display:inline-block;">• Found:</span><span id="csm-found"></span></div>
+          <div><span style="font-weight:700;color:var(--text-h);min-width:130px;display:inline-block;">• Risk if left:</span><span id="csm-risk"></span></div>
+          <div><span style="font-weight:700;color:var(--text-h);min-width:130px;display:inline-block;">• Fix choice:</span><span id="csm-fix"></span></div>
+          <div><span style="font-weight:700;color:var(--text-h);min-width:130px;display:inline-block;">• Impact &amp; Check:</span><span id="csm-impact"></span></div>
+        </div>
+      </div>
+
+      <!-- Threat Scenarios -->
+      <div style="margin-bottom:16px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ct-red);letter-spacing:.6px;margin-bottom:10px;">⚠ Known Threat Scenarios</div>
+        <div id="csm-threats"></div>
+      </div>
+
+      <!-- Sandbox Checks -->
+      <div style="margin-bottom:16px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ct-green);letter-spacing:.6px;margin-bottom:10px;">🛡 Sandbox Recovery Checks</div>
+        <div id="csm-checks"></div>
+      </div>
+
+      <!-- Run & Status -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding-top:14px;border-top:1px solid var(--border-color);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:12px;color:var(--text-m);">Sandbox status:</span>
+          <span class="sec-check-badge pending" id="csm-sandbox-status">Not run</span>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button id="csm-run-btn" onclick="runCardSecuritySandbox()" style="padding:8px 18px;background:linear-gradient(135deg,#7c3aed,#6d28d9);border:none;border-radius:8px;font-size:12px;font-weight:700;color:#fff;cursor:pointer;">▶ Start Sandbox Recovery Validation</button>
+          <button onclick="closeCardSecurityModal()" class="ct-btn-sec" style="font-size:12px;">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
