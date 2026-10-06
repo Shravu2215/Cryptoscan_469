@@ -22,6 +22,18 @@ assert.equal(unknown.replacement, 'FALLBACK');
 assert.ok(unknown.points.length > 0);
 assert.ok(unknown.safeStatus);
 
+const cryptoTwinSignature = resolveAssuranceEntry('ML-DSA-65 (FIPS 204)', 'RSA-2048', 'jwt signing');
+assert.equal(cryptoTwinSignature.isFallback, false);
+assert.match(cryptoTwinSignature.standard, /FIPS 204/);
+
+const cryptoTwinHash = resolveAssuranceEntry('SHA-256', 'MD5', 'hashing');
+assert.equal(cryptoTwinHash.isFallback, false);
+assert.match(cryptoTwinHash.standard, /FIPS 180-4/);
+
+const cryptoTwinSecrets = resolveAssuranceEntry('Environment Variable / AWS KMS', 'Hardcoded API key', 'secret');
+assert.equal(cryptoTwinSecrets.isFallback, false);
+assert.match(cryptoTwinSecrets.standard, /SP 800-57/);
+
 assert.ok(Object.keys(ENTRIES).length >= 10);
 QuantumRules.RULES.filter(rule => rule.replacement).forEach(rule => {
 	const assurance = resolveAssuranceEntry(rule.replacement, rule.families[0]);

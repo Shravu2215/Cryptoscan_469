@@ -13,6 +13,7 @@
     { label: 'NIST FIPS 180-4 · Secure Hash Standard', url: 'https://doi.org/10.6028/NIST.FIPS.180-4', status: 'Final' },
     { label: 'NIST FIPS 202 · SHA-3 Standard', url: 'https://doi.org/10.6028/NIST.FIPS.202', status: 'Final' },
     { label: 'NIST SP 800-38D · GCM', url: 'https://doi.org/10.6028/NIST.SP.800-38D', status: 'Final' },
+    { label: 'NIST SP 800-57 Part 1 Rev. 5 · Key Management', url: 'https://doi.org/10.6028/NIST.SP.800-57pt1r5', status: 'Final' },
     { label: 'NIST IR 8547 · Transition to Post-Quantum Cryptography', url: 'https://csrc.nist.gov/pubs/ir/8547/ipd', status: 'Draft transition guidance; proposed dates are not universal law' },
     { label: 'NIST SP 800-208 · Stateful hash-based signatures', url: 'https://doi.org/10.6028/NIST.SP.800-208', status: 'Final' },
     { label: 'NIST · HQC selected as backup KEM', url: 'https://www.nist.gov/news-events/news/2025/03/nist-selects-hqc-fifth-algorithm-post-quantum-encryption', status: 'Selected for standardization; not a final standard' },
@@ -165,7 +166,15 @@
 
   function resolveAssuranceEntry(replacement, algorithm, purpose) {
     const normalizedReplacement = normalize(replacement);
-    const entry = Object.keys(ENTRIES).find(key => normalize(key) === normalizedReplacement);
+    const entry = Object.keys(ENTRIES).find(key => normalize(key) === normalizedReplacement)
+      || (/ml-kem/.test(normalizedReplacement) ? 'ML-KEM (Kyber-768/1024) or Hybrid X25519+ML-KEM' : '')
+      || (/ml-dsa|slh-dsa|fn-dsa/.test(normalizedReplacement) ? 'ML-DSA (Dilithium-3/5) or SLH-DSA (SPHINCS+)' : '')
+      || (/sha-?256|sha3-?256/.test(normalizedReplacement) ? 'SHA-256 / SHA-3-256' : '')
+      || (/blake3/.test(normalizedReplacement) ? 'SHA-256 / SHA-3-256 / BLAKE3' : '')
+      || (/aes-256-gcm/.test(normalizedReplacement) && /chacha20/.test(normalizedReplacement) ? 'AES-256-GCM / ChaCha20-Poly1305' : '')
+      || (/aes-256-gcm/.test(normalizedReplacement) ? 'AES-256-GCM' : '')
+      || (/secrets manager|kms|vault|environment/.test(normalizedReplacement) ? 'Secrets Manager / KMS / HashiCorp Vault' : '')
+      || null;
     const current = String(algorithm || '').toUpperCase();
     let old = null;
     if (/MD5|MD4|MD2/.test(current)) old = { classical: 'Broken: practical collision attacks make MD5 unsuitable for collision resistance.', quantum: 'Already broken classically; Grover is not the reason to replace it.' };

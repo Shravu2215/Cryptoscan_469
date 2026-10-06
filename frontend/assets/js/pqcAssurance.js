@@ -7,6 +7,10 @@
   const selectedFindingId = params.get('findingId') || '';
   const fromAlgorithm = params.get('from') || '';
   const toAlgorithm = params.get('to') || '';
+  const requestedPurpose = params.get('purpose') || '';
+  const requestedFile = params.get('file') || '';
+  const requestedLine = params.get('line') || '';
+  const requestedRemediationClass = params.get('remediationClass') || '';
   const requestedScanId = params.get('scanId') || '';
   const sourceLabel = params.get('source') || '';
   let currentScan = null;
@@ -93,7 +97,38 @@
     return fromMatches && toMatches;
   }
 
+  function focusCryptoTwinCandidate(collectedFindings) {
+    if (sourceLabel !== 'cryptotwin') return;
+    const finding = collectedFindings.find(item => String(item.id || '') === selectedFindingId)
+      || collectedFindings.find(item =>
+        item.algorithm === fromAlgorithm
+        && (item.file || item.filePath || '') === requestedFile
+        && String(item.line || item.lineNumber || '') === requestedLine
+      );
+    const candidate = candidates.find(item => (item.findingIds || []).some(id => String(id) === selectedFindingId))
+      || candidates.find(item => item.algorithm === fromAlgorithm);
+    const rawFinding = finding || {
+      id: selectedFindingId,
+      algorithm: fromAlgorithm,
+      usage: requestedPurpose,
+      file: requestedFile,
+      line: requestedLine
+    };
+    candidates = [{
+      ...(candidate || {}),
+      algorithm: fromAlgorithm || candidate?.algorithm || 'Unknown',
+      purpose: requestedPurpose || finding?.usage || finding?.category || candidate?.purpose || '',
+      replacement: toAlgorithm || candidate?.replacement || '',
+      remediationClass: requestedRemediationClass || finding?.remediationClass || candidate?.remediationClass || '',
+      affectedFiles: [requestedFile || finding?.file || finding?.filePath || 'unknown'],
+      findings: [rawFinding],
+      findingIds: [selectedFindingId].filter(Boolean),
+      rawFinding
+    }];
+  }
+
   function purposeLabel(purpose) {
+    const normalized = String(purpose || '').toLowerCase();
     const labels = {
       key_exchange: 'KEM / key establishment',
       digital_signature: 'Signature',
@@ -103,7 +138,14 @@
       encryption: 'Symmetric encryption',
       password_hashing: 'Password hashing'
     };
-    return labels[String(purpose || '').toLowerCase()] || 'Not recorded in finding';
+    return labels[normalized]
+      || (/sign|auth|jwt|certificate/.test(normalized) ? 'Signature' : '')
+      || (/key.?exchange|key.?establish|kem/.test(normalized) ? 'KEM / key establishment' : '')
+      || (/password/.test(normalized) ? 'Password hashing' : '')
+      || (/hash|digest/.test(normalized) ? 'Hash' : '')
+      || (/encrypt|cipher/.test(normalized) ? 'Symmetric encryption' : '')
+      || (/secret|credential|api.?key/.test(normalized) ? 'Secret handling' : '')
+      || 'Not recorded in finding';
   }
 
   function assuranceCheckNames(candidate) {
@@ -159,7 +201,7 @@
     let quantumOutlook = 'No stronger quantum-resistance claim is established for this recommendation; verify it against the cited standard.';
 
     if (isSecret) {
-      why = 'Move the exposed value out of source control, restrict access, and rotate it.';
+      why = `For ${candidate.algorithm}, remove the exposed value from source control, restrict access, and rotate it.`;
       quantumOutlook = 'This is secret handling, not a PQC algorithm upgrade; it does not make the underlying cryptography quantum-safe.';
     } else if (isKem && isSignature) {
       why = 'ML-KEM is for key establishment, not signatures. Choose a signature scheme such as ML-DSA or SLH-DSA for this operation.';
@@ -174,19 +216,28 @@
       why = /SLH-DSA/i.test(target) ? 'SLH-DSA uses standardized hash-based signatures.' : 'ML-DSA uses standardized module-lattice signatures.';
       quantumOutlook = 'Shor’s algorithm breaks RSA/ECDSA, while no efficient quantum attack is currently known against standardized ML-DSA/SLH-DSA parameters.';
     } else if (/sha-?256|sha3/i.test(target)) {
-      why = 'SHA-256 and SHA-3 are standardized hash functions; MD5/SHA-1 collision weaknesses are already practical classical risks.';
+      why = `Replace ${candidate.algorithm} with the recommended standardized hash; MD5/SHA-1 collision weaknesses are already practical classical risks.`;
       quantumOutlook = 'Grover speeds generic search, but does not recreate the known MD5/SHA-1 collision break in these replacements.';
     } else if (/aes-?256|chacha20/i.test(target)) {
-      why = 'Use the recommended strong symmetric cipher with an authenticated-encryption mode.';
+      why = `Replace ${candidate.algorithm} for ${purposeLabel(purpose).toLowerCase()} with the recommended authenticated-encryption cipher.`;
       quantumOutlook = 'Grover gives a quadratic key-search speedup; AES-256 retains roughly 128-bit generic quantum search work.';
     }
 
     const source = entry.sources?.find(item =>
       (isKem && /FIPS 203/.test(item.label)) ||
       (isSignaturePqc && (/ML-DSA/i.test(target) ? /FIPS 204/.test(item.label) : /FIPS 205/.test(item.label))) ||
-      (/sha-?256|sha3/i.test(target) && /FIPS 180-4/.test(item.label)) ||
-      (/aes-?256|chacha20/i.test(target) && /800-38D/.test(item.label))
+      (/sha3/i.test(target) && /FIPS 202/.test(item.label)) ||
+      (/sha-?256/i.test(target) && /FIPS 180-4/.test(item.label)) ||
+      (/aes-?256|chacha20/i.test(target) && /800-38D/.test(item.label)) ||
+      (isSecret && /800-57/.test(item.label))
     );
+    const guidanceMapped = !entry.isFallback && Boolean(entry.standard) && !/no matching standard entry/i.test(entry.standard);
+    const guidanceBasis = guidanceMapped
+      ? escapeHtml(entry.standard)
+      : 'No matched standard or reviewed guidance entry; recommendation needs expert review.';
+    const guidanceReference = source
+      ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.label)} · ${escapeHtml(source.status)}</a>`
+      : 'No direct reference mapped';
     const file = finding.file || finding.filePath || candidate.affectedFiles?.[0] || 'Finding file not recorded';
     const line = finding.line || finding.lineNumber || '';
     const location = `${file}${line ? ` · line ${line}` : ''}`;
@@ -206,6 +257,17 @@
             <span class="assurance-review-badge">Migration review</span>
           </div>
         </header>
+        <section class="assurance-certificate" aria-label="Standards and implementation confidence">
+          <div class="assurance-certificate-head">
+            <div><span class="assurance-kicker">Evidence summary · not a formal certification</span><h4>Confidence assessment</h4></div>
+            <span class="assurance-certificate-badge ${guidanceMapped ? 'mapped' : 'unmapped'}">${guidanceMapped ? 'GUIDANCE MAPPED' : 'REVIEW NEEDED'}</span>
+          </div>
+          <div class="assurance-certificate-grid">
+            <div><strong>Recommendation basis</strong><span>${guidanceBasis}</span><span>${guidanceReference}</span></div>
+            <div><strong>Code-change authenticity</strong><span class="assurance-unverified">NOT VERIFIED</span><span>No migrated source diff was supplied. A standard or runtime self-test does not prove the described edit was applied to this file.</span></div>
+          </div>
+          <p>NIST and other guidance define algorithms and controls; they do not authorize or certify this specific code change. Review the actual diff and rescan the migrated project before sign-off.</p>
+        </section>
         <section class="assurance-brief">
           <div class="assurance-brief-row">
             <span class="assurance-brief-icon reason" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3a8 8 0 0 0-4.8 14.4c.7.5 1.1 1.1 1.2 1.8h7.2c.1-.7.5-1.3 1.2-1.8A8 8 0 0 0 12 3Z" stroke="currentColor" stroke-width="1.7"/><path d="M9.5 22h5M9.5 19.2h5M12 7v5l3 1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
@@ -363,6 +425,7 @@
     } else {
       const collected = MigrationPlanData.collectFindings(data, scanId || undefined);
       candidates = MigrationPlanData.buildCandidates(collected.findings);
+      focusCryptoTwinCandidate(collected.findings);
       byId('assurance-scan-meta').textContent = `${currentScan?.repoName || currentScan?.name || 'Current scan'} · ${scanId || 'scan ID not recorded'} · Last scan: ${dateLabel(currentScan?.scanDate || currentScan?.completedAt || currentScan?.timestamp)}`;
       if (selectedFindingId || fromAlgorithm || toAlgorithm) {
         byId('assurance-selection-note').textContent = sourceLabel === 'cryptotwin'
